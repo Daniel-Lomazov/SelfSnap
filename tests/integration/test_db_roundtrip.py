@@ -25,6 +25,8 @@ def test_insert_and_fetch_latest_record(temp_paths) -> None:
         file_bytes=123,
         error_code=None,
         error_message=None,
+        archived=False,
+        archived_at_utc=None,
         retention_deleted_at_utc=None,
         app_version="0.1.0",
         created_utc="2026-03-21T10:00:01+00:00",
@@ -34,4 +36,5 @@ def test_insert_and_fetch_latest_record(temp_paths) -> None:
         latest = get_latest_record(connection)
     assert latest is not None
     assert latest.record_id == "record-1"
-
+    assert latest.archived is False
+    assert latest.archived_at_utc is None
