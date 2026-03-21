@@ -75,6 +75,18 @@ def run_capture_command(
                     tzinfo=now_local.tzinfo,
                 ).isoformat()
 
+            if not config.first_run_completed:
+                record = _build_non_capture_record(
+                    trigger_source=trigger_source,
+                    schedule_id=schedule_id,
+                    planned_local_ts=planned_local_ts,
+                    category=OutcomeCategory.SKIPPED,
+                    code=OutcomeCode.SCHEDULED_DISABLED,
+                    error_message="Scheduled capture skipped because first-run setup is incomplete.",
+                )
+                insert_capture_record(connection, record)
+                return WorkerCommandResult(EXIT_OK, record, record.error_message or "")
+
             if not config.app_enabled:
                 record = _build_non_capture_record(
                     trigger_source=trigger_source,
@@ -99,17 +111,20 @@ def run_capture_command(
                 insert_capture_record(connection, record)
                 return WorkerCommandResult(EXIT_OK, record, record.error_message or "")
 
-            if config.is_paused(now_local):
-                record = _build_non_capture_record(
+            if config.scheduler_sync_failed():
+                record = _build_failure_record(
                     trigger_source=trigger_source,
                     schedule_id=schedule_id,
                     planned_local_ts=planned_local_ts,
-                    category=OutcomeCategory.SKIPPED,
-                    code=OutcomeCode.SCHEDULED_PAUSED,
-                    error_message="Scheduled capture skipped because the app is paused.",
+                    started_utc=datetime.now(timezone.utc),
+                    code=OutcomeCode.SCHEDULER_SYNC_ERROR,
+                    message=(
+                        "Scheduled capture blocked because scheduler sync is in a failed state. "
+                        "Open Settings and resolve scheduler sync before scheduled capture resumes."
+                    ),
                 )
                 insert_capture_record(connection, record)
-                return WorkerCommandResult(EXIT_OK, record, record.error_message or "")
+                return WorkerCommandResult(EXIT_SCHEDULER_FAILURE, record, record.error_message or "")
 
         started_utc = datetime.now(timezone.utc)
         try:
@@ -139,12 +154,14 @@ def run_capture_command(
                 file_bytes=file_bytes,
                 error_code=None,
                 error_message=None,
+                archived=False,
+                archived_at_utc=None,
                 retention_deleted_at_utc=None,
                 app_version=__version__,
                 created_utc=finished_utc.isoformat(),
             )
             insert_capture_record(connection, record)
-            apply_retention(connection, config)
+            apply_retention(connection, config, paths=paths)
             return WorkerCommandResult(EXIT_OK, record, f"Capture saved to {destination}")
         except CaptureBackendError as exc:
             record = _build_failure_record(
@@ -212,6 +229,8 @@ def _build_non_capture_record(
         file_bytes=None,
         error_code=code.value,
         error_message=error_message,
+        archived=False,
+        archived_at_utc=None,
         retention_deleted_at_utc=None,
         app_version=__version__,
         created_utc=now_utc.isoformat(),
@@ -245,6 +264,8 @@ def _build_failure_record(
         file_bytes=None,
         error_code=code.value,
         error_message=message,
+        archived=False,
+        archived_at_utc=None,
         retention_deleted_at_utc=None,
         app_version=__version__,
         created_utc=finished_utc.isoformat(),
@@ -257,4 +278,3 @@ def _hash_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(65536), b""):
             digest.update(chunk)
     return digest.hexdigest()
-

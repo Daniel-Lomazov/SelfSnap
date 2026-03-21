@@ -10,7 +10,12 @@ from selfsnap.paths import AppPaths
 
 
 def default_config(paths: AppPaths) -> AppConfig:
-    config = AppConfig(capture_storage_root=str(paths.default_capture_root))
+    config = AppConfig(
+        app_enabled=False,
+        first_run_completed=False,
+        capture_storage_root=str(paths.default_capture_root),
+        archive_storage_root=str(paths.default_archive_root),
+    )
     config.validate()
     return config
 
@@ -20,6 +25,10 @@ def load_config(paths: AppPaths) -> AppConfig:
         return default_config(paths)
     with paths.config_path.open("r", encoding="utf-8") as handle:
         data = json.load(handle)
+    if not data.get("capture_storage_root"):
+        data["capture_storage_root"] = str(paths.default_capture_root)
+    if not data.get("archive_storage_root"):
+        data["archive_storage_root"] = str(paths.default_archive_root)
     return AppConfig.from_dict(data)
 
 
@@ -51,4 +60,3 @@ def validate_config_file(paths: AppPaths) -> None:
         load_config(paths)
     except (json.JSONDecodeError, ConfigValidationError) as exc:
         raise ConfigValidationError(str(exc)) from exc
-

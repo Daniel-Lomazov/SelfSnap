@@ -1,12 +1,20 @@
 {
   "schema_version": 1,
-  "app_enabled": true,
-  "pause_until_local": null,
-  "capture_storage_root": "%LOCALAPPDATA%\\SelfSnap\\captures",
+  "app_enabled": false,
+  "first_run_completed": false,
+  "capture_storage_root": "%USERPROFILE%\\Pictures\\SelfSnap\\captures",
+  "archive_storage_root": "%USERPROFILE%\\Pictures\\SelfSnap\\archive",
   "retention_mode": "keep_forever",
   "retention_days": null,
   "start_tray_on_login": true,
   "log_level": "INFO",
+  "show_last_capture_status": true,
+  "notify_on_failed_or_missed": true,
+  "notify_on_every_capture": false,
+  "show_capture_overlay": false,
+  "wake_for_scheduled_captures": false,
+  "scheduler_sync_state": "ok",
+  "scheduler_sync_message": null,
   "slot_match_tolerance_seconds": 120,
   "schedules": [
     {

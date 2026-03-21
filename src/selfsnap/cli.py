@@ -78,6 +78,8 @@ def handle_diag(_args: argparse.Namespace) -> int:
     config = load_or_create_config(paths)
     ensure_database(paths.db_path)
     setup_logging(paths, config.log_level)
+    from selfsnap.scheduler.task_scheduler import read_registered_task_details
+
     with connect(paths.db_path) as connection:
         latest = get_latest_record(connection)
     payload = {
@@ -87,9 +89,13 @@ def handle_diag(_args: argparse.Namespace) -> int:
             "config_path": str(paths.config_path),
             "db_path": str(paths.db_path),
             "log_path": str(paths.log_path),
+            "default_capture_root": str(paths.default_capture_root),
+            "default_archive_root": str(paths.default_archive_root),
+            "bin_dir": str(paths.bin_dir),
         },
         "config": config.to_dict(),
         "latest_record": asdict(latest) if latest else None,
+        "scheduled_tasks": read_registered_task_details(),
         "python": sys.version,
         "cwd": str(Path.cwd()),
     }

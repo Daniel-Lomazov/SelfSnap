@@ -22,8 +22,16 @@ def reconcile_missed_slots(paths: AppPaths | None = None) -> int:
     logger = setup_logging(paths, config.log_level)
     ensure_database(paths.db_path)
 
+    if not config.first_run_completed:
+        logger.info("Reconcile skipped because first-run setup is incomplete")
+        return EXIT_OK
+
     if not config.app_enabled:
         logger.info("Reconcile skipped because app_enabled is false")
+        return EXIT_OK
+
+    if config.scheduler_sync_failed():
+        logger.info("Reconcile skipped because scheduler sync is in failed state")
         return EXIT_OK
 
     now_local = datetime.now().astimezone()
@@ -62,6 +70,8 @@ def reconcile_missed_slots(paths: AppPaths | None = None) -> int:
                     file_bytes=None,
                     error_code=OutcomeCode.SLOT_MISSED_NO_ATTEMPT.value,
                     error_message="No capture attempt was recorded for the planned schedule slot.",
+                    archived=False,
+                    archived_at_utc=None,
                     retention_deleted_at_utc=None,
                     app_version=__version__,
                     created_utc=datetime.now(timezone.utc).isoformat(),
@@ -84,4 +94,3 @@ def iter_planned_slots(local_time: str, start_local: datetime, end_local: dateti
             output.append(planned)
         cursor += timedelta(days=1)
     return output
-

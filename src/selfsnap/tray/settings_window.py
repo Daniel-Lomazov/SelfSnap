@@ -10,20 +10,37 @@ from selfsnap.models import AppConfig, ConfigValidationError, Schedule
 def show_settings_dialog(config: AppConfig) -> AppConfig | None:
     root = tk.Tk()
     root.title("SelfSnap Settings")
-    root.geometry("640x420")
+    root.geometry("700x560")
     root.resizable(False, False)
 
     capture_root_var = tk.StringVar(value=config.capture_storage_root)
+    archive_root_var = tk.StringVar(value=config.archive_storage_root)
     retention_mode_var = tk.StringVar(value=config.retention_mode)
     retention_days_var = tk.StringVar(value="" if config.retention_days is None else str(config.retention_days))
-    schedules_text = tk.Text(root, width=70, height=12)
+    start_tray_on_login_var = tk.BooleanVar(value=config.start_tray_on_login)
+    wake_for_scheduled_captures_var = tk.BooleanVar(value=config.wake_for_scheduled_captures)
+    show_last_capture_status_var = tk.BooleanVar(value=config.show_last_capture_status)
+    notify_on_failed_or_missed_var = tk.BooleanVar(value=config.notify_on_failed_or_missed)
+    notify_on_every_capture_var = tk.BooleanVar(value=config.notify_on_every_capture)
+    show_capture_overlay_var = tk.BooleanVar(value=config.show_capture_overlay)
+    schedules_text = tk.Text(root, width=78, height=12)
     schedules_text.insert("1.0", _serialize_schedules(config.schedules))
 
     tk.Label(root, text="Capture storage root").pack(anchor="w", padx=12, pady=(12, 0))
-    storage_row = tk.Frame(root)
-    storage_row.pack(fill="x", padx=12)
-    tk.Entry(storage_row, textvariable=capture_root_var, width=60).pack(side="left", fill="x", expand=True)
-    ttk.Button(storage_row, text="Browse", command=lambda: _browse_directory(capture_root_var)).pack(side="left", padx=(8, 0))
+    capture_row = tk.Frame(root)
+    capture_row.pack(fill="x", padx=12)
+    tk.Entry(capture_row, textvariable=capture_root_var, width=64).pack(side="left", fill="x", expand=True)
+    ttk.Button(capture_row, text="Browse", command=lambda: _browse_directory(capture_root_var)).pack(
+        side="left", padx=(8, 0)
+    )
+
+    tk.Label(root, text="Archive storage root").pack(anchor="w", padx=12, pady=(12, 0))
+    archive_row = tk.Frame(root)
+    archive_row.pack(fill="x", padx=12)
+    tk.Entry(archive_row, textvariable=archive_root_var, width=64).pack(side="left", fill="x", expand=True)
+    ttk.Button(archive_row, text="Browse", command=lambda: _browse_directory(archive_root_var)).pack(
+        side="left", padx=(8, 0)
+    )
 
     retention_row = tk.Frame(root)
     retention_row.pack(fill="x", padx=12, pady=(12, 0))
@@ -37,6 +54,37 @@ def show_settings_dialog(config: AppConfig) -> AppConfig | None:
     ).pack(side="left", padx=(8, 16))
     tk.Label(retention_row, text="Retention days").pack(side="left")
     tk.Entry(retention_row, textvariable=retention_days_var, width=8).pack(side="left", padx=(8, 0))
+
+    toggles_frame = tk.LabelFrame(root, text="Behavior")
+    toggles_frame.pack(fill="x", padx=12, pady=(12, 0))
+    tk.Checkbutton(toggles_frame, text="Start tray on login", variable=start_tray_on_login_var).pack(
+        anchor="w", padx=12, pady=(8, 0)
+    )
+    tk.Checkbutton(
+        toggles_frame,
+        text="Wake for scheduled captures when supported",
+        variable=wake_for_scheduled_captures_var,
+    ).pack(anchor="w", padx=12)
+    tk.Checkbutton(
+        toggles_frame,
+        text="Show latest capture status in tray menu",
+        variable=show_last_capture_status_var,
+    ).pack(anchor="w", padx=12)
+    tk.Checkbutton(
+        toggles_frame,
+        text="Notify on failed or missed captures",
+        variable=notify_on_failed_or_missed_var,
+    ).pack(anchor="w", padx=12)
+    tk.Checkbutton(
+        toggles_frame,
+        text="Notify on every scheduled and manual capture",
+        variable=notify_on_every_capture_var,
+    ).pack(anchor="w", padx=12)
+    tk.Checkbutton(
+        toggles_frame,
+        text="Show brief on-screen overlay after capture",
+        variable=show_capture_overlay_var,
+    ).pack(anchor="w", padx=12, pady=(0, 8))
 
     tk.Label(
         root,
@@ -55,8 +103,15 @@ def show_settings_dialog(config: AppConfig) -> AppConfig | None:
             updated = replace(
                 config,
                 capture_storage_root=capture_root_var.get().strip(),
+                archive_storage_root=archive_root_var.get().strip(),
                 retention_mode=retention_mode_var.get().strip(),
                 retention_days=retention_days,
+                start_tray_on_login=start_tray_on_login_var.get(),
+                wake_for_scheduled_captures=wake_for_scheduled_captures_var.get(),
+                show_last_capture_status=show_last_capture_status_var.get(),
+                notify_on_failed_or_missed=notify_on_failed_or_missed_var.get(),
+                notify_on_every_capture=notify_on_every_capture_var.get(),
+                show_capture_overlay=show_capture_overlay_var.get(),
                 schedules=parsed_schedules,
             )
             updated.validate()
@@ -108,4 +163,3 @@ def _parse_schedules(raw_text: str) -> list[Schedule]:
         schedule.validate()
         schedules.append(schedule)
     return schedules
-
