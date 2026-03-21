@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS capture_records (
     file_bytes INTEGER NULL,
     error_code TEXT NULL,
     error_message TEXT NULL,
+    archived INTEGER NOT NULL DEFAULT 0,
+    archived_at_utc TEXT NULL,
     retention_deleted_at_utc TEXT NULL,
     app_version TEXT NOT NULL,
     created_utc TEXT NOT NULL
@@ -47,7 +49,17 @@ def connect(db_path: Path) -> sqlite3.Connection:
 def ensure_database(db_path: Path) -> None:
     with connect(db_path) as connection:
         connection.execute(CREATE_CAPTURE_RECORDS)
+        _ensure_column(connection, "capture_records", "archived", "INTEGER NOT NULL DEFAULT 0")
+        _ensure_column(connection, "capture_records", "archived_at_utc", "TEXT NULL")
         for statement in CREATE_INDEXES:
             connection.execute(statement)
         connection.commit()
 
+
+def _ensure_column(
+    connection: sqlite3.Connection, table_name: str, column_name: str, column_definition: str
+) -> None:
+    rows = connection.execute(f"PRAGMA table_info({table_name})").fetchall()
+    if any(row["name"] == column_name for row in rows):
+        return
+    connection.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}")

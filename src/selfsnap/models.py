@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import StrEnum
 import re
 from typing import Any
 
 
 SCHEMA_VERSION = 1
-DEFAULT_PAUSE_MINUTES = 60
 SCHEDULE_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
 LOCAL_TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 
@@ -42,7 +41,6 @@ class OutcomeCode(StrEnum):
     CAPTURE_SAVED = "capture_saved"
     SLOT_MISSED_NO_ATTEMPT = "slot_missed_no_attempt"
     SCHEDULED_DISABLED = "scheduled_disabled"
-    SCHEDULED_PAUSED = "scheduled_paused"
     CAPTURE_BACKEND_ERROR = "capture_backend_error"
     IMAGE_WRITE_ERROR = "image_write_error"
     DB_WRITE_ERROR = "db_write_error"
@@ -91,13 +89,21 @@ class Schedule:
 @dataclass(slots=True)
 class AppConfig:
     schema_version: int = SCHEMA_VERSION
-    app_enabled: bool = True
-    pause_until_local: str | None = None
+    app_enabled: bool = False
+    first_run_completed: bool = False
     capture_storage_root: str = ""
+    archive_storage_root: str = ""
     retention_mode: str = "keep_forever"
     retention_days: int | None = None
     start_tray_on_login: bool = True
     log_level: str = "INFO"
+    show_last_capture_status: bool = True
+    notify_on_failed_or_missed: bool = True
+    notify_on_every_capture: bool = False
+    show_capture_overlay: bool = False
+    wake_for_scheduled_captures: bool = False
+    scheduler_sync_state: str = "ok"
+    scheduler_sync_message: str | None = None
     slot_match_tolerance_seconds: int = 120
     schedules: list[Schedule] = field(default_factory=list)
 
@@ -108,6 +114,8 @@ class AppConfig:
             )
         if not self.capture_storage_root.strip():
             raise ConfigValidationError("capture_storage_root must not be empty")
+        if not self.archive_storage_root.strip():
+            raise ConfigValidationError("archive_storage_root must not be empty")
         if self.retention_mode not in {"keep_forever", "keep_days"}:
             raise ConfigValidationError("retention_mode must be keep_forever or keep_days")
         if self.retention_mode == "keep_days":
@@ -117,6 +125,8 @@ class AppConfig:
             raise ConfigValidationError("retention_days must be >= 1 when supplied")
         if self.log_level not in {"INFO", "DEBUG"}:
             raise ConfigValidationError("log_level must be INFO or DEBUG")
+        if self.scheduler_sync_state not in {"ok", "failed"}:
+            raise ConfigValidationError("scheduler_sync_state must be ok or failed")
         if self.slot_match_tolerance_seconds < 0:
             raise ConfigValidationError("slot_match_tolerance_seconds must be >= 0")
         seen_ids: set[str] = set()
@@ -125,18 +135,6 @@ class AppConfig:
             if schedule.schedule_id in seen_ids:
                 raise ConfigValidationError(f"duplicate schedule_id: {schedule.schedule_id}")
             seen_ids.add(schedule.schedule_id)
-        if self.pause_until_local is not None:
-            parse_local_datetime(self.pause_until_local)
-
-    def is_paused(self, now_local: datetime | None = None) -> bool:
-        if not self.pause_until_local:
-            return False
-        now_local = now_local or datetime.now().astimezone()
-        return now_local < parse_local_datetime(self.pause_until_local)
-
-    def pause_for_default_duration(self, now_local: datetime | None = None) -> None:
-        now_local = now_local or datetime.now().astimezone()
-        self.pause_until_local = (now_local + timedelta(minutes=DEFAULT_PAUSE_MINUTES)).isoformat()
 
     def get_schedule(self, schedule_id: str) -> Schedule | None:
         for schedule in self.schedules:
@@ -144,17 +142,36 @@ class AppConfig:
                 return schedule
         return None
 
+    def scheduler_sync_failed(self) -> bool:
+        return self.scheduler_sync_state == "failed"
+
+    def mark_scheduler_sync_failed(self, message: str) -> None:
+        self.scheduler_sync_state = "failed"
+        self.scheduler_sync_message = message
+
+    def mark_scheduler_sync_ok(self) -> None:
+        self.scheduler_sync_state = "ok"
+        self.scheduler_sync_message = None
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AppConfig":
         config = cls(
             schema_version=int(data.get("schema_version", SCHEMA_VERSION)),
-            app_enabled=bool(data.get("app_enabled", True)),
-            pause_until_local=data.get("pause_until_local"),
+            app_enabled=bool(data.get("app_enabled", False)),
+            first_run_completed=bool(data.get("first_run_completed", False)),
             capture_storage_root=str(data.get("capture_storage_root", "")),
+            archive_storage_root=str(data.get("archive_storage_root", "")),
             retention_mode=str(data.get("retention_mode", "keep_forever")),
             retention_days=data.get("retention_days"),
             start_tray_on_login=bool(data.get("start_tray_on_login", True)),
             log_level=str(data.get("log_level", "INFO")),
+            show_last_capture_status=bool(data.get("show_last_capture_status", True)),
+            notify_on_failed_or_missed=bool(data.get("notify_on_failed_or_missed", True)),
+            notify_on_every_capture=bool(data.get("notify_on_every_capture", False)),
+            show_capture_overlay=bool(data.get("show_capture_overlay", False)),
+            wake_for_scheduled_captures=bool(data.get("wake_for_scheduled_captures", False)),
+            scheduler_sync_state=str(data.get("scheduler_sync_state", "ok")),
+            scheduler_sync_message=data.get("scheduler_sync_message"),
             slot_match_tolerance_seconds=int(data.get("slot_match_tolerance_seconds", 120)),
             schedules=[Schedule.from_dict(item) for item in data.get("schedules", [])],
         )
@@ -187,6 +204,8 @@ class CaptureRecord:
     file_bytes: int | None
     error_code: str | None
     error_message: str | None
+    archived: bool
+    archived_at_utc: str | None
     retention_deleted_at_utc: str | None
     app_version: str
     created_utc: str
@@ -210,6 +229,8 @@ class CaptureRecord:
             self.file_bytes,
             self.error_code,
             self.error_message,
+            1 if self.archived else 0,
+            self.archived_at_utc,
             self.retention_deleted_at_utc,
             self.app_version,
             self.created_utc,
@@ -235,15 +256,9 @@ class CaptureRecord:
             file_bytes=row["file_bytes"],
             error_code=row["error_code"],
             error_message=row["error_message"],
+            archived=bool(row["archived"]),
+            archived_at_utc=row["archived_at_utc"],
             retention_deleted_at_utc=row["retention_deleted_at_utc"],
             app_version=row["app_version"],
             created_utc=row["created_utc"],
         )
-
-
-def parse_local_datetime(value: str) -> datetime:
-    parsed = datetime.fromisoformat(value)
-    if parsed.tzinfo is None:
-        return parsed.astimezone()
-    return parsed
-

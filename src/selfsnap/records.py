@@ -25,10 +25,12 @@ INSERT INTO capture_records (
     file_bytes,
     error_code,
     error_message,
+    archived,
+    archived_at_utc,
     retention_deleted_at_utc,
     app_version,
     created_utc
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 """
 
 
@@ -72,6 +74,8 @@ def get_retention_candidates(connection: sqlite3.Connection, cutoff_utc: str) ->
         SELECT *
         FROM capture_records
         WHERE image_path IS NOT NULL
+          AND file_present = 1
+          AND archived = 0
           AND retention_deleted_at_utc IS NULL
           AND COALESCE(finished_utc, created_utc) < ?
         ORDER BY COALESCE(finished_utc, created_utc) ASC
@@ -81,16 +85,19 @@ def get_retention_candidates(connection: sqlite3.Connection, cutoff_utc: str) ->
     return [CaptureRecord.from_row(dict(row)) for row in rows]
 
 
-def mark_retention_deleted(
-    connection: sqlite3.Connection, record_id: str, deleted_at_utc: str
+def mark_record_archived(
+    connection: sqlite3.Connection, record_id: str, archived_path: str, archived_at_utc: str
 ) -> None:
     connection.execute(
         """
         UPDATE capture_records
-        SET retention_deleted_at_utc = ?, file_present = 0
+        SET image_path = ?,
+            archived = 1,
+            archived_at_utc = ?,
+            file_present = 1
         WHERE record_id = ?
         """,
-        (deleted_at_utc, record_id),
+        (archived_path, archived_at_utc, record_id),
     )
     connection.commit()
 
@@ -116,4 +123,3 @@ def list_recent_records(connection: sqlite3.Connection, limit: int = 20) -> list
         (limit,),
     ).fetchall()
     return [CaptureRecord.from_row(dict(row)) for row in rows]
-
