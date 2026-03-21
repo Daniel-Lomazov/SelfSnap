@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "app_enabled": true,
+  "pause_until_local": null,
+  "capture_storage_root": "%LOCALAPPDATA%\\SelfSnap\\captures",
+  "retention_mode": "keep_forever",
+  "retention_days": null,
+  "start_tray_on_login": true,
+  "log_level": "INFO",
+  "slot_match_tolerance_seconds": 120,
+  "schedules": [
+    {
+      "schedule_id": "morning",
+      "label": "Morning",
+      "local_time": "09:00",
+      "enabled": true
+    },
+    {
+      "schedule_id": "afternoon",
+      "label": "Afternoon",
+      "local_time": "14:00",
+      "enabled": true
+    }
+  ]
+}
