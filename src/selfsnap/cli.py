@@ -12,6 +12,7 @@ from selfsnap.logging_setup import setup_logging
 from selfsnap.models import TriggerSource
 from selfsnap.paths import resolve_app_paths
 from selfsnap.records import get_latest_record
+from selfsnap.runtime_probe import probe_runtime_dependencies
 from selfsnap.version import __version__
 from selfsnap.worker import run_capture_command
 
@@ -38,6 +39,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     diag_parser = subparsers.add_parser("diag", help="Print runtime diagnostics")
     diag_parser.set_defaults(handler=handle_diag)
+
+    doctor_parser = subparsers.add_parser("doctor", help="Validate runtime dependencies")
+    doctor_parser.set_defaults(handler=handle_doctor)
     return parser
 
 
@@ -96,11 +100,18 @@ def handle_diag(_args: argparse.Namespace) -> int:
         "config": config.to_dict(),
         "latest_record": asdict(latest) if latest else None,
         "scheduled_tasks": read_registered_task_details(),
+        "runtime_probe": probe_runtime_dependencies().to_dict(),
         "python": sys.version,
         "cwd": str(Path.cwd()),
     }
     print(json.dumps(payload, indent=2))
     return 0
+
+
+def handle_doctor(_args: argparse.Namespace) -> int:
+    probe = probe_runtime_dependencies()
+    print(json.dumps(probe.to_dict(), indent=2))
+    return 0 if probe.ok else 1
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from selfsnap.models import CaptureBackendError
+from selfsnap.runtime_probe import probe_runtime_dependencies
 
 
 @dataclass(slots=True)
@@ -15,11 +16,12 @@ class CaptureImage:
 
 
 def capture_virtual_desktop() -> CaptureImage:
-    try:
-        import mss
-        from PIL import Image
-    except ImportError as exc:
-        raise CaptureBackendError("capture dependencies are not installed") from exc
+    probe = probe_runtime_dependencies()
+    if not probe.ok:
+        raise CaptureBackendError(f"{probe.summary}: {probe.details}")
+
+    import mss
+    from PIL import Image
 
     try:
         with mss.mss() as sct:
@@ -36,4 +38,3 @@ def capture_virtual_desktop() -> CaptureImage:
             )
     except Exception as exc:  # pragma: no cover - backend-specific error translation
         raise CaptureBackendError(str(exc)) from exc
-

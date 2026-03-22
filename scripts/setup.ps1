@@ -134,6 +134,9 @@ $extras = if ($NoDev) { "" } else { "[dev]" }
 & $venvPython -m pip install -e ".${extras}"
 Assert-LastExitCode "project install"
 
+& $venvPython -m selfsnap doctor
+Assert-LastExitCode "runtime dependency verification"
+
 Pop-Location
 
 Write-Host "SelfSnap environment is ready."
