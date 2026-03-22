@@ -21,15 +21,13 @@ SelfSnap stores screenshots locally. Screenshots may contain sensitive informati
 
 ## Quick start
 
-1. Install Python 3.11 or 3.12 on Windows 11.
-2. Create a virtual environment.
-3. Install the project:
+1. Install Python 3.12 on Windows 11. Python 3.11 is also supported.
+2. From the repository root, run the setup script.
+3. Activate the virtual environment:
 
 ```powershell
-python -m venv .venv
+powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
 .venv\Scripts\Activate.ps1
-python -m pip install -U pip
-python -m pip install -e .[dev]
 ```
 
 4. Run diagnostics:
@@ -54,6 +52,18 @@ selfsnap capture --trigger manual
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1 -PythonExe python
+```
+
+If you want a lean runtime environment without development tools, use:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1 -NoDev
+```
+
+If you change Python versions, rebuild the environment instead of reusing the old `.venv`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
 ```
 
 ## Runtime storage
@@ -132,6 +142,12 @@ Important fields:
 pytest
 ruff check .
 mypy src
+```
+
+The setup script prefers a uv-managed Python 3.12 interpreter when `uv` is installed, then falls back to a normal `python` or `py` launcher on PATH. If you need to force a specific interpreter, pass it explicitly:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1 -PythonPreference "C:\Path\To\python.exe"
 ```
 
 ## Packaging
