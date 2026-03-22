@@ -16,7 +16,7 @@ from uuid import uuid4
 RECONCILE_LOOKBACK_HOURS = 12
 
 
-def reconcile_missed_slots(paths: AppPaths | None = None) -> int:
+def reconcile_missed_slots(paths: AppPaths | None = None, emit_console: bool = False) -> int:
     paths = paths or resolve_app_paths()
     config = load_or_create_config(paths)
     logger = setup_logging(paths, config.log_level)
@@ -80,7 +80,8 @@ def reconcile_missed_slots(paths: AppPaths | None = None) -> int:
                 created += 1
 
     logger.info("Reconcile completed, created %s missed-slot records", created)
-    print(f"Reconcile completed, created {created} missed-slot records")
+    if emit_console:
+        print(f"Reconcile completed, created {created} missed-slot records")
     return EXIT_OK
 
 

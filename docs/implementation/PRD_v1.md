@@ -19,6 +19,22 @@ Deliver a Windows 11 personal utility that captures composite desktop screenshot
   - every-capture notifications
   - on-screen overlay after capture
 
+## Current post-v1 fixes
+
+- Background tray and worker operations are console-free.
+- Storage presets are explicit choices: `Local Pictures`, `OneDrive`, and `Custom`.
+- Reset capture history is a destructive clean-reset action with a permanent warning and returns the app to first-run state.
+- Settings window is resizable and fits the visible controls without cropping.
+- Reinstall preserves user data and settings by default unless cleanup is requested separately.
+
+## Reset scope
+
+- Removes SelfSnap-managed capture files and archive files
+- Clears DB history, logs, and config
+- Removes startup shortcut and SelfSnap scheduled tasks
+- Relaunches into first-run setup
+- Does not uninstall the app or delete repo files
+
 ## Deferred
 
 - Per-monitor outputs

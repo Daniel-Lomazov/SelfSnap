@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from selfsnap.scheduler.reconcile import iter_planned_slots
+from selfsnap.config_store import load_or_create_config, save_config
+from selfsnap.scheduler.reconcile import iter_planned_slots, reconcile_missed_slots
 
 
 def test_iter_planned_slots_returns_expected_points() -> None:
@@ -13,3 +14,15 @@ def test_iter_planned_slots_returns_expected_points() -> None:
     assert slots[0].hour == 21
     assert slots[1].day == 21
 
+
+def test_reconcile_does_not_print_when_emit_console_is_false(temp_paths, capsys) -> None:
+    config = load_or_create_config(temp_paths)
+    config.first_run_completed = True
+    config.app_enabled = True
+    save_config(temp_paths, config)
+
+    result = reconcile_missed_slots(temp_paths, emit_console=False)
+
+    captured = capsys.readouterr()
+    assert result == 0
+    assert captured.out == ""

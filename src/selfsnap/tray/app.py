@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
+import logging
 import os
 import threading
 
@@ -10,6 +11,7 @@ from selfsnap.db import connect, ensure_database
 from selfsnap.logging_setup import setup_logging
 from selfsnap.models import AppConfig, CaptureRecord, OutcomeCategory, TriggerSource
 from selfsnap.paths import AppPaths, resolve_app_paths
+from selfsnap.reset_service import perform_clean_reset
 from selfsnap.records import get_latest_record, resolve_latest_capture_path
 from selfsnap.retention import apply_retention
 from selfsnap.runtime_probe import probe_runtime_dependencies
@@ -45,7 +47,7 @@ def run_tray_app(paths: AppPaths | None = None) -> int:
 
     config = _ensure_first_run_completed(paths, config)
     _sync_startup_shortcut_safe(paths, config, logger)
-    sync_scheduler_from_config(paths)
+    sync_scheduler_from_config(paths, emit_console=False)
     _run_housekeeping(paths)
 
     state = TrayRuntimeState(stop_event=threading.Event(), last_announced_record_id=_latest_record_id(paths))
@@ -99,7 +101,7 @@ def _build_menu_items(pystray, paths: AppPaths, icon, state: TrayRuntimeState) -
             ),
             pystray.MenuItem("Open Capture Folder", lambda _icon, _item: _open_capture_folder(paths)),
             pystray.MenuItem("Open Latest Capture", lambda _icon, _item: _open_latest_capture(paths)),
-            pystray.MenuItem("Settings", lambda _icon, _item: _run_async(_open_settings, paths, icon)),
+            pystray.MenuItem("Settings", lambda _icon, _item: _run_async(_open_settings, paths, icon, state)),
             pystray.MenuItem("Exit", lambda _icon, _item: _exit(icon, state.stop_event)),
         ]
     )
@@ -134,18 +136,35 @@ def _toggle_enabled(paths: AppPaths, icon) -> None:
         else:
             config.app_enabled = True
     save_config(paths, config)
-    sync_scheduler_from_config(paths)
+    sync_scheduler_from_config(paths, emit_console=False)
     icon.update_menu()
 
 
-def _open_settings(paths: AppPaths, icon) -> None:
+def _open_settings(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
     config = load_or_create_config(paths)
-    updated = show_settings_dialog(config)
-    if updated is None:
+    result = show_settings_dialog(config, paths)
+    size_only_config = replace(
+        config,
+        settings_window_width=result.window_size[0],
+        settings_window_height=result.window_size[1],
+    )
+
+    if result.requested_reset:
+        state.stop_event.set()
+        logging.shutdown()
+        perform_clean_reset(paths)
+        _exit(icon, state.stop_event)
         return
+    if result.updated_config is None:
+        try:
+            save_config(paths, size_only_config)
+        except Exception:
+            return
+        return
+    updated = result.updated_config
     save_config(paths, updated)
     _sync_startup_shortcut_safe(paths, updated, setup_logging(paths, updated.log_level))
-    sync_scheduler_from_config(paths)
+    sync_scheduler_from_config(paths, emit_console=False)
     icon.update_menu()
 
 

@@ -32,3 +32,13 @@ def test_scheduler_sync_state_is_validated() -> None:
     )
     with pytest.raises(ConfigValidationError):
         config.validate()
+
+
+def test_storage_preset_is_validated() -> None:
+    config = AppConfig(
+        capture_storage_root="C:\\captures",
+        archive_storage_root="C:\\archive",
+        storage_preset="dropbox",
+    )
+    with pytest.raises(ConfigValidationError):
+        config.validate()

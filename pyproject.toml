@@ -39,7 +39,8 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = ["--basetemp=tests/.tmp/pytest-work"]
+addopts = ["-p", "no:cacheprovider"]
+norecursedirs = ["tests/.tmp", "artifacts", ".pytest_cache", ".pytest_tmp", ".pytest-work", "pytest-cache-files-*"]
 
 [tool.ruff]
 target-version = "py311"

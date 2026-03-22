@@ -68,7 +68,7 @@ def handle_tray(_args: argparse.Namespace) -> int:
 def handle_reconcile(_args: argparse.Namespace) -> int:
     from selfsnap.scheduler.reconcile import reconcile_missed_slots
 
-    return reconcile_missed_slots()
+    return reconcile_missed_slots(emit_console=True)
 
 
 def handle_sync_scheduler(_args: argparse.Namespace) -> int:
@@ -95,9 +95,16 @@ def handle_diag(_args: argparse.Namespace) -> int:
             "log_path": str(paths.log_path),
             "default_capture_root": str(paths.default_capture_root),
             "default_archive_root": str(paths.default_archive_root),
+            "onedrive_capture_root": str(paths.onedrive_capture_root()),
+            "onedrive_archive_root": str(paths.onedrive_archive_root()),
             "bin_dir": str(paths.bin_dir),
         },
         "config": config.to_dict(),
+        "resolved_storage": {
+            "storage_preset": config.storage_preset,
+            "capture_root": str(paths.resolve_capture_root(config)),
+            "archive_root": str(paths.resolve_archive_root(config)),
+        },
         "latest_record": asdict(latest) if latest else None,
         "scheduled_tasks": read_registered_task_details(),
         "runtime_probe": probe_runtime_dependencies().to_dict(),

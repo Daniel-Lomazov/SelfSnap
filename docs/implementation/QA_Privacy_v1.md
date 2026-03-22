@@ -8,6 +8,13 @@
 - Logs must not include image contents or inferred activity
 - User-visible indicators are layered and independently togglable
 
+## Current privacy and control notes
+
+- Background actions stay console-free and do not flash a command window
+- Reset capture history shows a permanent warning before deletion
+- Reset removes SelfSnap-managed capture/archive files, DB state, logs, config, startup shortcut, and scheduled tasks, then relaunches first run
+- Reinstall defaults preserve user data unless the user explicitly opts into cleanup
+
 ## Manual QA focus
 
 - Mixed monitor layouts

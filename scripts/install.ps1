@@ -46,6 +46,10 @@ Assert-LastExitCode "python path resolution"
 if (-not $pythonFullPath) {
     throw "Could not resolve the full Python executable path."
 }
+$pythonwPath = Join-Path (Split-Path -Parent $pythonFullPath) "pythonw.exe"
+if (-not (Test-Path $pythonwPath)) {
+    throw "pythonw.exe was not found next to the selected Python interpreter. Background SelfSnap launch requires pythonw.exe."
+}
 
 Push-Location $repoRoot
 
@@ -70,6 +74,7 @@ Set-Content -Path $wrapperPath -Value $wrapperContent -Encoding Ascii
 
 @{
     python_executable = $pythonFullPath
+    pythonw_executable = $pythonwPath
     repo_root = $repoRoot.Path
     installed_at_utc = [DateTime]::UtcNow.ToString("o")
 } | ConvertTo-Json | Set-Content -Path $metaPath -Encoding UTF8
@@ -77,14 +82,14 @@ Set-Content -Path $wrapperPath -Value $wrapperContent -Encoding Ascii
 & $wrapperPath sync-scheduler
 Assert-LastExitCode "scheduler sync"
 
-$startTrayOnLogin = (& $pythonFullPath -c "from selfsnap.paths import resolve_app_paths; from selfsnap.config_store import load_or_create_config; print('true' if load_or_create_config(resolve_app_paths()).start_tray_on_login else 'false')").Trim()
-Assert-LastExitCode "start_tray_on_login resolution"
+$startupEligibility = (& $pythonFullPath -c "from selfsnap.paths import resolve_app_paths; from selfsnap.config_store import load_or_create_config; config = load_or_create_config(resolve_app_paths()); print('true' if config.start_tray_on_login and config.first_run_completed else 'false')").Trim()
+Assert-LastExitCode "startup eligibility resolution"
 
-if ($startTrayOnLogin -eq "true") {
+if ($startupEligibility -eq "true") {
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut($shortcutPath)
-    $shortcut.TargetPath = $wrapperPath
-    $shortcut.Arguments = "tray"
+    $shortcut.TargetPath = $pythonwPath
+    $shortcut.Arguments = "-m selfsnap tray"
     $shortcut.WorkingDirectory = $repoRoot.Path
     $shortcut.Save()
 } elseif (Test-Path $shortcutPath) {

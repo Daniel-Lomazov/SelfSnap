@@ -49,6 +49,12 @@ class OutcomeCode(StrEnum):
     UNEXPECTED_ERROR = "unexpected_error"
 
 
+class StoragePreset(StrEnum):
+    LOCAL_PICTURES = "local_pictures"
+    ONEDRIVE_PICTURES = "onedrive_pictures"
+    CUSTOM = "custom"
+
+
 @dataclass(slots=True)
 class Schedule:
     schedule_id: str
@@ -91,6 +97,7 @@ class AppConfig:
     schema_version: int = SCHEMA_VERSION
     app_enabled: bool = False
     first_run_completed: bool = False
+    storage_preset: str = StoragePreset.LOCAL_PICTURES.value
     capture_storage_root: str = ""
     archive_storage_root: str = ""
     retention_mode: str = "keep_forever"
@@ -104,6 +111,8 @@ class AppConfig:
     wake_for_scheduled_captures: bool = False
     scheduler_sync_state: str = "ok"
     scheduler_sync_message: str | None = None
+    settings_window_width: int = 760
+    settings_window_height: int = 680
     slot_match_tolerance_seconds: int = 120
     schedules: list[Schedule] = field(default_factory=list)
 
@@ -116,6 +125,10 @@ class AppConfig:
             raise ConfigValidationError("capture_storage_root must not be empty")
         if not self.archive_storage_root.strip():
             raise ConfigValidationError("archive_storage_root must not be empty")
+        if self.storage_preset not in {item.value for item in StoragePreset}:
+            raise ConfigValidationError(
+                "storage_preset must be local_pictures, onedrive_pictures, or custom"
+            )
         if self.retention_mode not in {"keep_forever", "keep_days"}:
             raise ConfigValidationError("retention_mode must be keep_forever or keep_days")
         if self.retention_mode == "keep_days":
@@ -127,6 +140,10 @@ class AppConfig:
             raise ConfigValidationError("log_level must be INFO or DEBUG")
         if self.scheduler_sync_state not in {"ok", "failed"}:
             raise ConfigValidationError("scheduler_sync_state must be ok or failed")
+        if self.settings_window_width < 640:
+            raise ConfigValidationError("settings_window_width must be >= 640")
+        if self.settings_window_height < 520:
+            raise ConfigValidationError("settings_window_height must be >= 520")
         if self.slot_match_tolerance_seconds < 0:
             raise ConfigValidationError("slot_match_tolerance_seconds must be >= 0")
         seen_ids: set[str] = set()
@@ -159,6 +176,7 @@ class AppConfig:
             schema_version=int(data.get("schema_version", SCHEMA_VERSION)),
             app_enabled=bool(data.get("app_enabled", False)),
             first_run_completed=bool(data.get("first_run_completed", False)),
+            storage_preset=str(data.get("storage_preset", StoragePreset.LOCAL_PICTURES.value)),
             capture_storage_root=str(data.get("capture_storage_root", "")),
             archive_storage_root=str(data.get("archive_storage_root", "")),
             retention_mode=str(data.get("retention_mode", "keep_forever")),
@@ -172,6 +190,8 @@ class AppConfig:
             wake_for_scheduled_captures=bool(data.get("wake_for_scheduled_captures", False)),
             scheduler_sync_state=str(data.get("scheduler_sync_state", "ok")),
             scheduler_sync_message=data.get("scheduler_sync_message"),
+            settings_window_width=int(data.get("settings_window_width", 760)),
+            settings_window_height=int(data.get("settings_window_height", 680)),
             slot_match_tolerance_seconds=int(data.get("slot_match_tolerance_seconds", 120)),
             schedules=[Schedule.from_dict(item) for item in data.get("schedules", [])],
         )

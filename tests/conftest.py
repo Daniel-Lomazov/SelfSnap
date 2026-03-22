@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -7,7 +9,13 @@ import pytest
 from selfsnap.paths import AppPaths
 
 
-Path("tests/.tmp").mkdir(parents=True, exist_ok=True)
+def pytest_configure(config) -> None:
+    local_appdata = os.environ.get("LOCALAPPDATA")
+    if not local_appdata:
+        local_appdata = str(Path.home() / "AppData" / "Local")
+    base_root = Path(local_appdata) / "SelfSnap" / "pytest" / "tmp"
+    base_root.mkdir(parents=True, exist_ok=True)
+    config.option.basetemp = tempfile.mkdtemp(prefix="run-", dir=base_root)
 
 
 @pytest.fixture
@@ -15,6 +23,7 @@ def temp_paths(tmp_path: Path) -> AppPaths:
     root = tmp_path / "AppData" / "Local" / "SelfSnap"
     pictures_root = tmp_path / "Pictures" / "SelfSnap"
     return AppPaths(
+        user_profile=tmp_path,
         root=root,
         config_dir=root / "config",
         data_dir=root / "data",
