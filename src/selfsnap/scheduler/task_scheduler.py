@@ -1,46 +1,42 @@
 from __future__ import annotations
 
 import csv
-from dataclasses import dataclass
+from datetime import date
 import io
+import json
 import logging
 import os
-import subprocess
-import sys
 from pathlib import Path
+import subprocess
+import tempfile
+import xml.etree.ElementTree as ET
 
 from selfsnap.config_store import load_or_create_config, save_config
 from selfsnap.logging_setup import setup_logging
-from selfsnap.models import AppConfig
-from selfsnap.models import OutcomeCode
+from selfsnap.models import AppConfig, OutcomeCode
 from selfsnap.paths import AppPaths, resolve_app_paths
-from selfsnap.worker import EXIT_SCHEDULER_FAILURE, EXIT_OK
+from selfsnap.runtime_launch import LaunchSpec, resolve_worker_background_invocation
+from selfsnap.worker import EXIT_OK, EXIT_SCHEDULER_FAILURE
 
 
 TASK_PREFIX = "SelfSnap.Capture."
 
 
-@dataclass(slots=True)
-class TaskInvocation:
-    executable: str
-    arguments: str
-    working_directory: str
-
-
-def sync_scheduler_from_config(paths: AppPaths | None = None) -> int:
+def sync_scheduler_from_config(paths: AppPaths | None = None, emit_console: bool = True) -> int:
     paths = paths or resolve_app_paths()
     config = load_or_create_config(paths)
     logger = setup_logging(paths, config.log_level)
     try:
         sync_tasks(paths, config, logger)
         config.mark_scheduler_sync_ok()
-        save_config(paths, config)
+        _persist_scheduler_sync_state(paths, config, logger)
         return EXIT_OK
     except Exception as exc:
         config.mark_scheduler_sync_failed(str(exc))
-        save_config(paths, config)
+        _persist_scheduler_sync_state(paths, config, logger)
         logger.exception("Scheduler sync failed with %s", OutcomeCode.SCHEDULER_SYNC_ERROR.value)
-        print(f"Scheduler sync failed: {exc}")
+        if emit_console:
+            print(f"Scheduler sync failed: {exc}")
         return EXIT_SCHEDULER_FAILURE
 
 
@@ -61,6 +57,14 @@ def sync_tasks(paths: AppPaths, config: AppConfig, logger: logging.Logger) -> No
         )
 
 
+def delete_all_selfsnap_tasks(logger: logging.Logger | None = None) -> list[str]:
+    deleted: list[str] = []
+    for task_name in list_selfsnap_tasks():
+        delete_task(task_name, logger, ignore_missing=True)
+        deleted.append(task_name)
+    return deleted
+
+
 def build_desired_tasks(paths: AppPaths, config: AppConfig) -> dict[str, dict[str, object]]:
     if not config.first_run_completed or not config.app_enabled:
         return {}
@@ -68,7 +72,7 @@ def build_desired_tasks(paths: AppPaths, config: AppConfig) -> dict[str, dict[st
     for schedule in config.schedules:
         if not schedule.enabled:
             continue
-        invocation = resolve_worker_invocation(paths, schedule.schedule_id)
+        invocation = resolve_worker_background_invocation(paths, schedule.schedule_id)
         desired[f"{TASK_PREFIX}{schedule.schedule_id}"] = {
             "time_value": schedule.local_time,
             "invocation": invocation,
@@ -95,21 +99,28 @@ def list_selfsnap_tasks() -> set[str]:
 def create_or_replace_task(
     task_name: str,
     time_value: str,
-    invocation: TaskInvocation,
+    invocation: LaunchSpec,
     wake_for_run: bool,
     logger: logging.Logger,
 ) -> None:
     delete_task(task_name, logger, ignore_missing=True)
-    result = _register_task_with_powershell(task_name, time_value, invocation, wake_for_run)
+    try:
+        result = _register_task_with_powershell(task_name, time_value, invocation, wake_for_run)
+    except RuntimeError as exc:
+        logger.warning("Falling back to schtasks XML registration for %s: %s", task_name, exc)
+        result = _register_task_with_xml(task_name, time_value, invocation, wake_for_run)
     logger.info("Created task %s at %s (wake=%s)", task_name, time_value, wake_for_run)
     if result.stdout:
         logger.debug("schtasks output: %s", result.stdout.strip())
 
 
-def delete_task(task_name: str, logger: logging.Logger, ignore_missing: bool = False) -> None:
+def delete_task(
+    task_name: str, logger: logging.Logger | None, ignore_missing: bool = False
+) -> None:
     result = _run_schtasks(["/Delete", "/TN", task_name, "/F"], check=False)
     if result.returncode == 0:
-        logger.info("Deleted task %s", task_name)
+        if logger is not None:
+            logger.info("Deleted task %s", task_name)
         return
     combined = f"{result.stdout}\n{result.stderr}".lower()
     if ignore_missing and "cannot find" in combined:
@@ -118,47 +129,21 @@ def delete_task(task_name: str, logger: logging.Logger, ignore_missing: bool = F
 
 
 def build_task_action(paths: AppPaths, schedule_id: str) -> str:
-    invocation = resolve_worker_invocation(paths, schedule_id)
-    if invocation.arguments:
-        return f'"{invocation.executable}" {invocation.arguments}'
+    invocation = resolve_worker_background_invocation(paths, schedule_id)
+    arguments = invocation.argument_string()
+    if arguments:
+        return f'"{invocation.executable}" {arguments}'
     return f'"{invocation.executable}"'
 
 
-def resolve_worker_invocation(paths: AppPaths, schedule_id: str) -> TaskInvocation:
-    wrapper_path = paths.bin_dir / "SelfSnap.cmd"
-    if wrapper_path.exists():
-        cmd_executable = os.environ.get("ComSpec", r"C:\Windows\System32\cmd.exe")
-        return TaskInvocation(
-            executable=cmd_executable,
-            arguments=f'/d /c ""{wrapper_path}" capture --trigger scheduled --schedule-id {schedule_id}""',
-            working_directory=str(paths.root),
-        )
-    if getattr(sys, "frozen", False):
-        executable = Path(sys.executable)
-        if executable.name.lower() == "selfsnaptray.exe":
-            worker_path = executable.with_name("SelfSnapWorker.exe")
-        else:
-            worker_path = executable
-        return TaskInvocation(
-            executable=str(worker_path),
-            arguments=f"capture --trigger scheduled --schedule-id {schedule_id}",
-            working_directory=str(worker_path.parent),
-        )
-
-    python_executable = sys.executable
-    if not python_executable:
-        raise RuntimeError("Python executable path is unavailable for scheduler integration")
-    return TaskInvocation(
-        executable=python_executable,
-        arguments=f"-m selfsnap capture --trigger scheduled --schedule-id {schedule_id}",
-        working_directory=str(paths.root),
-    )
+def resolve_worker_invocation(paths: AppPaths, schedule_id: str) -> LaunchSpec:
+    return resolve_worker_background_invocation(paths, schedule_id)
 
 
 def _register_task_with_powershell(
     task_name: str,
     time_value: str,
-    invocation: TaskInvocation,
+    invocation: LaunchSpec,
     wake_for_run: bool,
 ) -> subprocess.CompletedProcess[str]:
     current_user = _resolve_current_windows_user()
@@ -166,7 +151,7 @@ def _register_task_with_powershell(
 $ErrorActionPreference = 'Stop'
 $taskName = '{_escape_powershell_string(task_name)}'
 $execute = '{_escape_powershell_string(invocation.executable)}'
-$arguments = '{_escape_powershell_string(invocation.arguments)}'
+$arguments = '{_escape_powershell_string(invocation.argument_string())}'
 $workingDirectory = '{_escape_powershell_string(invocation.working_directory)}'
 $timeValue = '{_escape_powershell_string(time_value)}'
 $userId = '{_escape_powershell_string(current_user)}'
@@ -190,6 +175,104 @@ if ($registeredAction.Arguments -ne $arguments) {{
 }}
 """
     return _run_powershell(script)
+
+
+def _register_task_with_xml(
+    task_name: str,
+    time_value: str,
+    invocation: LaunchSpec,
+    wake_for_run: bool,
+) -> subprocess.CompletedProcess[str]:
+    task_xml = _build_task_xml(task_name, time_value, invocation, wake_for_run)
+    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".xml", encoding="utf-8") as handle:
+        handle.write(task_xml)
+        xml_path = Path(handle.name)
+    try:
+        result = _run_schtasks(["/Create", "/TN", task_name, "/XML", str(xml_path), "/F"])
+        _verify_registered_task(task_name, invocation, wake_for_run)
+        return result
+    finally:
+        xml_path.unlink(missing_ok=True)
+
+
+def _build_task_xml(
+    task_name: str,
+    time_value: str,
+    invocation: LaunchSpec,
+    wake_for_run: bool,
+) -> str:
+    current_user = _resolve_current_windows_user()
+    start_boundary = f"{date.today().isoformat()}T{time_value}:00"
+    task = ET.Element(
+        "Task",
+        {
+            "version": "1.4",
+            "xmlns": "http://schemas.microsoft.com/windows/2004/02/mit/task",
+        },
+    )
+    registration = ET.SubElement(task, "RegistrationInfo")
+    ET.SubElement(registration, "Author").text = "SelfSnap"
+    ET.SubElement(registration, "Description").text = f"{task_name} scheduled capture"
+
+    triggers = ET.SubElement(task, "Triggers")
+    calendar_trigger = ET.SubElement(triggers, "CalendarTrigger")
+    ET.SubElement(calendar_trigger, "StartBoundary").text = start_boundary
+    ET.SubElement(calendar_trigger, "Enabled").text = "true"
+    schedule_by_day = ET.SubElement(calendar_trigger, "ScheduleByDay")
+    ET.SubElement(schedule_by_day, "DaysInterval").text = "1"
+
+    principals = ET.SubElement(task, "Principals")
+    principal = ET.SubElement(principals, "Principal", {"id": "Author"})
+    ET.SubElement(principal, "UserId").text = current_user
+    ET.SubElement(principal, "LogonType").text = "InteractiveToken"
+    ET.SubElement(principal, "RunLevel").text = "LeastPrivilege"
+
+    settings = ET.SubElement(task, "Settings")
+    ET.SubElement(settings, "MultipleInstancesPolicy").text = "IgnoreNew"
+    ET.SubElement(settings, "DisallowStartIfOnBatteries").text = "false"
+    ET.SubElement(settings, "StopIfGoingOnBatteries").text = "false"
+    ET.SubElement(settings, "AllowHardTerminate").text = "true"
+    ET.SubElement(settings, "StartWhenAvailable").text = "false"
+    ET.SubElement(settings, "RunOnlyIfNetworkAvailable").text = "false"
+    idle = ET.SubElement(settings, "IdleSettings")
+    ET.SubElement(idle, "StopOnIdleEnd").text = "false"
+    ET.SubElement(idle, "RestartOnIdle").text = "false"
+    ET.SubElement(settings, "AllowStartOnDemand").text = "true"
+    ET.SubElement(settings, "Enabled").text = "true"
+    ET.SubElement(settings, "Hidden").text = "false"
+    ET.SubElement(settings, "RunOnlyIfIdle").text = "false"
+    ET.SubElement(settings, "WakeToRun").text = "true" if wake_for_run else "false"
+    ET.SubElement(settings, "ExecutionTimeLimit").text = "PT1H"
+    ET.SubElement(settings, "Priority").text = "7"
+
+    actions = ET.SubElement(task, "Actions", {"Context": "Author"})
+    exec_action = ET.SubElement(actions, "Exec")
+    ET.SubElement(exec_action, "Command").text = invocation.executable
+    ET.SubElement(exec_action, "Arguments").text = invocation.argument_string()
+    ET.SubElement(exec_action, "WorkingDirectory").text = invocation.working_directory
+    return ET.tostring(task, encoding="unicode", xml_declaration=True)
+
+
+def _verify_registered_task(task_name: str, invocation: LaunchSpec, wake_for_run: bool) -> None:
+    root = _query_task_xml(task_name)
+    namespace = {"t": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
+    command = root.findtext(".//t:Exec/t:Command", namespaces=namespace)
+    arguments = root.findtext(".//t:Exec/t:Arguments", namespaces=namespace)
+    working_directory = root.findtext(".//t:Exec/t:WorkingDirectory", namespaces=namespace)
+    wake_to_run = root.findtext(".//t:Settings/t:WakeToRun", namespaces=namespace)
+    if command != invocation.executable:
+        raise RuntimeError("Registered task executable does not match requested value.")
+    if (arguments or "") != invocation.argument_string():
+        raise RuntimeError("Registered task arguments do not match requested value.")
+    if (working_directory or "") != invocation.working_directory:
+        raise RuntimeError("Registered task working directory does not match requested value.")
+    if (wake_to_run or "").lower() != ("true" if wake_for_run else "false"):
+        raise RuntimeError("Registered task wake setting does not match requested value.")
+
+
+def _query_task_xml(task_name: str) -> ET.Element:
+    result = _run_schtasks(["/Query", "/TN", task_name, "/XML"])
+    return ET.fromstring(result.stdout)
 
 
 def _resolve_current_windows_user() -> str:
@@ -237,6 +320,13 @@ def _run_schtasks(arguments: list[str], check: bool = True) -> subprocess.Comple
     return completed
 
 
+def _persist_scheduler_sync_state(paths: AppPaths, config: AppConfig, logger: logging.Logger) -> None:
+    try:
+        save_config(paths, config)
+    except Exception:
+        logger.exception("Failed to persist scheduler sync state")
+
+
 def read_registered_task_details() -> list[dict[str, object]]:
     script = f"""
 $tasks = Get-ScheduledTask | Where-Object {{ $_.TaskName -like '{TASK_PREFIX}*' }} | ForEach-Object {{
@@ -255,7 +345,6 @@ $tasks | ConvertTo-Json -Depth 3
     result = _run_powershell(script, check=False)
     if result.returncode != 0 or not result.stdout.strip():
         return []
-    import json
 
     payload = json.loads(result.stdout)
     if isinstance(payload, dict):

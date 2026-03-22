@@ -1,0 +1,106 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+from selfsnap.paths import AppPaths
+
+
+@dataclass(slots=True)
+class LaunchSpec:
+    executable: str
+    arguments: list[str]
+    working_directory: str
+
+    def command(self) -> list[str]:
+        return [self.executable, *self.arguments]
+
+    def argument_string(self) -> str:
+        return subprocess.list2cmdline(self.arguments)
+
+
+def read_install_metadata(paths: AppPaths) -> dict[str, object]:
+    meta_path = paths.bin_dir / "install-meta.json"
+    if not meta_path.exists():
+        return {}
+    try:
+        return json.loads(meta_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+
+
+def resolve_background_python_executable(paths: AppPaths | None = None) -> str:
+    if paths is not None:
+        metadata = read_install_metadata(paths)
+        pythonw_executable = metadata.get("pythonw_executable")
+        if isinstance(pythonw_executable, str) and Path(pythonw_executable).exists():
+            return pythonw_executable
+
+    executable = Path(sys.executable)
+    if executable.name.lower() == "pythonw.exe":
+        return str(executable)
+    pythonw = executable.with_name("pythonw.exe")
+    if pythonw.exists():
+        return str(pythonw)
+    raise RuntimeError(
+        "Background launch requires pythonw.exe. Re-run scripts/setup.ps1 and scripts/install.ps1 "
+        "with a standard Windows Python installation."
+    )
+
+
+def resolve_background_working_directory(paths: AppPaths) -> str:
+    metadata = read_install_metadata(paths)
+    repo_root = metadata.get("repo_root")
+    if isinstance(repo_root, str) and repo_root:
+        return repo_root
+    return str(paths.root)
+
+
+def resolve_tray_background_invocation(paths: AppPaths) -> LaunchSpec:
+    if getattr(sys, "frozen", False):
+        executable = Path(sys.executable)
+        return LaunchSpec(
+            executable=str(executable),
+            arguments=[],
+            working_directory=str(executable.parent),
+        )
+    return LaunchSpec(
+        executable=resolve_background_python_executable(paths),
+        arguments=["-m", "selfsnap", "tray"],
+        working_directory=resolve_background_working_directory(paths),
+    )
+
+
+def resolve_worker_background_invocation(paths: AppPaths, schedule_id: str) -> LaunchSpec:
+    if getattr(sys, "frozen", False):
+        executable = Path(sys.executable)
+        worker_path = executable.with_name("SelfSnapWorker.exe")
+        return LaunchSpec(
+            executable=str(worker_path),
+            arguments=["capture", "--trigger", "scheduled", "--schedule-id", schedule_id],
+            working_directory=str(worker_path.parent),
+        )
+    return LaunchSpec(
+        executable=resolve_background_python_executable(paths),
+        arguments=["-m", "selfsnap", "capture", "--trigger", "scheduled", "--schedule-id", schedule_id],
+        working_directory=resolve_background_working_directory(paths),
+    )
+
+
+def launch_background(spec: LaunchSpec) -> subprocess.Popen[str]:
+    creation_flags = 0
+    if sys.platform == "win32":
+        creation_flags = (
+            getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            | getattr(subprocess, "DETACHED_PROCESS", 0)
+            | getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        )
+    return subprocess.Popen(
+        spec.command(),
+        cwd=spec.working_directory,
+        creationflags=creation_flags,
+        close_fds=False,
+    )

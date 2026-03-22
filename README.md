@@ -2,6 +2,16 @@
 
 SelfSnap Win11 is a Windows 11-only, local-first screenshot utility for personal use. It captures a composite image of all connected monitors at configured daily times, stores the image locally, and records honest metadata about what happened.
 
+## Current release
+
+This release keeps background work console-free and adds:
+
+- hidden tray/startup/scheduled background launches
+- storage presets for `Local Pictures`, `OneDrive`, and `Custom`
+- a destructive `Reset Capture History` flow that returns the app to first-run state
+- a resizable, scroll-safe settings window
+- data-preserving reinstall by default
+
 ## v1 scope
 
 - Windows 11 only
@@ -83,6 +93,24 @@ SelfSnap splits image storage from app data by default.
   archive\YYYY\MM\DD\...
 ```
 
+If the storage preset is `onedrive_pictures`, image storage switches to:
+
+```text
+%OneDrive%\Pictures\SelfSnap\
+  captures\YYYY\MM\DD\...
+  archive\YYYY\MM\DD\...
+```
+
+## Storage preset mapping
+
+| Settings label | Config value | Capture root | Archive root |
+|---|---|---|---|
+| `Local Pictures` | `local_pictures` | `%USERPROFILE%\Pictures\SelfSnap\captures` | `%USERPROFILE%\Pictures\SelfSnap\archive` |
+| `OneDrive` | `onedrive_pictures` | `%OneDrive%\Pictures\SelfSnap\captures` | `%OneDrive%\Pictures\SelfSnap\archive` |
+| `Custom` | `custom` | user-defined | user-defined |
+
+If `%OneDrive%` is not set, SelfSnap resolves the OneDrive preset through `%USERPROFILE%\OneDrive`. The OneDrive preset is only accepted when the resolved base path already exists and is writable.
+
 ## Docs layout
 
 - `docs/customer_baseline/`: original customer baseline documents that should change rarely
@@ -115,8 +143,9 @@ Important fields:
 
 - `app_enabled`: global enable or disable for scheduled capture
 - `first_run_completed`: whether the first-run setup gate has been completed
-- `capture_storage_root`: output folder for PNG files, default `%USERPROFILE%\Pictures\SelfSnap\captures`
-- `archive_storage_root`: archive folder for retention moves, default `%USERPROFILE%\Pictures\SelfSnap\archive`
+- `storage_preset`: `local_pictures`, `onedrive_pictures`, or `custom`
+- `capture_storage_root`: explicit output folder for PNG files
+- `archive_storage_root`: explicit archive folder for retention moves
 - `retention_mode`: `keep_forever` or `keep_days`
 - `retention_days`: required only when `retention_mode` is `keep_days`
 - `start_tray_on_login`: controls the Startup-folder shortcut
@@ -126,7 +155,18 @@ Important fields:
 - `show_capture_overlay`: toggles the brief on-screen overlay after successful capture
 - `wake_for_scheduled_captures`: best-effort scheduler wake setting, default `false`
 - `scheduler_sync_state`: `ok` or `failed`; when `failed`, manual capture still works and scheduled capture is blocked
+- `settings_window_width` and `settings_window_height`: persisted settings-window size
 - `schedules`: list of daily `HH:MM` schedule entries
+
+## Settings and reset behavior
+
+- The settings window is resizable, scrollable, and remembers its last saved size.
+- Storage preset selection updates both capture and archive roots together.
+- Editing either path manually switches the preset to `custom`.
+- `Reset Capture History` permanently removes SelfSnap capture files, archive files, DB history, logs, config, startup shortcut, and scheduled tasks, then relaunches into first run.
+- Reset is not uninstall: installed app files, wrapper scripts, and repo files stay in place.
+- Reinstall is non-destructive by default and preserves user data and settings unless you separately choose cleanup.
+- Background tray, startup, and scheduled operations do not open a visible console window.
 
 ## First run and tray behavior
 
@@ -144,6 +184,8 @@ pytest
 ruff check .
 mypy src
 ```
+
+Pytest temp directories are intentionally kept out of the repo under `%LOCALAPPDATA%\SelfSnap\pytest\tmp`, and the pytest cache provider is disabled to avoid `.pytest_cache` and `pytest-cache-files-*` clutter in the workspace.
 
 The setup script prefers a uv-managed Python 3.12 interpreter when `uv` is installed, then falls back to a normal `python` or `py` launcher on PATH. If you need to force a specific interpreter, pass it explicitly:
 
@@ -163,8 +205,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1
 
 This optional build is prepared to create:
 
-- `SelfSnapTray.exe`
-- `SelfSnapWorker.exe`
+- `SelfSnapTray.exe` as a windowless tray executable
+- `SelfSnapWorker.exe` as a windowless scheduled worker executable
 
 ## Known limitations
 

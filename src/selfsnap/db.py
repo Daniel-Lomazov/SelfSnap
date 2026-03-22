@@ -4,6 +4,18 @@ from pathlib import Path
 import sqlite3
 
 
+class ManagedConnection(sqlite3.Connection):
+    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
+        try:
+            if exc_type is None:
+                self.commit()
+            else:
+                self.rollback()
+        finally:
+            self.close()
+        return False
+
+
 CREATE_CAPTURE_RECORDS = """
 CREATE TABLE IF NOT EXISTS capture_records (
     record_id TEXT PRIMARY KEY,
@@ -41,7 +53,7 @@ CREATE_INDEXES = [
 
 def connect(db_path: Path) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(db_path)
+    connection = sqlite3.connect(db_path, factory=ManagedConnection)
     connection.row_factory = sqlite3.Row
     return connection
 

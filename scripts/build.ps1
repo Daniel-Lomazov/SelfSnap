@@ -11,6 +11,7 @@ Push-Location $repoRoot
     --noconfirm `
     --clean `
     --onefile `
+    --windowed `
     --name SelfSnapWorker `
     --paths src `
     src/selfsnap/worker_main.py
@@ -19,10 +20,10 @@ Push-Location $repoRoot
     --noconfirm `
     --clean `
     --onefile `
+    --windowed `
     --name SelfSnapTray `
     --paths src `
     --collect-submodules pystray `
     src/selfsnap/tray_main.py
 
 Pop-Location
-

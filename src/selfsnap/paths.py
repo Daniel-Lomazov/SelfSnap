@@ -13,6 +13,7 @@ APP_DIR_NAME = "SelfSnap"
 
 @dataclass(slots=True)
 class AppPaths:
+    user_profile: Path
     root: Path
     config_dir: Path
     data_dir: Path
@@ -30,11 +31,21 @@ class AppPaths:
             self.config_dir,
             self.data_dir,
             self.logs_dir,
-            self.default_capture_root,
-            self.default_archive_root,
             self.bin_dir,
         ):
             directory.mkdir(parents=True, exist_ok=True)
+
+    def preferred_onedrive_root(self) -> Path:
+        onedrive = os.environ.get("OneDrive")
+        if onedrive:
+            return Path(onedrive)
+        return self.user_profile / "OneDrive"
+
+    def onedrive_capture_root(self) -> Path:
+        return self.preferred_onedrive_root() / "Pictures" / APP_DIR_NAME / "captures"
+
+    def onedrive_archive_root(self) -> Path:
+        return self.preferred_onedrive_root() / "Pictures" / APP_DIR_NAME / "archive"
 
     def resolve_capture_root(self, config: AppConfig) -> Path:
         expanded = os.path.expandvars(config.capture_storage_root)
@@ -87,6 +98,7 @@ def resolve_app_paths() -> AppPaths:
     root = Path(local_appdata) / APP_DIR_NAME
     pictures_root = Path(user_profile) / "Pictures" / APP_DIR_NAME
     return AppPaths(
+        user_profile=Path(user_profile),
         root=root,
         config_dir=root / "config",
         data_dir=root / "data",

@@ -12,8 +12,11 @@ def test_load_or_create_creates_default(temp_paths) -> None:
     config = load_or_create_config(temp_paths)
     assert config.app_enabled is False
     assert config.first_run_completed is False
+    assert config.storage_preset == "local_pictures"
     assert config.capture_storage_root == str(temp_paths.default_capture_root)
     assert config.archive_storage_root == str(temp_paths.default_archive_root)
+    assert config.settings_window_width == 760
+    assert config.settings_window_height == 680
     assert config.scheduler_sync_state == "ok"
     assert temp_paths.config_path.exists()
 
@@ -22,11 +25,15 @@ def test_save_and_load_round_trip(temp_paths) -> None:
     config = AppConfig(
         capture_storage_root=str(temp_paths.default_capture_root),
         archive_storage_root=str(temp_paths.default_archive_root),
+        settings_window_width=900,
+        settings_window_height=700,
         schedules=[Schedule(schedule_id="morning", label="Morning", local_time="09:00")],
     )
     save_config(temp_paths, config)
     loaded = load_config(temp_paths)
     assert loaded.schedules[0].schedule_id == "morning"
+    assert loaded.settings_window_width == 900
+    assert loaded.settings_window_height == 700
 
 
 def test_invalid_config_file_raises(temp_paths) -> None:

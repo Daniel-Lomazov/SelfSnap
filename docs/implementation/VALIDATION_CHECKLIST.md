@@ -7,6 +7,19 @@
 - Start `selfsnap tray` and confirm a tray icon appears.
 - Complete the first-run setup dialog and confirm scheduled capture stays OFF unless explicitly enabled there.
 
+## Post-v1 release checks
+
+- Confirm no console window appears during tray startup, scheduled capture, or reconcile activity.
+- Confirm storage preset selection updates both capture and archive roots together.
+- Confirm the preset mapping is correct:
+  - `Local Pictures` -> `%USERPROFILE%\Pictures\SelfSnap\...`
+  - `OneDrive` -> `%OneDrive%\Pictures\SelfSnap\...`
+  - manual path edit -> `custom`
+- Confirm `Reset Capture History` requires a destructive warning before it clears SelfSnap user data.
+- Confirm reset removes capture files, archive files, DB history, logs, config, startup shortcut, and scheduled tasks, then relaunches first run.
+- Confirm the settings window can be resized and content does not crop.
+- Confirm reinstall keeps user data and settings by default.
+
 ## Manual capture
 
 - Use tray `Capture Now` or run `selfsnap capture --trigger manual`.
@@ -47,7 +60,7 @@
 
 - Run `scripts/install.ps1`.
 - Confirm `%LOCALAPPDATA%\SelfSnap\bin\SelfSnap.cmd` exists.
-- Confirm the Startup-folder shortcut points to the tray wrapper.
+- Confirm the Startup-folder shortcut points to a windowless tray launch, not the CLI wrapper.
 - Log off and back on.
 - Confirm the tray starts at logon and scheduled tasks still function.
 - Run `scripts/uninstall.ps1` and confirm captures, archive, config, DB, and logs are preserved.

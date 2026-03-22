@@ -2,6 +2,7 @@
   "schema_version": 1,
   "app_enabled": false,
   "first_run_completed": false,
+  "storage_preset": "local_pictures",
   "capture_storage_root": "%USERPROFILE%\\Pictures\\SelfSnap\\captures",
   "archive_storage_root": "%USERPROFILE%\\Pictures\\SelfSnap\\archive",
   "retention_mode": "keep_forever",
@@ -15,6 +16,8 @@
   "wake_for_scheduled_captures": false,
   "scheduler_sync_state": "ok",
   "scheduler_sync_message": null,
+  "settings_window_width": 760,
+  "settings_window_height": 680,
   "slot_match_tolerance_seconds": 120,
   "schedules": [
     {

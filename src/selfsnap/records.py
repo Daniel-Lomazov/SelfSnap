@@ -123,3 +123,19 @@ def list_recent_records(connection: sqlite3.Connection, limit: int = 20) -> list
         (limit,),
     ).fetchall()
     return [CaptureRecord.from_row(dict(row)) for row in rows]
+
+
+def list_all_record_paths(connection: sqlite3.Connection) -> list[Path]:
+    rows = connection.execute(
+        """
+        SELECT DISTINCT image_path
+        FROM capture_records
+        WHERE image_path IS NOT NULL
+        """
+    ).fetchall()
+    return [Path(row["image_path"]) for row in rows if row["image_path"]]
+
+
+def clear_capture_history(connection: sqlite3.Connection) -> None:
+    connection.execute("DELETE FROM capture_records")
+    connection.commit()

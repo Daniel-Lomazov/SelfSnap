@@ -6,11 +6,29 @@
 - `selfsnap capture`: one-shot manual or scheduled capture worker
 - Windows Task Scheduler: one daily task per enabled schedule entry
 
+## Current operational constraints
+
+- Tray and worker background execution does not open a visible console window.
+- Storage presets map to local Pictures, OneDrive Pictures, or a custom path.
+- Reset capture history is a deliberate destructive operation with explicit user confirmation.
+- Settings UI supports resizing and content-aware layout.
+- Reinstall is non-destructive by default and preserves user data and configuration unless cleanup is requested separately.
+
 ## Storage contracts
 
 - Config, DB, logs, wrapper, and runtime state: `%LOCALAPPDATA%\SelfSnap\`
 - Images: `%USERPROFILE%\Pictures\SelfSnap\captures\`
 - Archive: `%USERPROFILE%\Pictures\SelfSnap\archive\`
+
+## Storage presets
+
+| Settings label | Config token | Capture root | Archive root |
+|---|---|---|---|
+| `Local Pictures` | `local_pictures` | `%USERPROFILE%\Pictures\SelfSnap\captures\` | `%USERPROFILE%\Pictures\SelfSnap\archive\` |
+| `OneDrive` | `onedrive_pictures` | `%OneDrive%\Pictures\SelfSnap\captures\` | `%OneDrive%\Pictures\SelfSnap\archive\` |
+| `Custom` | `custom` | user-selected | user-selected |
+
+If `%OneDrive%` is unavailable, resolution falls back to `%USERPROFILE%\OneDrive\Pictures\SelfSnap\...`. The preset is rejected unless the resolved OneDrive base path exists and is writable.
 
 ## Outcome taxonomy
 
@@ -30,3 +48,10 @@
 - Individual disabled schedules are not kept active in Task Scheduler.
 - A scheduler sync failure leaves config saved, marks sync state failed, blocks scheduled capture, and keeps manual capture available.
 - Wake-for-scheduled-captures is an optional best-effort setting, default OFF.
+
+## Reset semantics
+
+- `Reset Capture History` removes SelfSnap-managed capture files and archive files.
+- It clears SQLite history, logs, config, startup shortcut, and scheduled tasks.
+- It returns the app to first-run state and relaunches the tray setup flow.
+- It does not uninstall wrapper scripts, installed app files, or repo files.

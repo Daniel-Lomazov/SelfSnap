@@ -3,10 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from pathlib import Path
-import sys
 
 from selfsnap.models import AppConfig
 from selfsnap.paths import AppPaths
+from selfsnap.runtime_launch import resolve_tray_background_invocation
 
 
 SHORTCUT_NAME = "SelfSnap Win11.lnk"
@@ -28,7 +28,7 @@ def startup_shortcut_path() -> Path:
 
 def sync_startup_shortcut(paths: AppPaths, config: AppConfig) -> None:
     shortcut_path = startup_shortcut_path()
-    if config.start_tray_on_login:
+    if config.start_tray_on_login and config.first_run_completed:
         shortcut_path.parent.mkdir(parents=True, exist_ok=True)
         _create_shortcut(shortcut_path, _resolve_tray_shortcut_spec(paths))
         return
@@ -37,28 +37,18 @@ def sync_startup_shortcut(paths: AppPaths, config: AppConfig) -> None:
 
 
 def _resolve_tray_shortcut_spec(paths: AppPaths) -> ShortcutSpec:
-    wrapper_path = paths.bin_dir / "SelfSnap.cmd"
-    if wrapper_path.exists():
-        return ShortcutSpec(
-            target=str(wrapper_path),
-            arguments="tray",
-            working_directory=str(paths.bin_dir),
-        )
-    if getattr(sys, "frozen", False):
-        executable = Path(sys.executable)
-        return ShortcutSpec(
-            target=str(executable),
-            arguments="",
-            working_directory=str(executable.parent),
-        )
-    python_executable = sys.executable
-    if not python_executable:
-        raise RuntimeError("Python executable path is unavailable for startup shortcut creation")
+    invocation = resolve_tray_background_invocation(paths)
     return ShortcutSpec(
-        target=python_executable,
-        arguments="-m selfsnap tray",
-        working_directory=str(paths.root),
+        target=invocation.executable,
+        arguments=invocation.argument_string(),
+        working_directory=invocation.working_directory,
     )
+
+
+def remove_startup_shortcut() -> None:
+    shortcut_path = startup_shortcut_path()
+    if shortcut_path.exists():
+        shortcut_path.unlink()
 
 
 def _create_shortcut(shortcut_path: Path, spec: ShortcutSpec) -> None:

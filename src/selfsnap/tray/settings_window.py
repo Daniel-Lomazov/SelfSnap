@@ -1,18 +1,33 @@
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from selfsnap.models import AppConfig, ConfigValidationError, Schedule
+from selfsnap.models import AppConfig, ConfigValidationError, Schedule, StoragePreset
+from selfsnap.paths import AppPaths
+from selfsnap.storage import apply_storage_preset, validate_storage_config
 
 
-def show_settings_dialog(config: AppConfig) -> AppConfig | None:
+WINDOW_MIN_WIDTH = 720
+WINDOW_MIN_HEIGHT = 560
+
+
+@dataclass(slots=True)
+class SettingsDialogResult:
+    updated_config: AppConfig | None
+    window_size: tuple[int, int]
+    requested_reset: bool = False
+
+
+def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogResult:
     root = tk.Tk()
     root.title("SelfSnap Settings")
-    root.geometry("700x560")
-    root.resizable(False, False)
+    root.geometry(f"{config.settings_window_width}x{config.settings_window_height}")
+    root.minsize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
+    root.resizable(True, True)
 
+    preset_var = tk.StringVar(value=config.storage_preset)
     capture_root_var = tk.StringVar(value=config.capture_storage_root)
     archive_root_var = tk.StringVar(value=config.archive_storage_root)
     retention_mode_var = tk.StringVar(value=config.retention_mode)
@@ -23,78 +38,208 @@ def show_settings_dialog(config: AppConfig) -> AppConfig | None:
     notify_on_failed_or_missed_var = tk.BooleanVar(value=config.notify_on_failed_or_missed)
     notify_on_every_capture_var = tk.BooleanVar(value=config.notify_on_every_capture)
     show_capture_overlay_var = tk.BooleanVar(value=config.show_capture_overlay)
-    schedules_text = tk.Text(root, width=78, height=12)
-    schedules_text.insert("1.0", _serialize_schedules(config.schedules))
+    internal_preset_update = {"active": False}
 
-    tk.Label(root, text="Capture storage root").pack(anchor="w", padx=12, pady=(12, 0))
-    capture_row = tk.Frame(root)
-    capture_row.pack(fill="x", padx=12)
-    tk.Entry(capture_row, textvariable=capture_root_var, width=64).pack(side="left", fill="x", expand=True)
-    ttk.Button(capture_row, text="Browse", command=lambda: _browse_directory(capture_root_var)).pack(
-        side="left", padx=(8, 0)
+    root.columnconfigure(0, weight=1)
+    root.rowconfigure(0, weight=1)
+
+    container = ttk.Frame(root, padding=(0, 0, 0, 0))
+    container.grid(row=0, column=0, sticky="nsew")
+    container.columnconfigure(0, weight=1)
+    container.rowconfigure(0, weight=1)
+
+    canvas = tk.Canvas(container, highlightthickness=0)
+    canvas.grid(row=0, column=0, sticky="nsew")
+    scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+    scrollbar.grid(row=0, column=1, sticky="ns")
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    content = ttk.Frame(canvas, padding=16)
+    content.columnconfigure(0, weight=1)
+    canvas_window = canvas.create_window((0, 0), window=content, anchor="nw")
+
+    def _sync_canvas(_event=None) -> None:
+        canvas.configure(scrollregion=canvas.bbox("all"))
+        canvas.itemconfigure(canvas_window, width=canvas.winfo_width())
+
+    content.bind("<Configure>", _sync_canvas)
+    canvas.bind("<Configure>", _sync_canvas)
+
+    def _set_preset(preset: str) -> None:
+        internal_preset_update["active"] = True
+        try:
+            preset_config = apply_storage_preset(paths, config, preset)
+            preset_var.set(preset)
+            capture_root_var.set(preset_config.capture_storage_root)
+            archive_root_var.set(preset_config.archive_storage_root)
+        finally:
+            internal_preset_update["active"] = False
+        _update_path_state()
+
+    def _mark_custom(*_args) -> None:
+        if internal_preset_update["active"]:
+            return
+        if preset_var.get() != StoragePreset.CUSTOM.value:
+            preset_var.set(StoragePreset.CUSTOM.value)
+
+    def _update_path_state() -> None:
+        capture_entry.configure(state="normal")
+        archive_entry.configure(state="normal")
+        capture_browse.configure(state="normal")
+        archive_browse.configure(state="normal")
+
+    capture_root_var.trace_add("write", _mark_custom)
+    archive_root_var.trace_add("write", _mark_custom)
+
+    row = 0
+    storage_frame = ttk.LabelFrame(content, text="Storage", padding=12)
+    storage_frame.grid(row=row, column=0, sticky="ew")
+    storage_frame.columnconfigure(1, weight=1)
+    row += 1
+
+    ttk.Label(storage_frame, text="Storage preset").grid(row=0, column=0, sticky="w", pady=(0, 8))
+    preset_combo = ttk.Combobox(
+        storage_frame,
+        textvariable=preset_var,
+        state="readonly",
+        values=[
+            StoragePreset.LOCAL_PICTURES.value,
+            StoragePreset.ONEDRIVE_PICTURES.value,
+            StoragePreset.CUSTOM.value,
+        ],
+        width=24,
     )
+    preset_combo.grid(row=0, column=1, sticky="w", pady=(0, 8))
 
-    tk.Label(root, text="Archive storage root").pack(anchor="w", padx=12, pady=(12, 0))
-    archive_row = tk.Frame(root)
-    archive_row.pack(fill="x", padx=12)
-    tk.Entry(archive_row, textvariable=archive_root_var, width=64).pack(side="left", fill="x", expand=True)
-    ttk.Button(archive_row, text="Browse", command=lambda: _browse_directory(archive_root_var)).pack(
-        side="left", padx=(8, 0)
+    ttk.Label(storage_frame, text="Capture storage root").grid(row=1, column=0, sticky="w", pady=(0, 8))
+    capture_entry = ttk.Entry(storage_frame, textvariable=capture_root_var)
+    capture_entry.grid(row=1, column=1, sticky="ew", pady=(0, 8))
+    capture_browse = ttk.Button(
+        storage_frame,
+        text="Browse",
+        command=lambda: _browse_directory(root, capture_root_var),
     )
+    capture_browse.grid(row=1, column=2, sticky="w", padx=(8, 0), pady=(0, 8))
 
-    retention_row = tk.Frame(root)
-    retention_row.pack(fill="x", padx=12, pady=(12, 0))
-    tk.Label(retention_row, text="Retention mode").pack(side="left")
+    ttk.Label(storage_frame, text="Archive storage root").grid(row=2, column=0, sticky="w", pady=(0, 8))
+    archive_entry = ttk.Entry(storage_frame, textvariable=archive_root_var)
+    archive_entry.grid(row=2, column=1, sticky="ew", pady=(0, 8))
+    archive_browse = ttk.Button(
+        storage_frame,
+        text="Browse",
+        command=lambda: _browse_directory(root, archive_root_var),
+    )
+    archive_browse.grid(row=2, column=2, sticky="w", padx=(8, 0), pady=(0, 8))
+
+    ttk.Label(storage_frame, text="Retention mode").grid(row=3, column=0, sticky="w")
     ttk.Combobox(
-        retention_row,
+        storage_frame,
         textvariable=retention_mode_var,
         values=["keep_forever", "keep_days"],
         width=18,
         state="readonly",
-    ).pack(side="left", padx=(8, 16))
-    tk.Label(retention_row, text="Retention days").pack(side="left")
-    tk.Entry(retention_row, textvariable=retention_days_var, width=8).pack(side="left", padx=(8, 0))
+    ).grid(row=3, column=1, sticky="w")
+    ttk.Label(storage_frame, text="Retention days").grid(row=3, column=2, sticky="w", padx=(12, 0))
+    ttk.Entry(storage_frame, textvariable=retention_days_var, width=8).grid(row=3, column=3, sticky="w")
 
-    toggles_frame = tk.LabelFrame(root, text="Behavior")
-    toggles_frame.pack(fill="x", padx=12, pady=(12, 0))
-    tk.Checkbutton(toggles_frame, text="Start tray on login", variable=start_tray_on_login_var).pack(
-        anchor="w", padx=12, pady=(8, 0)
-    )
-    tk.Checkbutton(
-        toggles_frame,
+    schedules_frame = ttk.LabelFrame(content, text="Schedules", padding=12)
+    schedules_frame.grid(row=row, column=0, sticky="ew", pady=(12, 0))
+    schedules_frame.columnconfigure(0, weight=1)
+    row += 1
+
+    ttk.Label(
+        schedules_frame,
+        text="One per line: schedule_id,label,HH:MM,enabled",
+    ).grid(row=0, column=0, sticky="w", pady=(0, 8))
+    schedules_text = tk.Text(schedules_frame, height=10, wrap="none")
+    schedules_text.grid(row=1, column=0, sticky="nsew")
+    schedules_text.insert("1.0", _serialize_schedules(config.schedules))
+
+    visibility_frame = ttk.LabelFrame(content, text="Visibility", padding=12)
+    visibility_frame.grid(row=row, column=0, sticky="ew", pady=(12, 0))
+    visibility_frame.columnconfigure(0, weight=1)
+    row += 1
+
+    ttk.Checkbutton(
+        visibility_frame,
+        text="Start tray on login",
+        variable=start_tray_on_login_var,
+    ).grid(row=0, column=0, sticky="w")
+    ttk.Checkbutton(
+        visibility_frame,
         text="Wake for scheduled captures when supported",
         variable=wake_for_scheduled_captures_var,
-    ).pack(anchor="w", padx=12)
-    tk.Checkbutton(
-        toggles_frame,
+    ).grid(row=1, column=0, sticky="w")
+    ttk.Checkbutton(
+        visibility_frame,
         text="Show latest capture status in tray menu",
         variable=show_last_capture_status_var,
-    ).pack(anchor="w", padx=12)
-    tk.Checkbutton(
-        toggles_frame,
+    ).grid(row=2, column=0, sticky="w")
+    ttk.Checkbutton(
+        visibility_frame,
         text="Notify on failed or missed captures",
         variable=notify_on_failed_or_missed_var,
-    ).pack(anchor="w", padx=12)
-    tk.Checkbutton(
-        toggles_frame,
+    ).grid(row=3, column=0, sticky="w")
+    ttk.Checkbutton(
+        visibility_frame,
         text="Notify on every scheduled and manual capture",
         variable=notify_on_every_capture_var,
-    ).pack(anchor="w", padx=12)
-    tk.Checkbutton(
-        toggles_frame,
+    ).grid(row=4, column=0, sticky="w")
+    ttk.Checkbutton(
+        visibility_frame,
         text="Show brief on-screen overlay after capture",
         variable=show_capture_overlay_var,
-    ).pack(anchor="w", padx=12, pady=(0, 8))
+    ).grid(row=5, column=0, sticky="w")
 
-    tk.Label(
-        root,
-        text="Schedules: one per line in the format schedule_id,label,HH:MM,enabled",
-    ).pack(anchor="w", padx=12, pady=(12, 0))
-    schedules_text.pack(fill="both", padx=12, pady=(0, 12))
+    maintenance_frame = ttk.LabelFrame(content, text="Maintenance", padding=12)
+    maintenance_frame.grid(row=row, column=0, sticky="ew", pady=(12, 0))
+    maintenance_frame.columnconfigure(0, weight=1)
+    row += 1
 
-    result: dict[str, AppConfig | None] = {"value": None}
+    ttk.Label(
+        maintenance_frame,
+        text=(
+            "Reset Capture History permanently deletes SelfSnap capture/archive files, "
+            "database history, logs, schedules, and local user settings, then relaunches first run."
+        ),
+        wraplength=700,
+        justify="left",
+        foreground="#7f1d1d",
+    ).grid(row=0, column=0, sticky="w", pady=(0, 8))
 
-    def save_and_close() -> None:
+    result = SettingsDialogResult(updated_config=None, window_size=(config.settings_window_width, config.settings_window_height))
+
+    def _capture_size() -> tuple[int, int]:
+        root.update_idletasks()
+        return root.winfo_width(), root.winfo_height()
+
+    def _request_reset() -> None:
+        confirmed = messagebox.askyesno(
+            "Reset Capture History",
+            (
+                "This permanently deletes SelfSnap capture files, archive files, logs, "
+                "history, schedules, and user settings, then restarts into first run.\n\n"
+                "This cannot be undone.\n\nContinue?"
+            ),
+            parent=root,
+            icon="warning",
+        )
+        if not confirmed:
+            return
+        result.window_size = _capture_size()
+        result.requested_reset = True
+        root.destroy()
+
+    ttk.Button(
+        maintenance_frame,
+        text="Reset Capture History",
+        command=_request_reset,
+    ).grid(row=1, column=0, sticky="w")
+
+    action_row = ttk.Frame(root, padding=(16, 12))
+    action_row.grid(row=1, column=0, sticky="ew")
+
+    def _save_and_close() -> None:
         try:
             parsed_schedules = _parse_schedules(schedules_text.get("1.0", "end").strip())
             retention_days = None
@@ -102,6 +247,7 @@ def show_settings_dialog(config: AppConfig) -> AppConfig | None:
                 retention_days = int(retention_days_var.get())
             updated = replace(
                 config,
+                storage_preset=preset_var.get().strip(),
                 capture_storage_root=capture_root_var.get().strip(),
                 archive_storage_root=archive_root_var.get().strip(),
                 retention_mode=retention_mode_var.get().strip(),
@@ -112,26 +258,38 @@ def show_settings_dialog(config: AppConfig) -> AppConfig | None:
                 notify_on_failed_or_missed=notify_on_failed_or_missed_var.get(),
                 notify_on_every_capture=notify_on_every_capture_var.get(),
                 show_capture_overlay=show_capture_overlay_var.get(),
+                settings_window_width=_capture_size()[0],
+                settings_window_height=_capture_size()[1],
                 schedules=parsed_schedules,
             )
+            if updated.storage_preset != StoragePreset.CUSTOM.value:
+                updated = apply_storage_preset(paths, updated, updated.storage_preset)
+            else:
+                validate_storage_config(paths, updated)
             updated.validate()
         except (ConfigValidationError, ValueError) as exc:
             messagebox.showerror("Invalid settings", str(exc), parent=root)
             return
-        result["value"] = updated
+        result.updated_config = updated
+        result.window_size = (updated.settings_window_width, updated.settings_window_height)
         root.destroy()
 
-    button_row = tk.Frame(root)
-    button_row.pack(fill="x", padx=12, pady=(0, 12))
-    ttk.Button(button_row, text="Save", command=save_and_close).pack(side="right")
-    ttk.Button(button_row, text="Cancel", command=root.destroy).pack(side="right", padx=(0, 8))
+    def _cancel() -> None:
+        result.window_size = _capture_size()
+        root.destroy()
 
+    ttk.Button(action_row, text="Save", command=_save_and_close).pack(side="right")
+    ttk.Button(action_row, text="Cancel", command=_cancel).pack(side="right", padx=(0, 8))
+
+    preset_combo.bind("<<ComboboxSelected>>", lambda _event: _set_preset(preset_var.get()))
+    _update_path_state()
+    root.protocol("WM_DELETE_WINDOW", _cancel)
     root.mainloop()
-    return result["value"]
+    return result
 
 
-def _browse_directory(target: tk.StringVar) -> None:
-    chosen = filedialog.askdirectory(initialdir=target.get() or None)
+def _browse_directory(parent: tk.Tk, target: tk.StringVar) -> None:
+    chosen = filedialog.askdirectory(parent=parent, initialdir=target.get() or None)
     if chosen:
         target.set(chosen)
 
