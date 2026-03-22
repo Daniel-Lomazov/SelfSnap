@@ -7,6 +7,9 @@ import pytest
 from selfsnap.paths import AppPaths
 
 
+Path("tests/.tmp").mkdir(parents=True, exist_ok=True)
+
+
 @pytest.fixture
 def temp_paths(tmp_path: Path) -> AppPaths:
     root = tmp_path / "AppData" / "Local" / "SelfSnap"

@@ -12,6 +12,7 @@ from selfsnap.models import AppConfig, CaptureRecord, OutcomeCategory, TriggerSo
 from selfsnap.paths import AppPaths, resolve_app_paths
 from selfsnap.records import get_latest_record, resolve_latest_capture_path
 from selfsnap.retention import apply_retention
+from selfsnap.runtime_probe import probe_runtime_dependencies
 from selfsnap.scheduler.reconcile import reconcile_missed_slots
 from selfsnap.scheduler.task_scheduler import sync_scheduler_from_config
 from selfsnap.tray.first_run import show_first_run_dialog
@@ -27,12 +28,14 @@ class TrayRuntimeState:
 
 
 def run_tray_app(paths: AppPaths | None = None) -> int:
-    try:
-        import pystray
-        from PIL import Image, ImageDraw
-    except ImportError as exc:
-        print(f"Tray dependencies are missing: {exc}")
+    probe = probe_runtime_dependencies()
+    if not probe.ok:
+        print(f"Tray runtime check failed: {probe.summary}")
+        print(probe.details)
         return 1
+
+    import pystray
+    from PIL import Image, ImageDraw
 
     paths = paths or resolve_app_paths()
     paths.ensure_dirs()

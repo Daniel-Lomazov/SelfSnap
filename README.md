@@ -33,6 +33,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
 4. Run diagnostics:
 
 ```powershell
+selfsnap doctor
 selfsnap diag
 ```
 
