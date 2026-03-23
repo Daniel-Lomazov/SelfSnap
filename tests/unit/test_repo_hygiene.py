@@ -14,6 +14,7 @@ def test_pytest_artifact_cleanup_script_targets_acl_poisoned_folders() -> None:
     assert "RepairAcl" in script
     assert "Start-Process" in script
     assert "RunAs" in script
+    assert "Elevation returned, but pytest artifact targets still remain." in script
 
 
 def test_install_and_uninstall_scripts_support_interpreter_overrides() -> None:
@@ -33,3 +34,14 @@ def test_readme_documents_pytest_hygiene_workflow() -> None:
     assert "pytest-cache-files-*" in readme
     assert "pytest cache provider is disabled" in readme.lower()
     assert "-RepairAcl" in readme
+    assert "legacy leftovers" in readme
+
+
+def test_pytest_config_keeps_temp_output_out_of_repo() -> None:
+    pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
+    conftest = Path("tests/conftest.py").read_text(encoding="utf-8")
+
+    assert 'addopts = ["-p", "no:cacheprovider"]' in pyproject
+    assert ".pytest_tmp" in pyproject
+    assert ".pytest-work" in pyproject
+    assert 'Path(local_appdata) / "SelfSnap" / "pytest" / "tmp"' in conftest

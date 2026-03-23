@@ -196,6 +196,8 @@ mypy src
 
 Pytest temp directories are intentionally kept out of the repo under `%LOCALAPPDATA%\SelfSnap\pytest\tmp`, and the pytest cache provider is disabled to avoid `.pytest_cache` and `pytest-cache-files-*` clutter in the workspace.
 
+If `.pytest_tmp` or `.pytest-work` still exist in the repo root with old timestamps, treat them as legacy leftovers from earlier runs. Current pytest configuration should not recreate them.
+
 If stale pytest artifact folders remain from older runs and normal deletion fails, use the dedicated cleanup script:
 
 ```powershell
