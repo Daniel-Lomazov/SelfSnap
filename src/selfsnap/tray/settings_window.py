@@ -9,8 +9,8 @@ from selfsnap.paths import AppPaths
 from selfsnap.storage import apply_storage_preset, validate_storage_config
 
 
-WINDOW_MIN_WIDTH = 720
-WINDOW_MIN_HEIGHT = 560
+WINDOW_MIN_WIDTH = 960
+WINDOW_MIN_HEIGHT = 760
 
 
 @dataclass(slots=True)
@@ -23,7 +23,11 @@ class SettingsDialogResult:
 def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogResult:
     root = tk.Tk()
     root.title("SelfSnap Settings")
-    root.geometry(f"{config.settings_window_width}x{config.settings_window_height}")
+    root.update_idletasks()
+    root.geometry(
+        f"{max(config.settings_window_width, WINDOW_MIN_WIDTH)}x"
+        f"{max(config.settings_window_height, WINDOW_MIN_HEIGHT)}"
+    )
     root.minsize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
     root.resizable(True, True)
 
@@ -64,6 +68,23 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
 
     content.bind("<Configure>", _sync_canvas)
     canvas.bind("<Configure>", _sync_canvas)
+
+    def _bind_wrap(widget: ttk.Label, padding: int = 56) -> None:
+        def _update_wrap(_event=None) -> None:
+            wrap = max(content.winfo_width() - padding, 420)
+            widget.configure(wraplength=wrap)
+
+        content.bind("<Configure>", _update_wrap, add="+")
+        root.after_idle(_update_wrap)
+
+    def _stabilize_geometry() -> None:
+        root.update_idletasks()
+        required_width = max(WINDOW_MIN_WIDTH, root.winfo_reqwidth() + 24)
+        required_height = max(WINDOW_MIN_HEIGHT, root.winfo_reqheight() + 24)
+        current_width = max(root.winfo_width(), required_width)
+        current_height = max(root.winfo_height(), required_height)
+        root.minsize(required_width, required_height)
+        root.geometry(f"{current_width}x{current_height}")
 
     def _set_preset(preset: str) -> None:
         internal_preset_update["active"] = True
@@ -196,22 +217,23 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     maintenance_frame.columnconfigure(0, weight=1)
     row += 1
 
-    ttk.Label(
+    maintenance_message = ttk.Label(
         maintenance_frame,
         text=(
             "Reset Capture History permanently deletes SelfSnap capture/archive files, "
             "database history, logs, schedules, and local user settings, then relaunches first run."
         ),
-        wraplength=700,
         justify="left",
         foreground="#7f1d1d",
-    ).grid(row=0, column=0, sticky="w", pady=(0, 8))
+    )
+    maintenance_message.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+    _bind_wrap(maintenance_message)
 
     result = SettingsDialogResult(updated_config=None, window_size=(config.settings_window_width, config.settings_window_height))
 
     def _capture_size() -> tuple[int, int]:
         root.update_idletasks()
-        return root.winfo_width(), root.winfo_height()
+        return max(root.winfo_width(), WINDOW_MIN_WIDTH), max(root.winfo_height(), WINDOW_MIN_HEIGHT)
 
     def _request_reset() -> None:
         confirmed = messagebox.askyesno(
@@ -271,7 +293,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             messagebox.showerror("Invalid settings", str(exc), parent=root)
             return
         result.updated_config = updated
-        result.window_size = (updated.settings_window_width, updated.settings_window_height)
+        result.window_size = _capture_size()
         root.destroy()
 
     def _cancel() -> None:
@@ -283,6 +305,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
 
     preset_combo.bind("<<ComboboxSelected>>", lambda _event: _set_preset(preset_var.get()))
     _update_path_state()
+    root.after_idle(_stabilize_geometry)
     root.protocol("WM_DELETE_WINDOW", _cancel)
     root.mainloop()
     return result

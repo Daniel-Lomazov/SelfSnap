@@ -9,18 +9,19 @@ import threading
 from selfsnap.config_store import load_or_create_config, save_config
 from selfsnap.db import connect, ensure_database
 from selfsnap.logging_setup import setup_logging
-from selfsnap.models import AppConfig, CaptureRecord, OutcomeCategory, TriggerSource
+from selfsnap.models import AppConfig, CaptureRecord, OutcomeCategory
 from selfsnap.paths import AppPaths, resolve_app_paths
 from selfsnap.reset_service import perform_clean_reset
 from selfsnap.records import get_latest_record, resolve_latest_capture_path
 from selfsnap.retention import apply_retention
+from selfsnap.runtime_launch import resolve_manual_capture_background_invocation, run_background_command
 from selfsnap.runtime_probe import probe_runtime_dependencies
 from selfsnap.scheduler.reconcile import reconcile_missed_slots
 from selfsnap.scheduler.task_scheduler import sync_scheduler_from_config
 from selfsnap.tray.first_run import show_first_run_dialog
 from selfsnap.tray.settings_window import show_settings_dialog
 from selfsnap.tray.startup import sync_startup_shortcut
-from selfsnap.worker import EXIT_OK, run_capture_command
+from selfsnap.worker import EXIT_OK
 
 
 @dataclass(slots=True)
@@ -66,6 +67,9 @@ def run_tray_app(paths: AppPaths | None = None) -> int:
     def background_loop() -> None:
         while not state.stop_event.is_set():
             try:
+                if state.settings_dialog_open.is_set():
+                    state.stop_event.wait(60)
+                    continue
                 _run_housekeeping(paths)
                 refresh_menu()
                 _announce_latest_record(paths, icon, state)
@@ -120,16 +124,23 @@ def _run_async(func, *args) -> None:
 def _capture_now(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
     config = load_or_create_config(paths)
     setup_logging(paths, config.log_level)
-    result = run_capture_command(TriggerSource.MANUAL, paths=paths)
-    if result.record is not None:
-        _announce_record(
-            icon,
-            config,
-            result.record,
-            suppress_overlay=state.settings_dialog_open.is_set(),
-        )
-        state.last_announced_record_id = result.record.record_id
-    icon.update_menu()
+    suppress_ui_updates = state.settings_dialog_open.is_set()
+    previous_record_id = state.last_announced_record_id
+    completed = run_background_command(resolve_manual_capture_background_invocation(paths))
+    latest = _latest_record(paths)
+    if latest is not None and latest.record_id != previous_record_id:
+        if not suppress_ui_updates:
+            _announce_record(
+                icon,
+                config,
+                latest,
+                suppress_overlay=False,
+            )
+        state.last_announced_record_id = latest.record_id
+    elif completed.returncode != EXIT_OK and not suppress_ui_updates:
+        _show_notification(icon, "SelfSnap", "Manual capture failed. Open logs or run selfsnap diag.")
+    if not suppress_ui_updates:
+        icon.update_menu()
 
 
 def _toggle_enabled(paths: AppPaths, icon) -> None:
@@ -151,6 +162,8 @@ def _toggle_enabled(paths: AppPaths, icon) -> None:
 
 
 def _open_settings(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
+    if state.settings_dialog_open.is_set():
+        return
     config = load_or_create_config(paths)
     state.settings_dialog_open.set()
     try:
@@ -254,16 +267,18 @@ def _ensure_first_run_completed(paths: AppPaths, config: AppConfig) -> AppConfig
 
 
 def _latest_record_id(paths: AppPaths) -> str | None:
-    ensure_database(paths.db_path)
-    with connect(paths.db_path) as connection:
-        latest = get_latest_record(connection)
+    latest = _latest_record(paths)
     return latest.record_id if latest is not None else None
 
 
-def _announce_latest_record(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
+def _latest_record(paths: AppPaths) -> CaptureRecord | None:
     ensure_database(paths.db_path)
     with connect(paths.db_path) as connection:
-        latest = get_latest_record(connection)
+        return get_latest_record(connection)
+
+
+def _announce_latest_record(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
+    latest = _latest_record(paths)
     if latest is None or latest.record_id == state.last_announced_record_id:
         return
     config = load_or_create_config(paths)

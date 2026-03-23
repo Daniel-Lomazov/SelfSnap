@@ -9,11 +9,19 @@ from selfsnap.paths import AppPaths
 from selfsnap.storage import apply_storage_preset, validate_storage_config
 
 
+WINDOW_MIN_WIDTH = 960
+WINDOW_MIN_HEIGHT = 760
+
+
 def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | None:
     root = tk.Tk()
     root.title("SelfSnap First Run Setup")
-    root.geometry(f"{max(config.settings_window_width, 720)}x{max(config.settings_window_height, 560)}")
-    root.minsize(720, 560)
+    root.update_idletasks()
+    root.geometry(
+        f"{max(config.settings_window_width, WINDOW_MIN_WIDTH)}x"
+        f"{max(config.settings_window_height, WINDOW_MIN_HEIGHT)}"
+    )
+    root.minsize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
     root.resizable(True, True)
 
     preset_var = tk.StringVar(value=config.storage_preset)
@@ -33,16 +41,39 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
     content = ttk.Frame(root, padding=16)
     content.grid(row=0, column=0, sticky="nsew")
     content.columnconfigure(0, weight=1)
+    content.rowconfigure(0, weight=0)
 
-    ttk.Label(
+    def _bind_wrap(widget: ttk.Label, padding: int = 56) -> None:
+        def _update_wrap(_event=None) -> None:
+            wrap = max(content.winfo_width() - padding, 420)
+            widget.configure(wraplength=wrap)
+
+        content.bind("<Configure>", _update_wrap, add="+")
+        root.after_idle(_update_wrap)
+
+    def _capture_size() -> tuple[int, int]:
+        root.update_idletasks()
+        return max(root.winfo_width(), WINDOW_MIN_WIDTH), max(root.winfo_height(), WINDOW_MIN_HEIGHT)
+
+    def _stabilize_geometry() -> None:
+        root.update_idletasks()
+        required_width = max(WINDOW_MIN_WIDTH, root.winfo_reqwidth() + 24)
+        required_height = max(WINDOW_MIN_HEIGHT, root.winfo_reqheight() + 24)
+        current_width = max(root.winfo_width(), required_width)
+        current_height = max(root.winfo_height(), required_height)
+        root.minsize(required_width, required_height)
+        root.geometry(f"{current_width}x{current_height}")
+
+    intro_label = ttk.Label(
         content,
         text=(
             "SelfSnap stores screenshots locally and can start scheduled capture after setup. "
             "Manual capture remains available even if you leave scheduling off."
         ),
-        wraplength=700,
         justify="left",
-    ).grid(row=0, column=0, sticky="w", pady=(0, 12))
+    )
+    intro_label.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+    _bind_wrap(intro_label)
 
     storage_frame = ttk.LabelFrame(content, text="Storage", padding=12)
     storage_frame.grid(row=1, column=0, sticky="ew")
@@ -158,8 +189,8 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
                 notify_on_failed_or_missed=notify_on_failed_or_missed_var.get(),
                 notify_on_every_capture=notify_on_every_capture_var.get(),
                 show_capture_overlay=show_capture_overlay_var.get(),
-                settings_window_width=root.winfo_width(),
-                settings_window_height=root.winfo_height(),
+                settings_window_width=_capture_size()[0],
+                settings_window_height=_capture_size()[1],
             )
             if updated.storage_preset != StoragePreset.CUSTOM.value:
                 updated = apply_storage_preset(paths, updated, updated.storage_preset)
@@ -179,6 +210,7 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
 
     preset_combo.bind("<<ComboboxSelected>>", lambda _event: _apply_preset(preset_var.get()))
     _update_path_state()
+    root.after_idle(_stabilize_geometry)
     root.mainloop()
     return result["value"]
 
