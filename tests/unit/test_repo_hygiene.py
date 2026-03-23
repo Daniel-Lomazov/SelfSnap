@@ -23,12 +23,17 @@ def test_pytest_artifact_cleanup_script_targets_acl_poisoned_folders() -> None:
 
 def test_install_and_uninstall_scripts_support_interpreter_overrides() -> None:
     install = Path("scripts/install.ps1").read_text(encoding="utf-8")
+    reinstall = Path("scripts/reinstall.ps1").read_text(encoding="utf-8")
     uninstall = Path("scripts/uninstall.ps1").read_text(encoding="utf-8")
 
     assert "PythonwExe" in install
     assert "Resolve-PythonPath" in install
+    assert "UpdateSource" in reinstall
+    assert "RelaunchTray" in reinstall
+    assert "git pull --ff-only" in reinstall
     assert "PythonExe" in uninstall
     assert "Get-TrustedInstallMetadata" in uninstall
+    assert "RemoveUserData" in uninstall
 
 
 def test_readme_documents_pytest_hygiene_workflow() -> None:
@@ -68,5 +73,6 @@ def test_readme_documents_issue_reporting_and_github_workflows() -> None:
 
     assert "Report Issue" in readme
     assert "SELFSNAP_GITHUB_REPO" in readme
-    assert "SELFSNAP_GITHUB_TOKEN" in readme
+    assert "offline by default" in readme.lower()
+    assert "no telemetry" in readme.lower()
     assert "issue-intake" in readme

@@ -69,7 +69,7 @@ jobs:
               "bug": { color: "d73a4a", description: "Confirmed defect or malfunction" },
               "enhancement": { color: "a2eeef", description: "Requested product enhancement" },
               "needs-triage": { color: "fbca04", description: "Needs maintainer triage" },
-              "ready-for-local-planning": { color: "0e8a16", description: "Prepared for the next local planning session" },
+              "ready-for-local-planning": { color: "0e8a16", description: "Prepared for the next maintainer planning pass" },
               "blocked:needs-info": { color: "b60205", description: "Missing detail before implementation planning" },
               "reported-via-app": { color: "5319e7", description: "Submitted from the tray app flow" },
               "source:app": { color: "5319e7", description: "Submitted from the app UI" },
@@ -156,9 +156,9 @@ jobs:
               `- Area: ${area}`,
               `- Impact: ${impact}`,
               `- Diagnostics included: ${diagIncluded ? "yes" : "no"}`,
-              `- Ready for local planning: ${hasUserReport ? "yes" : "needs more user detail"}`,
+              `- Ready for maintainer planning: ${hasUserReport ? "yes" : "needs more user detail"}`,
               "",
-              "## Local planning starter",
+              "## Maintainer planning starter",
               ...guidance,
             ].join("\n");
             const existingComment = comments.find((comment) => comment.body && comment.body.includes(planningMarker));

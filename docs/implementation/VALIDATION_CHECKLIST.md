@@ -5,7 +5,7 @@
 - Install dependencies or run the source-based install script.
 - Run `selfsnap diag` and confirm config, DB, log, Pictures capture, and Pictures archive paths are created.
 - Start `selfsnap tray` and confirm a tray icon appears.
-- Use the tray default action or menu `Report Issue` and confirm the report dialog opens without affecting Settings geometry.
+- Open Settings, then use the tray default action or menu `Report Issue` and confirm the report dialog still opens without affecting Settings geometry.
 - Complete the first-run setup dialog and confirm scheduled capture stays OFF unless explicitly enabled there.
 - If the tray settings window has been opened and reused, confirm a manual capture does not change its size or reopen it smaller.
 
@@ -15,14 +15,15 @@
 - Confirm storage preset selection updates both capture and archive roots together.
 - Confirm the preset mapping is correct:
   - `Local Pictures` -> `%USERPROFILE%\Pictures\SelfSnap\...`
-  - `OneDrive` -> `%OneDrive%\Pictures\SelfSnap\...`
-  - manual path edit -> `custom`
+  - `OneDrive Pictures` -> `%OneDrive%\Pictures\SelfSnap\...`
+  - manual path edit -> `Custom Folder`
 - Confirm `Reset Capture History` requires a destructive warning before it clears SelfSnap user data.
 - Confirm reset removes capture files, archive files, DB history, logs, config, startup shortcut, and scheduled tasks, then relaunches first run.
-- Confirm the settings window can be resized and content does not crop.
+- Confirm the settings window can be resized in both directions and content widens without cropping.
 - Confirm a manual capture does not resize an open settings window and that reopening returns to the stable minimum size.
 - Confirm reinstall keeps user data and settings by default.
 - Confirm `Report Issue` never attaches screenshots, logs, or local file paths automatically.
+- Confirm `Report Issue` opens only a browser page and does not submit anything silently from the app.
 - If one tray launch shows both a parent `.venv` `pythonw.exe` and a child `uv`-backed `pythonw.exe` in Task Manager, do not treat that alone as a failure. Only treat it as a bug if duplicate tray icons, duplicate notifications, or duplicate Settings windows appear.
 
 ## Manual capture
@@ -52,7 +53,7 @@
 - Confirm filenames follow `cap_YYYY-MM-DD_HH-MM-SS_trigger_schedule.png`.
 - Confirm the latest record can be opened from the tray.
 - Confirm the capture folder opens from the tray.
-- Confirm `Report Issue` opens a GitHub issue page or creates an issue directly when a GitHub token is configured.
+- Confirm `Report Issue` opens a GitHub issue page in the browser.
 - If notifications are enabled, confirm failed or missed events notify and successful captures only notify when that toggle is ON.
 
 ## Retention
@@ -65,11 +66,14 @@
 ## Packaging and install
 
 - Run `scripts/install.ps1`.
+- Use tray `Reinstall -> From Local Source` and confirm the app reinstalls, closes, relaunches, and preserves user data.
+- Use tray `Reinstall -> From Source and Update` only on a clean repo and confirm it refuses dirty or non-fast-forward states safely.
 - If `pythonw.exe` is nonstandard, confirm `scripts/install.ps1 -PythonwExe ...` resolves it correctly.
 - Confirm `%LOCALAPPDATA%\SelfSnap\bin\SelfSnap.cmd` exists.
 - Confirm the Startup-folder shortcut points to a windowless tray launch, not the CLI wrapper.
 - Log off and back on.
 - Confirm the tray starts at logon and scheduled tasks still function.
 - Run `scripts/uninstall.ps1` and confirm captures, archive, config, DB, and logs are preserved.
+- Use tray `Uninstall -> Remove All User Data` only on disposable test data and confirm the repo checkout and `.venv` remain untouched.
 - If the editable package lives in a non-default interpreter, confirm `scripts/uninstall.ps1 -PythonExe ...` still removes it cleanly.
 - If stale pytest folders exist, run `scripts/cleanup_pytest_artifacts.ps1 -ListOnly` first, then `scripts/cleanup_pytest_artifacts.ps1`, then `scripts/cleanup_pytest_artifacts.ps1 -RepairAcl` if ownership repair is needed, and confirm they are removed.

@@ -7,6 +7,8 @@
 - Tray must remain visible while active
 - Logs must not include image contents or inferred activity
 - User-visible indicators are layered and independently togglable
+- No automatic outbound network traffic during normal runtime
+- Only explicit browser-open feedback and explicit source-update reinstall may touch the network
 
 ## Current privacy and control notes
 
@@ -16,6 +18,7 @@
 - Reinstall defaults preserve user data unless the user explicitly opts into cleanup
 - Tray `Report Issue` shares only a short user description plus optional safe diagnostics
 - Screenshots, screenshot contents, logs, DB contents, and local storage paths are never attached automatically to issue reports
+- Issue reporting is browser-mediated only; the app does not create GitHub issues directly
 - Stale ACL-poisoned pytest folders are cleaned with a dedicated elevated script, not by normal app flow
 
 ## Manual QA focus

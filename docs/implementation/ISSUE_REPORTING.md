@@ -8,24 +8,22 @@
 
 ## Privacy boundary
 
+- SelfSnap is offline by default.
 - SelfSnap never uploads screenshots automatically.
 - SelfSnap never attaches local file paths, logs, or database contents automatically.
 - Safe diagnostics are limited to product/runtime metadata such as app version, storage preset, scheduler sync state, and latest outcome code.
-- Final GitHub submission remains user-controlled unless the user has explicitly configured a GitHub token in the environment.
+- Final GitHub submission is always user-controlled in the browser.
+- No silent upload or background network activity happens during issue reporting.
 
-## Submission modes
+## Submission mode
 
 - Browser mode:
-  - default for any user
+  - only mode
   - opens a prefilled GitHub issue page in the browser
   - uses `.github/ISSUE_TEMPLATE/report_issue.md`
-- API mode:
-  - enabled only when `SELFSNAP_GITHUB_TOKEN`, `GH_TOKEN`, or `GITHUB_TOKEN` is present
-  - creates the issue directly through the GitHub issues API
-  - still relies on GitHub-side issue intake for labeling and planning prep
 
 ## GitHub-side preprocessing
 
 - `.github/workflows/issue-intake.yml` parses stable markers from submitted issue bodies.
 - It applies area/source/impact labels and posts a planning starter comment marked with `<!-- selfsnap-planning-intake -->`.
-- That comment is the intended handoff surface for the next local-agent planning session.
+- That comment is the intended handoff surface for the next maintainer planning pass.
