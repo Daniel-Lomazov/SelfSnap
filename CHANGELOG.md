@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.8.0 - 2026-03-23
+
+Why: The recurring schedule overhaul introduced a real schedule editor and a richer recurrence model.
+
+- Replaced daily-only schedule semantics with anchored recurring schedules and explicit start date/time fields.
+- Added user guidance for building, editing, and deleting recurring schedules in the README and Settings help.
+- Bumped the public versioning line to `0.8.0` to reflect the next pre-`1.0` planning milestone.
+
 ## v0.7.0 - 2026-03-23
 
 Why: The current public-ready branch reached a stable offline-first runtime and reviewable release posture.

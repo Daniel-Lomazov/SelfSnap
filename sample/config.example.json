@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "app_enabled": false,
   "first_run_completed": false,
   "storage_preset": "local_pictures",
@@ -23,14 +23,20 @@
     {
       "schedule_id": "morning",
       "label": "Morning",
-      "local_time": "09:00",
-      "enabled": true
+      "enabled": true,
+      "interval_value": 1,
+      "interval_unit": "day",
+      "start_date_local": "2026-03-23",
+      "start_time_local": "09:00:00"
     },
     {
-      "schedule_id": "afternoon",
-      "label": "Afternoon",
-      "local_time": "14:00",
-      "enabled": true
+      "schedule_id": "work_break",
+      "label": "Work Break",
+      "enabled": true,
+      "interval_value": 5,
+      "interval_unit": "minute",
+      "start_date_local": "2026-03-23",
+      "start_time_local": "14:30:00"
     }
   ]
 }

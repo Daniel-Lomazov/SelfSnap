@@ -1,8 +1,8 @@
 # SelfSnap Win11
 
-SelfSnap Win11 is a Windows 11-only, local-first screenshot utility for personal use. It captures a composite image of all connected monitors at configured daily times, stores the image locally, and records honest metadata about what happened.
+SelfSnap Win11 is a Windows 11-only, local-first screenshot utility for personal use. It captures a composite image of all connected monitors on recurring schedules, stores the image locally, and records honest metadata about what happened.
 
-Current version: `0.7.0`. Detailed release history lives in `CHANGELOG.md`.
+Current version: `0.8.0`. Detailed release history lives in `CHANGELOG.md`.
 
 SelfSnap is offline by default. The only user-triggered network actions are opening a browser for `Report Issue` and running `Reinstall -> From Source and Update`, which uses `git pull --ff-only`.
 There is no telemetry or silent upload in normal runtime.
@@ -19,9 +19,9 @@ This repository is public for visibility and issue tracking, but the code remain
 
 ## Current release
 
-This release keeps background work console-free and adds:
+This release adds recurring schedule support and keeps background work console-free:
 
-- hidden tray/startup/scheduled background launches
+- a recurring schedule editor with Add, Save, Cancel, Delete, and multi-select delete
 - storage presets for `Local Pictures`, `OneDrive Pictures`, and `Custom Folder`
 - a destructive `Reset Capture History` flow that returns the app to first-run state
 - a resizable, compact settings window with stable geometry
@@ -34,7 +34,7 @@ This release keeps background work console-free and adds:
 - Windows 11 only
 - Logged-in desktop session only
 - Manual capture
-- Multiple daily schedules through Windows Task Scheduler
+- Recurring schedules using a hybrid tray and Windows Task Scheduler model
 - Local PNG output
 - Local SQLite metadata
 - Rotating text logs
@@ -167,6 +167,51 @@ $env:LOCALAPPDATA\SelfSnap\bin\SelfSnap.cmd capture --trigger manual
 - No silent upload or background issue submission occurs.
 - `SELFSNAP_GITHUB_REPO` can override the default issue destination if you are working from a fork.
 
+## How to add scheduled captures
+
+Open `Settings` and go to `Schedules`. A new schedule starts with these defaults:
+
+- `Every 1 day`
+- `start date = today`
+- `start time = now` in local time
+
+Supported formats are `Every N seconds/minutes/hours/days/weeks/months/years` with a start date and start time.
+
+To add a schedule:
+
+1. Enter a label.
+2. Choose `Every N`.
+3. Choose a unit: `seconds`, `minutes`, `hours`, `days`, `weeks`, `months`, or `years`.
+4. Set the start date and start time.
+5. Leave `enabled` on if you want the schedule active.
+6. Click `Add`.
+
+The defaults are `Every 1 day`, `start date = today`, and `start time = now` in local time. You can type the date and time by hand if you want a custom anchor.
+
+To edit a schedule:
+
+1. Select one schedule in the list.
+2. Edit the fields in place.
+3. Click `Save` to keep the changes or `Cancel` to revert.
+
+To delete schedules:
+
+1. Select one or more schedules in the list.
+2. Click `Delete`.
+
+Selection rules:
+
+- One selected schedule enables edit, save, cancel, and delete.
+- Multiple selected schedules disable add and edit controls.
+- Multi-select is for deleting several schedules at once.
+
+Schedule timing rules:
+
+- `Every N unit` means the schedule repeats from its saved start date and start time.
+- `months` and `years` skip invalid calendar dates instead of moving to the last day of the period.
+- High-frequency schedules such as `seconds` and `minutes` are tray-managed while the tray is running.
+- Coarser schedules such as `hours`, `days`, `weeks`, `months`, and `years` are Windows Task Scheduler-backed.
+
 ## Config reference
 
 See `sample/config.example.json` for the full schema.
@@ -188,7 +233,7 @@ Important fields:
 - `wake_for_scheduled_captures`: best-effort scheduler wake setting, default `false`
 - `scheduler_sync_state`: `ok` or `failed`; when `failed`, manual capture still works and scheduled capture is blocked
 - `settings_window_width` and `settings_window_height`: legacy geometry fields retained for compatibility
-- `schedules`: list of daily `HH:MM` schedule entries
+- `schedules`: list of recurring schedule entries with `label`, `interval_value`, `interval_unit`, `start_date_local`, `start_time_local`, and `enabled`
 
 ## Settings and reset behavior
 
