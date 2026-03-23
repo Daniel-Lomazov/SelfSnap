@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.7.0 - 2026-03-23
+
+Why: The current public-ready branch reached a stable offline-first runtime and reviewable release posture.
+
+- Hardened the tray runtime around offline-by-default behavior, lifecycle actions, and browser-only issue reporting.
+- Tightened Settings and First Run UI labels, sizing, and tray dialog behavior for public-facing use.
+- Aligned public docs and workflow wording with the actual runtime boundary and release posture.
+
 ## v0.6.0 - 2026-03-23
 
 Why: SelfSnap gained an integrated feedback path and repository-side issue intake automation.
