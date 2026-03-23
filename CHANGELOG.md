@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.5.0 - 2026-03-23
+
+Why: Repository hygiene, install behavior, and pytest cleanup became stable enough for repeated maintenance.
+
+- Hardened install and uninstall tooling and added dedicated cleanup support for stale pytest artifacts.
+- Tightened repo hygiene, ignore rules, and documentation around validation leftovers.
+- Anchored pytest cleanup logic to the repo root and added stronger verification coverage.
+
 ## v0.4.0 - 2026-03-23
 
 Why: The first broad post-v1 stabilization pass closed the most disruptive product and UI regressions.
