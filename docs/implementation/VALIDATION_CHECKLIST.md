@@ -18,6 +18,7 @@
 - Confirm `Reset Capture History` requires a destructive warning before it clears SelfSnap user data.
 - Confirm reset removes capture files, archive files, DB history, logs, config, startup shortcut, and scheduled tasks, then relaunches first run.
 - Confirm the settings window can be resized and content does not crop.
+- Confirm a manual capture does not resize an open settings window and that cancel/close does not persist an accidental size change.
 - Confirm reinstall keeps user data and settings by default.
 
 ## Manual capture
