@@ -7,6 +7,16 @@ Current version: `0.7.0`. Detailed release history lives in `CHANGELOG.md`.
 SelfSnap is offline by default. The only user-triggered network actions are opening a browser for `Report Issue` and running `Reinstall -> From Source and Update`, which uses `git pull --ff-only`.
 There is no telemetry or silent upload in normal runtime.
 
+## Project status
+
+- Pre-`1.0` Windows 11 utility focused on local scheduled screenshot capture
+- Stable for personal-use iteration, with versioned releases and CI validation
+- Source-based install is the primary supported path
+
+## License
+
+This repository is public for visibility and issue tracking, but the code remains under the proprietary personal-use terms in `LICENSE`.
+
 ## Current release
 
 This release keeps background work console-free and adds:
