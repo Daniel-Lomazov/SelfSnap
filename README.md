@@ -200,11 +200,11 @@ If stale pytest artifact folders remain from older runs and normal deletion fail
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\cleanup_pytest_artifacts.ps1 -ListOnly
-# Run this second command from an elevated PowerShell session only when needed.
-powershell -ExecutionPolicy Bypass -File .\scripts\cleanup_pytest_artifacts.ps1 -Aggressive
+powershell -ExecutionPolicy Bypass -File .\scripts\cleanup_pytest_artifacts.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\cleanup_pytest_artifacts.ps1 -RepairAcl
 ```
 
-Add `-IncludeLocalAppData` only if you also want to remove `%LOCALAPPDATA%\SelfSnap\pytest`.
+`-RepairAcl` attempts a UAC-elevated ownership repair for legacy ACL-poisoned folders. Add `-IncludeLocalAppData` only if you also want to remove `%LOCALAPPDATA%\SelfSnap\pytest`.
 
 The setup script prefers a uv-managed Python 3.12 interpreter when `uv` is installed, then falls back to a normal `python` or `py` launcher on PATH. If you need to force a specific interpreter, pass it explicitly:
 
@@ -235,3 +235,4 @@ This optional build is prepared to create:
 - Missed scheduled slots are recorded during tray reconciliation; they are not retried automatically.
 - Full shutdown is not capturable and is never inferred from image content.
 - Mixed-DPI and some protected-content cases should be validated on real hardware.
+- On Windows virtual environments backed by `uv`, launching the tray from `.venv\Scripts\pythonw.exe` can show a parent `.venv` `pythonw.exe` plus a child `uv`-backed `pythonw.exe` in Task Manager. Current validation has not shown duplicate tray icons or duplicate user-visible behavior from this alone. Treat it as a process-model artifact unless you also see duplicate icons, duplicate notifications, or duplicate Settings windows.

@@ -11,6 +11,9 @@ def test_pytest_artifact_cleanup_script_targets_acl_poisoned_folders() -> None:
     assert "pytest-cache-files-*" in script
     assert ".pytest_cache" in script
     assert "Test-Administrator" in script
+    assert "RepairAcl" in script
+    assert "Start-Process" in script
+    assert "RunAs" in script
 
 
 def test_install_and_uninstall_scripts_support_interpreter_overrides() -> None:
@@ -29,3 +32,4 @@ def test_readme_documents_pytest_hygiene_workflow() -> None:
     assert "cleanup_pytest_artifacts.ps1" in readme
     assert "pytest-cache-files-*" in readme
     assert "pytest cache provider is disabled" in readme.lower()
+    assert "-RepairAcl" in readme

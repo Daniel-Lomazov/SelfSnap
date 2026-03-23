@@ -21,6 +21,7 @@
 - Confirm the settings window can be resized and content does not crop.
 - Confirm a manual capture does not resize an open settings window and that reopening returns to the stable minimum size.
 - Confirm reinstall keeps user data and settings by default.
+- If one tray launch shows both a parent `.venv` `pythonw.exe` and a child `uv`-backed `pythonw.exe` in Task Manager, do not treat that alone as a failure. Only treat it as a bug if duplicate tray icons, duplicate notifications, or duplicate Settings windows appear.
 
 ## Manual capture
 
@@ -68,4 +69,4 @@
 - Confirm the tray starts at logon and scheduled tasks still function.
 - Run `scripts/uninstall.ps1` and confirm captures, archive, config, DB, and logs are preserved.
 - If the editable package lives in a non-default interpreter, confirm `scripts/uninstall.ps1 -PythonExe ...` still removes it cleanly.
-- If stale pytest folders exist, run `scripts/cleanup_pytest_artifacts.ps1 -ListOnly` first, then `scripts/cleanup_pytest_artifacts.ps1 -Aggressive` from an elevated shell and confirm they are removed.
+- If stale pytest folders exist, run `scripts/cleanup_pytest_artifacts.ps1 -ListOnly` first, then `scripts/cleanup_pytest_artifacts.ps1`, then `scripts/cleanup_pytest_artifacts.ps1 -RepairAcl` if ownership repair is needed, and confirm they are removed.
