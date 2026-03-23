@@ -2,7 +2,7 @@
 
 SelfSnap Win11 is a Windows 11-only, local-first screenshot utility for personal use. It captures a composite image of all connected monitors on recurring schedules, stores the image locally, and records honest metadata about what happened.
 
-Current version: `0.8.0`. Detailed release history lives in `CHANGELOG.md`.
+Current version: `0.8.0`. Technical release history lives in `CHANGELOG.md`.
 
 SelfSnap is offline by default. The only user-triggered network actions are opening a browser for `Report Issue` and running `Reinstall -> From Source and Update`, which uses `git pull --ff-only`.
 There is no telemetry or silent upload in normal runtime.
@@ -19,15 +19,15 @@ This repository is public for visibility and issue tracking, but the code remain
 
 ## Current release
 
-This release adds recurring schedule support and keeps background work console-free:
+`v0.8.0` is the first release where scheduling behaves like a full recurring system instead of a single daily-time list.
 
-- a recurring schedule editor with Add, Save, Cancel, Delete, and multi-select delete
-- storage presets for `Local Pictures`, `OneDrive Pictures`, and `Custom Folder`
-- a destructive `Reset Capture History` flow that returns the app to first-run state
-- a resizable, compact settings window with stable geometry
-- a browser-only tray `Report Issue` flow that never uploads screenshots automatically
-- tray lifecycle actions for `Restart`, `Reinstall`, and `Uninstall`
-- data-preserving reinstall by default
+- Schedules now use `Every N seconds/minutes/hours/days/weeks/months/years` with explicit local start date and start time anchors.
+- Existing daily schedules are migrated into the new recurrence model automatically.
+- Settings now has a real schedule editor with `Add`, `Save`, `Cancel`, `Delete`, single-select editing, and multi-select delete-only behavior.
+- Fast schedules such as `seconds` and `minutes` are tray-managed while the tray is running, while `hours`, `days`, `weeks`, `months`, and `years` are backed by Windows Task Scheduler.
+- The runtime and storage layer were tightened to handle recurrence-aware missed-slot recording, same-second file collisions, and concurrent SQLite activity more safely.
+
+For a product-style summary, see [`docs/releases/v0.8.0.md`](docs/releases/v0.8.0.md). For the full implementation-facing release history, see [`CHANGELOG.md`](CHANGELOG.md).
 
 ## v1 scope
 

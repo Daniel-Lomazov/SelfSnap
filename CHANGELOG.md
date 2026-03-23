@@ -2,11 +2,19 @@
 
 ## v0.8.0 - 2026-03-23
 
-Why: The recurring schedule overhaul introduced a real schedule editor and a richer recurrence model.
+Why: The recurring schedule overhaul replaced the old daily-time model with a broader recurrence system and the runtime needed to execute it safely.
 
-- Replaced daily-only schedule semantics with anchored recurring schedules and explicit start date/time fields.
-- Added user guidance for building, editing, and deleting recurring schedules in the README and Settings help.
-- Bumped the public versioning line to `0.8.0` to reflect the next pre-`1.0` planning milestone.
+- Replaced the daily-only schedule shape with a recurrence schema that stores `interval_value`, `interval_unit`, `start_date_local`, and `start_time_local`.
+- Added support for recurring schedules in `seconds`, `minutes`, `hours`, `days`, `weeks`, `months`, and `years`, with anchored local start date/time semantics.
+- Added automatic migration of legacy daily schedules into `every 1 day` recurrence entries.
+- Split scheduling into a hybrid runtime model:
+  - tray-managed `seconds` and `minutes`
+  - Windows Task Scheduler-backed `hours`, `days`, `weeks`, `months`, and `years`
+- Changed coarse scheduling from fixed daily tasks to one-shot next-occurrence task registration.
+- Reworked the Settings schedule UI into a structured editor with `Add`, `Save`, `Cancel`, `Delete`, single-select editing, and multi-select delete-only behavior.
+- Updated missed-slot reconciliation to iterate recurrence-aware coarse occurrences instead of daily wall-clock slots.
+- Hardened concurrent capture handling with collision-safe same-second output naming and SQLite busy-timeout/WAL behavior.
+- Expanded README, in-app help, and automated coverage around recurrence semantics, migration, scheduler behavior, and schedule editing.
 
 ## v0.7.0 - 2026-03-23
 
