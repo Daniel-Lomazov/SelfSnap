@@ -6,11 +6,12 @@
 - `selfsnap capture`: one-shot manual or scheduled capture worker
 - Windows Task Scheduler: one daily task per enabled schedule entry
 - Tray `Capture Now` launches the one-shot capture worker out of process so capture-side DPI or monitor state cannot mutate tray UI geometry.
-- Tray `Report Issue` opens a dedicated report dialog and routes the result into GitHub issue creation or a prefilled GitHub issue page.
+- Tray `Report Issue` opens a dedicated report dialog and always routes the result into a browser-opened prefilled GitHub issue page.
 
 ## Current operational constraints
 
 - Tray and worker background execution does not open a visible console window.
+- Normal runtime is offline by default.
 - Storage presets map to local Pictures, OneDrive Pictures, or a custom path.
 - Reset capture history is a deliberate destructive operation with explicit user confirmation.
 - Settings UI supports resizing and content-aware layout, but it does not auto-persist incidental geometry changes from capture activity.
@@ -29,8 +30,8 @@
 | Settings label | Config token | Capture root | Archive root |
 |---|---|---|---|
 | `Local Pictures` | `local_pictures` | `%USERPROFILE%\Pictures\SelfSnap\captures\` | `%USERPROFILE%\Pictures\SelfSnap\archive\` |
-| `OneDrive` | `onedrive_pictures` | `%OneDrive%\Pictures\SelfSnap\captures\` | `%OneDrive%\Pictures\SelfSnap\archive\` |
-| `Custom` | `custom` | user-selected | user-selected |
+| `OneDrive Pictures` | `onedrive_pictures` | `%OneDrive%\Pictures\SelfSnap\captures\` | `%OneDrive%\Pictures\SelfSnap\archive\` |
+| `Custom Folder` | `custom` | user-selected | user-selected |
 
 If `%OneDrive%` is unavailable, resolution falls back to `%USERPROFILE%\OneDrive\Pictures\SelfSnap\...`. The preset is rejected unless the resolved OneDrive base path exists and is writable.
 

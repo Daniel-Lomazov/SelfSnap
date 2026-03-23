@@ -2,15 +2,19 @@
 
 SelfSnap Win11 is a Windows 11-only, local-first screenshot utility for personal use. It captures a composite image of all connected monitors at configured daily times, stores the image locally, and records honest metadata about what happened.
 
+SelfSnap is offline by default. The only user-triggered network actions are opening a browser for `Report Issue` and running `Reinstall -> From Source and Update`, which uses `git pull --ff-only`.
+There is no telemetry or silent upload in normal runtime.
+
 ## Current release
 
 This release keeps background work console-free and adds:
 
 - hidden tray/startup/scheduled background launches
-- storage presets for `Local Pictures`, `OneDrive`, and `Custom`
+- storage presets for `Local Pictures`, `OneDrive Pictures`, and `Custom Folder`
 - a destructive `Reset Capture History` flow that returns the app to first-run state
-- a resizable, scroll-safe settings window
-- a tray `Report Issue` flow that opens or creates GitHub issues without uploading screenshots automatically
+- a resizable, compact settings window with stable geometry
+- a browser-only tray `Report Issue` flow that never uploads screenshots automatically
+- tray lifecycle actions for `Restart`, `Reinstall`, and `Uninstall`
 - data-preserving reinstall by default
 
 ## v1 scope
@@ -113,8 +117,8 @@ If the storage preset is `onedrive_pictures`, image storage switches to:
 | Settings label | Config value | Capture root | Archive root |
 |---|---|---|---|
 | `Local Pictures` | `local_pictures` | `%USERPROFILE%\Pictures\SelfSnap\captures` | `%USERPROFILE%\Pictures\SelfSnap\archive` |
-| `OneDrive` | `onedrive_pictures` | `%OneDrive%\Pictures\SelfSnap\captures` | `%OneDrive%\Pictures\SelfSnap\archive` |
-| `Custom` | `custom` | user-defined | user-defined |
+| `OneDrive Pictures` | `onedrive_pictures` | `%OneDrive%\Pictures\SelfSnap\captures` | `%OneDrive%\Pictures\SelfSnap\archive` |
+| `Custom Folder` | `custom` | user-defined | user-defined |
 
 If `%OneDrive%` is not set, SelfSnap resolves the OneDrive preset through `%USERPROFILE%\OneDrive`. The OneDrive preset is only accepted when the resolved base path already exists and is writable.
 
@@ -147,8 +151,8 @@ $env:LOCALAPPDATA\SelfSnap\bin\SelfSnap.cmd capture --trigger manual
 - `Report Issue` is available from the tray menu and is the default tray action where the Windows shell supports pystray default activation.
 - The dialog asks for a short paragraph and can include only safe diagnostics such as app version, storage preset, scheduler sync state, and the latest outcome code.
 - SelfSnap does not attach screenshots, local file paths, logs, or database contents automatically.
-- If `SELFSNAP_GITHUB_TOKEN`, `GH_TOKEN`, or `GITHUB_TOKEN` is present, SelfSnap can create the GitHub issue directly through the API.
-- Otherwise SelfSnap opens a prefilled GitHub issue page in the browser and leaves the final submission under user control.
+- SelfSnap always opens a prefilled GitHub issue page in the browser and leaves the final submission under user control.
+- No silent upload or background issue submission occurs.
 - `SELFSNAP_GITHUB_REPO` can override the default issue destination if you are working from a fork.
 
 ## Config reference
@@ -176,7 +180,7 @@ Important fields:
 
 ## Settings and reset behavior
 
-- The settings window is resizable and scrollable, but it opens at a stable minimum size instead of auto-remembering transient resize changes.
+- The settings window is resizable in both directions, uses tighter spacing, and opens at a stable minimum size instead of auto-remembering transient resize changes.
 - Manual capture and background tray refreshes do not mutate the open settings window state.
 - Tray `Capture Now` runs through a separate background worker so capture-side DPI or monitor handling cannot resize the settings window.
 - The settings window opens at a larger minimum size to avoid clipped controls and text.
@@ -184,7 +188,11 @@ Important fields:
 - Editing either path manually switches the preset to `custom`.
 - `Reset Capture History` permanently removes SelfSnap capture files, archive files, DB history, logs, config, startup shortcut, and scheduled tasks, then relaunches into first run.
 - Reset is not uninstall: installed app files, wrapper scripts, and repo files stay in place.
-- Reinstall is non-destructive by default and preserves user data and settings unless you separately choose cleanup.
+- The tray exposes `Restart`, `Reinstall`, and `Uninstall` before `Exit`.
+- `Reinstall -> From Local Source` is offline and preserves user data by default.
+- `Reinstall -> From Source and Update` requires a clean Git checkout and uses `git pull --ff-only` before reinstalling.
+- `Uninstall -> Keep User Data` removes only startup/task/install links.
+- `Uninstall -> Remove All User Data` removes SelfSnap-owned config, DB, logs, captures, archive files, and app temp data, but not the repo checkout or `.venv`.
 - Background tray, startup, and scheduled operations do not open a visible console window.
 
 ## First run and tray behavior
@@ -242,7 +250,7 @@ This optional build is prepared to create:
 ## GitHub automation
 
 - `.github/workflows/ci.yml` keeps the repo healthy on pushes and pull requests with Windows-based compile smoke checks and `pytest`.
-- `.github/workflows/issue-intake.yml` preprocesses new issues, applies managed labels, and posts a planning starter comment for the next local-agent session.
+- `.github/workflows/issue-intake.yml` preprocesses new issues, applies managed labels, and posts a planning starter comment for maintainer triage.
 - `.github/ISSUE_TEMPLATE/report_issue.md` is the template used by the in-app issue reporting flow.
 
 ## Known limitations
