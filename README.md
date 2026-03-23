@@ -252,6 +252,7 @@ This optional build is prepared to create:
 ## GitHub automation
 
 - `.github/workflows/ci.yml` keeps the repo healthy on pushes and pull requests with Windows-based compile smoke checks and `pytest`.
+- `.github/workflows/release.yml` creates GitHub releases automatically for future version tags and can also be run manually for existing historical tags.
 - `.github/workflows/issue-intake.yml` preprocesses new issues, applies managed labels, and posts a planning starter comment for maintainer triage.
 - `.github/ISSUE_TEMPLATE/report_issue.md` is the template used by the in-app issue reporting flow.
 

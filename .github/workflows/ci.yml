@@ -15,8 +15,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Bootstrap packaging tools
+        run: python -m pip install --upgrade pip setuptools wheel
       - name: Install dependencies
-        run: python -m pip install -e .[dev]
+        run: python -m pip install -e ".[dev]"
       - name: Compile smoke test
         run: python -m compileall src tests
 
@@ -32,7 +34,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Bootstrap packaging tools
+        run: python -m pip install --upgrade pip setuptools wheel
       - name: Install dependencies
-        run: python -m pip install -e .[dev]
+        run: python -m pip install -e ".[dev]"
       - name: Pytest
-        run: pytest -q
+        run: python -m pytest -q
