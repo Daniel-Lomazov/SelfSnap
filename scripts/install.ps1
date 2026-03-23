@@ -1,5 +1,6 @@
 param(
-    [string]$PythonExe = "python"
+    [string]$PythonExe = "python",
+    [string]$PythonwExe = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -33,6 +34,89 @@ function Test-PipAvailable {
     return $result -eq "yes"
 }
 
+function Resolve-PythonwPath {
+    param(
+        [string]$PythonPath,
+        [string]$ExplicitPythonw
+    )
+
+    if ($ExplicitPythonw) {
+        $pythonwCommand = Get-Command $ExplicitPythonw -ErrorAction SilentlyContinue
+        if ($pythonwCommand -and $pythonwCommand.Source) {
+            $candidate = $pythonwCommand.Source
+        }
+        elseif (Test-Path $ExplicitPythonw) {
+            $candidate = (Resolve-Path $ExplicitPythonw).Path
+        }
+        else {
+            throw "Explicit pythonw executable '$ExplicitPythonw' was not found. Pass a full path or a command available on PATH."
+        }
+
+        $resolved = (& $candidate -c "import sys; print(sys.executable)").Trim()
+        Assert-LastExitCode "pythonw path resolution"
+        if (-not $resolved) {
+            throw "Could not resolve the full pythonw executable path from '$candidate'."
+        }
+        if ([System.IO.Path]::GetFileName($resolved).ToLowerInvariant() -ne "pythonw.exe") {
+            throw "The explicit -PythonwExe value must resolve to pythonw.exe, got: $resolved"
+        }
+        return $resolved
+    }
+
+    $candidate = Join-Path (Split-Path -Parent $PythonPath) "pythonw.exe"
+    if (Test-Path $candidate) {
+        return (Resolve-Path $candidate).Path
+    }
+
+    $pythonwCommand = Get-Command pythonw -ErrorAction SilentlyContinue
+    if ($pythonwCommand -and $pythonwCommand.Source) {
+        $resolved = (& $pythonwCommand.Source -c "import sys; print(sys.executable)").Trim()
+        Assert-LastExitCode "pythonw command resolution"
+        if ($resolved -and [System.IO.Path]::GetFileName($resolved).ToLowerInvariant() -eq "pythonw.exe") {
+            return $resolved
+        }
+    }
+
+    throw "pythonw.exe was not found next to the selected Python interpreter. Pass -PythonwExe with an explicit pythonw path if your environment layout is nonstandard."
+}
+
+function Resolve-PythonPath {
+    param(
+        [string]$PythonPreference
+    )
+
+    if ($PythonPreference) {
+        if (Test-Path $PythonPreference) {
+            return (Resolve-Path $PythonPreference).Path
+        }
+        $resolved = (& $PythonPreference -c "import sys; print(sys.executable)").Trim()
+        Assert-LastExitCode "python path resolution"
+        if ($resolved) {
+            return $resolved
+        }
+    }
+
+    $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
+    if ($pythonCommand -and $pythonCommand.Source) {
+        $resolved = (& $pythonCommand.Source -c "import sys; print(sys.executable)").Trim()
+        Assert-LastExitCode "python path resolution"
+        if ($resolved) {
+            return $resolved
+        }
+    }
+
+    $pyCommand = Get-Command py -ErrorAction SilentlyContinue
+    if ($pyCommand -and $pyCommand.Source) {
+        $resolved = (& $pyCommand.Source -3 -c "import sys; print(sys.executable)").Trim()
+        Assert-LastExitCode "py launcher path resolution"
+        if ($resolved) {
+            return $resolved
+        }
+    }
+
+    throw "Could not resolve a usable Python executable. Pass -PythonExe with a full path to the intended interpreter."
+}
+
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $appRoot = Join-Path $env:LOCALAPPDATA "SelfSnap"
 $binRoot = Join-Path $appRoot "bin"
@@ -41,15 +125,8 @@ $metaPath = Join-Path $binRoot "install-meta.json"
 $startupDir = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Startup"
 $shortcutPath = Join-Path $startupDir "SelfSnap Win11.lnk"
 
-$pythonFullPath = (& $PythonExe -c "import sys; print(sys.executable)").Trim()
-Assert-LastExitCode "python path resolution"
-if (-not $pythonFullPath) {
-    throw "Could not resolve the full Python executable path."
-}
-$pythonwPath = Join-Path (Split-Path -Parent $pythonFullPath) "pythonw.exe"
-if (-not (Test-Path $pythonwPath)) {
-    throw "pythonw.exe was not found next to the selected Python interpreter. Background SelfSnap launch requires pythonw.exe."
-}
+$pythonFullPath = Resolve-PythonPath -PythonPreference $PythonExe
+$pythonwPath = Resolve-PythonwPath -PythonPath $pythonFullPath -ExplicitPythonw $PythonwExe
 
 Push-Location $repoRoot
 
@@ -73,6 +150,7 @@ setlocal
 Set-Content -Path $wrapperPath -Value $wrapperContent -Encoding Ascii
 
 @{
+    metadata_version = 1
     python_executable = $pythonFullPath
     pythonw_executable = $pythonwPath
     repo_root = $repoRoot.Path
