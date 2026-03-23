@@ -24,3 +24,4 @@ artifacts/
 Thumbs.db
 Desktop.ini
 *.log
+pytest*.out
