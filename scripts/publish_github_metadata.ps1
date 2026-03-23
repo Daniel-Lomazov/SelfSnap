@@ -27,7 +27,10 @@ function Get-ChangelogSection {
 }
 
 function Assert-GhAuth {
-    $null = & gh auth status 2>$null
+    $previousNativePreference = $PSNativeCommandUseErrorActionPreference
+    $script:PSNativeCommandUseErrorActionPreference = $false
+    $null = & gh api user 2>$null
+    $script:PSNativeCommandUseErrorActionPreference = $previousNativePreference
     if ($LASTEXITCODE -ne 0) {
         throw "GitHub CLI is not authenticated. Run 'gh auth login -h github.com' first."
     }
@@ -67,8 +70,13 @@ try {
         $notes = Get-ChangelogSection -Tag $tag
         Set-Content -LiteralPath $tempNotes -Value $notes -Encoding UTF8
 
+        $previousNativePreference = $PSNativeCommandUseErrorActionPreference
+        $script:PSNativeCommandUseErrorActionPreference = $false
         & gh release view $tag -R $Repo *> $null
-        if ($LASTEXITCODE -eq 0) {
+        $releaseExists = ($LASTEXITCODE -eq 0)
+        $script:PSNativeCommandUseErrorActionPreference = $previousNativePreference
+
+        if ($releaseExists) {
             & gh release edit $tag -R $Repo --title $tag --notes-file $tempNotes
         }
         else {
