@@ -1,7 +1,8 @@
 param(
     [switch]$ListOnly,
-    [switch]$Aggressive,
-    [switch]$IncludeLocalAppData
+    [Alias("Aggressive")][switch]$RepairAcl,
+    [switch]$IncludeLocalAppData,
+    [switch]$RelaunchedElevated
 )
 
 $ErrorActionPreference = "Stop"
@@ -11,6 +12,24 @@ function Test-Administrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = [Security.Principal.WindowsPrincipal]::new($identity)
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Get-RepairArgumentList {
+    $arguments = @(
+        "-ExecutionPolicy", "Bypass",
+        "-File", $PSCommandPath
+    )
+    if ($RepairAcl) {
+        $arguments += "-RepairAcl"
+    }
+    if ($IncludeLocalAppData) {
+        $arguments += "-IncludeLocalAppData"
+    }
+    if ($ListOnly) {
+        $arguments += "-ListOnly"
+    }
+    $arguments += "-RelaunchedElevated"
+    return $arguments
 }
 
 function Get-ArtifactTargets {
@@ -61,7 +80,7 @@ function Remove-Artifact {
                 Path = $Target.FullName
                 Removed = $false
                 Method = "Remove-Item"
-                Error = $_.Exception.Message
+                Error = "Normal removal failed. The target may be ACL-protected or still held open by a live process. Original error: $($_.Exception.Message)"
             }
         }
     }
@@ -113,11 +132,24 @@ if ($ListOnly) {
     exit 0
 }
 
+if ($RepairAcl -and -not (Test-Administrator) -and -not $RelaunchedElevated) {
+    Write-Host "Relaunching cleanup with elevation for ACL repair..."
+    try {
+        $process = Start-Process -FilePath "powershell.exe" -Verb RunAs -ArgumentList (Get-RepairArgumentList) -Wait -PassThru
+        exit $process.ExitCode
+    }
+    catch {
+        Write-Warning "Elevation was not completed. Cleanup was not repaired."
+        exit 2
+    }
+}
+
 $results = foreach ($target in $targets) {
-    Remove-Artifact -Target $target -UseAggressiveCleanup:$Aggressive
+    Remove-Artifact -Target $target -UseAggressiveCleanup:$RepairAcl
 }
 
 $failed = @($results | Where-Object { -not $_.Removed })
+$results | Format-Table Path, Removed, Method, Error -AutoSize | Out-String | Write-Host
 $results | ForEach-Object {
     if ($_.Removed) {
         Write-Host "Removed [$($_.Method)] $($_.Path)"
@@ -129,10 +161,11 @@ $results | ForEach-Object {
 
 if ($failed.Count -gt 0) {
     Write-Warning "Some pytest artifact directories could not be removed."
-    if (-not $Aggressive) {
-        Write-Warning "Re-run with -Aggressive from an elevated PowerShell prompt if Windows ACLs are blocking deletion."
+    if (-not $RepairAcl) {
+        Write-Warning "Re-run with -RepairAcl to attempt ownership repair and elevated cleanup."
+        exit 1
     }
-    exit 1
+    exit 3
 }
 
 Write-Host "Pytest artifact cleanup completed."
