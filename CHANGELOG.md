@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.6.0 - 2026-03-23
+
+Why: SelfSnap gained an integrated feedback path and repository-side issue intake automation.
+
+- Added tray-driven issue reporting with safe diagnostics and a dedicated report dialog.
+- Added GitHub issue templates and CI/intake workflows to keep the repo reviewable.
+- Expanded tests and documentation around issue reporting behavior and repo hygiene.
+
 ## v0.5.0 - 2026-03-23
 
 Why: Repository hygiene, install behavior, and pytest cleanup became stable enough for repeated maintenance.
