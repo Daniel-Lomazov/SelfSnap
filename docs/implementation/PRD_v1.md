@@ -24,8 +24,9 @@ Deliver a Windows 11 personal utility that captures composite desktop screenshot
 - Background tray and worker operations are console-free.
 - Storage presets are explicit choices: `Local Pictures`, `OneDrive`, and `Custom`.
 - Reset capture history is a destructive clean-reset action with a permanent warning and returns the app to first-run state.
-- Settings window is resizable and fits the visible controls without cropping.
+- Settings window is resizable and opens at a stable minimum size so capture activity does not perturb its geometry.
 - Reinstall preserves user data and settings by default unless cleanup is requested separately.
+- A dedicated elevated cleanup script is available for stale ACL-poisoned pytest folders from older runs.
 
 ## Reset scope
 

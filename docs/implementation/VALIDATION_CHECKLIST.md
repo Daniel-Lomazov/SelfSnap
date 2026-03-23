@@ -6,6 +6,7 @@
 - Run `selfsnap diag` and confirm config, DB, log, Pictures capture, and Pictures archive paths are created.
 - Start `selfsnap tray` and confirm a tray icon appears.
 - Complete the first-run setup dialog and confirm scheduled capture stays OFF unless explicitly enabled there.
+- If the tray settings window has been opened and reused, confirm a manual capture does not change its size or reopen it smaller.
 
 ## Post-v1 release checks
 
@@ -18,7 +19,7 @@
 - Confirm `Reset Capture History` requires a destructive warning before it clears SelfSnap user data.
 - Confirm reset removes capture files, archive files, DB history, logs, config, startup shortcut, and scheduled tasks, then relaunches first run.
 - Confirm the settings window can be resized and content does not crop.
-- Confirm a manual capture does not resize an open settings window and that cancel/close does not persist an accidental size change.
+- Confirm a manual capture does not resize an open settings window and that reopening returns to the stable minimum size.
 - Confirm reinstall keeps user data and settings by default.
 
 ## Manual capture
@@ -60,8 +61,11 @@
 ## Packaging and install
 
 - Run `scripts/install.ps1`.
+- If `pythonw.exe` is nonstandard, confirm `scripts/install.ps1 -PythonwExe ...` resolves it correctly.
 - Confirm `%LOCALAPPDATA%\SelfSnap\bin\SelfSnap.cmd` exists.
 - Confirm the Startup-folder shortcut points to a windowless tray launch, not the CLI wrapper.
 - Log off and back on.
 - Confirm the tray starts at logon and scheduled tasks still function.
 - Run `scripts/uninstall.ps1` and confirm captures, archive, config, DB, and logs are preserved.
+- If the editable package lives in a non-default interpreter, confirm `scripts/uninstall.ps1 -PythonExe ...` still removes it cleanly.
+- If stale pytest folders exist, run `scripts/cleanup_pytest_artifacts.ps1 -ListOnly` first, then `scripts/cleanup_pytest_artifacts.ps1 -Aggressive` from an elevated shell and confirm they are removed.

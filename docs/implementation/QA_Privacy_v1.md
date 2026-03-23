@@ -14,6 +14,7 @@
 - Reset capture history shows a permanent warning before deletion
 - Reset removes SelfSnap-managed capture/archive files, DB state, logs, config, startup shortcut, and scheduled tasks, then relaunches first run
 - Reinstall defaults preserve user data unless the user explicitly opts into cleanup
+- Stale ACL-poisoned pytest folders are cleaned with a dedicated elevated script, not by normal app flow
 
 ## Manual QA focus
 
