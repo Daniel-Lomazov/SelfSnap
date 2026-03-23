@@ -5,14 +5,16 @@
 - `selfsnap tray`: long-running tray agent with first-run setup, scheduler sync, retention housekeeping, and reconcile loop
 - `selfsnap capture`: one-shot manual or scheduled capture worker
 - Windows Task Scheduler: one daily task per enabled schedule entry
+- Tray `Capture Now` launches the one-shot capture worker out of process so capture-side DPI or monitor state cannot mutate tray UI geometry.
 
 ## Current operational constraints
 
 - Tray and worker background execution does not open a visible console window.
 - Storage presets map to local Pictures, OneDrive Pictures, or a custom path.
 - Reset capture history is a deliberate destructive operation with explicit user confirmation.
-- Settings UI supports resizing and content-aware layout.
+- Settings UI supports resizing and content-aware layout, but it does not auto-persist incidental geometry changes from capture activity.
 - Reinstall is non-destructive by default and preserves user data and configuration unless cleanup is requested separately.
+- A separate elevated cleanup script removes stale ACL-poisoned pytest folders when needed.
 
 ## Storage contracts
 

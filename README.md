@@ -65,6 +65,12 @@ selfsnap capture --trigger manual
 powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1 -PythonExe python
 ```
 
+If your Python environment uses a nonstandard `pythonw.exe`, pass it explicitly:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1 -PythonExe python -PythonwExe "C:\Path\To\pythonw.exe"
+```
+
 If you want a lean runtime environment without development tools, use:
 
 ```powershell
@@ -155,13 +161,15 @@ Important fields:
 - `show_capture_overlay`: toggles the brief on-screen overlay after successful capture
 - `wake_for_scheduled_captures`: best-effort scheduler wake setting, default `false`
 - `scheduler_sync_state`: `ok` or `failed`; when `failed`, manual capture still works and scheduled capture is blocked
-- `settings_window_width` and `settings_window_height`: persisted settings-window size
+- `settings_window_width` and `settings_window_height`: legacy geometry fields retained for compatibility
 - `schedules`: list of daily `HH:MM` schedule entries
 
 ## Settings and reset behavior
 
-- The settings window is resizable, scrollable, and remembers its last saved size.
-- Settings-window size is only persisted on an explicit Save.
+- The settings window is resizable and scrollable, but it opens at a stable minimum size instead of auto-remembering transient resize changes.
+- Manual capture and background tray refreshes do not mutate the open settings window state.
+- Tray `Capture Now` runs through a separate background worker so capture-side DPI or monitor handling cannot resize the settings window.
+- The settings window opens at a larger minimum size to avoid clipped controls and text.
 - Storage preset selection updates both capture and archive roots together.
 - Editing either path manually switches the preset to `custom`.
 - `Reset Capture History` permanently removes SelfSnap capture files, archive files, DB history, logs, config, startup shortcut, and scheduled tasks, then relaunches into first run.
@@ -187,6 +195,16 @@ mypy src
 ```
 
 Pytest temp directories are intentionally kept out of the repo under `%LOCALAPPDATA%\SelfSnap\pytest\tmp`, and the pytest cache provider is disabled to avoid `.pytest_cache` and `pytest-cache-files-*` clutter in the workspace.
+
+If stale pytest artifact folders remain from older runs and normal deletion fails, use the dedicated cleanup script:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\cleanup_pytest_artifacts.ps1 -ListOnly
+# Run this second command from an elevated PowerShell session only when needed.
+powershell -ExecutionPolicy Bypass -File .\scripts\cleanup_pytest_artifacts.ps1 -Aggressive
+```
+
+Add `-IncludeLocalAppData` only if you also want to remove `%LOCALAPPDATA%\SelfSnap\pytest`.
 
 The setup script prefers a uv-managed Python 3.12 interpreter when `uv` is installed, then falls back to a normal `python` or `py` launcher on PATH. If you need to force a specific interpreter, pass it explicitly:
 
