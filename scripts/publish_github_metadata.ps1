@@ -64,19 +64,25 @@ if (-not $PublishReleases) {
 
 $tags = @("v0.1.0", "v0.2.0", "v0.3.0", "v0.4.0", "v0.5.0", "v0.6.0", "v0.7.0")
 $tempNotes = [System.IO.Path]::GetTempFileName()
+$existingReleaseTags = @{}
+
+$releaseListJson = & gh release list -R $Repo --limit 100 --json tagName
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to query existing GitHub releases for $Repo."
+}
+
+foreach ($release in ($releaseListJson | ConvertFrom-Json)) {
+    if ($null -ne $release.tagName -and $release.tagName -ne "") {
+        $existingReleaseTags[$release.tagName] = $true
+    }
+}
 
 try {
     foreach ($tag in $tags) {
         $notes = Get-ChangelogSection -Tag $tag
         Set-Content -LiteralPath $tempNotes -Value $notes -Encoding UTF8
 
-        $previousNativePreference = $PSNativeCommandUseErrorActionPreference
-        $script:PSNativeCommandUseErrorActionPreference = $false
-        & gh release view $tag -R $Repo *> $null
-        $releaseExists = ($LASTEXITCODE -eq 0)
-        $script:PSNativeCommandUseErrorActionPreference = $previousNativePreference
-
-        if ($releaseExists) {
+        if ($existingReleaseTags.ContainsKey($tag)) {
             & gh release edit $tag -R $Repo --title $tag --notes-file $tempNotes
         }
         else {
