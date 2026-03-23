@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from selfsnap.models import AppConfig, CaptureRecord
 from selfsnap.tray.app import (
     TrayRuntimeState,
+    _any_dialog_open,
     _announce_record,
     _build_menu_items,
     _capture_now,
@@ -62,12 +63,16 @@ def test_open_settings_does_not_persist_window_size_on_cancel(temp_paths, monkey
         "selfsnap.tray.app.save_config", lambda _paths, config: saved_configs.append(config)
     )
 
-    state = TrayRuntimeState(stop_event=threading.Event(), ui_dialog_open=threading.Event())
+    state = TrayRuntimeState(
+        stop_event=threading.Event(),
+        settings_dialog_open=threading.Event(),
+        report_dialog_open=threading.Event(),
+    )
 
     _open_settings(temp_paths, icon=SimpleNamespace(update_menu=lambda: None), state=state)
 
     assert saved_configs == []
-    assert state.ui_dialog_open.is_set() is False
+    assert state.settings_dialog_open.is_set() is False
 
 
 def test_open_settings_ignores_duplicate_requests(temp_paths, monkeypatch) -> None:
@@ -87,8 +92,12 @@ def test_open_settings_ignores_duplicate_requests(temp_paths, monkeypatch) -> No
         ),
     )
 
-    state = TrayRuntimeState(stop_event=threading.Event(), ui_dialog_open=threading.Event())
-    state.ui_dialog_open.set()
+    state = TrayRuntimeState(
+        stop_event=threading.Event(),
+        settings_dialog_open=threading.Event(),
+        report_dialog_open=threading.Event(),
+    )
+    state.settings_dialog_open.set()
 
     _open_settings(temp_paths, icon=SimpleNamespace(update_menu=lambda: None), state=state)
 
@@ -151,10 +160,11 @@ def test_capture_now_runs_out_of_process_and_suppresses_ui_updates_with_settings
     icon = SimpleNamespace(update_menu=lambda: menu_updates.append("menu"))
     state = TrayRuntimeState(
         stop_event=threading.Event(),
-        ui_dialog_open=threading.Event(),
+        settings_dialog_open=threading.Event(),
+        report_dialog_open=threading.Event(),
         last_announced_record_id=None,
     )
-    state.ui_dialog_open.set()
+    state.settings_dialog_open.set()
 
     _capture_now(temp_paths, icon=icon, state=state)
 
@@ -165,6 +175,10 @@ def test_capture_now_runs_out_of_process_and_suppresses_ui_updates_with_settings
 
 
 def test_report_issue_menu_item_is_default_action(temp_paths, monkeypatch) -> None:
+    class FakeMenu(list):
+        def __init__(self, *items):
+            super().__init__(items)
+
     class FakeMenuItem:
         def __init__(self, text, action, enabled=True, default=False):
             self.text = text
@@ -180,9 +194,13 @@ def test_report_issue_menu_item_is_default_action(temp_paths, monkeypatch) -> No
         ),
     )
 
-    state = TrayRuntimeState(stop_event=threading.Event(), ui_dialog_open=threading.Event())
+    state = TrayRuntimeState(
+        stop_event=threading.Event(),
+        settings_dialog_open=threading.Event(),
+        report_dialog_open=threading.Event(),
+    )
     items = _build_menu_items(
-        SimpleNamespace(MenuItem=FakeMenuItem), temp_paths, SimpleNamespace(), state
+        SimpleNamespace(MenuItem=FakeMenuItem, Menu=FakeMenu), temp_paths, SimpleNamespace(), state
     )
 
     report_items = [
@@ -199,9 +217,119 @@ def test_report_issue_ignores_duplicate_requests(temp_paths, monkeypatch) -> Non
         "selfsnap.tray.app.show_report_issue_dialog", lambda _paths: report_calls.append("dialog")
     )
 
-    state = TrayRuntimeState(stop_event=threading.Event(), ui_dialog_open=threading.Event())
-    state.ui_dialog_open.set()
+    state = TrayRuntimeState(
+        stop_event=threading.Event(),
+        settings_dialog_open=threading.Event(),
+        report_dialog_open=threading.Event(),
+    )
+    state.report_dialog_open.set()
 
     _open_report_issue(temp_paths, icon=SimpleNamespace(update_menu=lambda: None), state=state)
 
     assert report_calls == []
+
+
+def test_report_issue_can_open_while_settings_is_open(temp_paths, monkeypatch) -> None:
+    report_calls: list[str] = []
+    monkeypatch.setattr(
+        "selfsnap.tray.app.show_report_issue_dialog", lambda _paths: report_calls.append("dialog")
+    )
+
+    state = TrayRuntimeState(
+        stop_event=threading.Event(),
+        settings_dialog_open=threading.Event(),
+        report_dialog_open=threading.Event(),
+    )
+    state.settings_dialog_open.set()
+
+    _open_report_issue(temp_paths, icon=SimpleNamespace(update_menu=lambda: None), state=state)
+
+    assert report_calls == ["dialog"]
+
+
+def test_settings_can_open_while_report_issue_is_open(temp_paths, monkeypatch) -> None:
+    settings_calls: list[str] = []
+    monkeypatch.setattr(
+        "selfsnap.tray.app.load_or_create_config",
+        lambda _paths: AppConfig(
+            capture_storage_root=str(temp_paths.default_capture_root),
+            archive_storage_root=str(temp_paths.default_archive_root),
+        ),
+    )
+    monkeypatch.setattr(
+        "selfsnap.tray.app.show_settings_dialog",
+        lambda _config, _paths: (
+            settings_calls.append("dialog")
+            or SettingsDialogResult(updated_config=None, window_size=(960, 760))
+        ),
+    )
+
+    state = TrayRuntimeState(
+        stop_event=threading.Event(),
+        settings_dialog_open=threading.Event(),
+        report_dialog_open=threading.Event(),
+    )
+    state.report_dialog_open.set()
+
+    _open_settings(temp_paths, icon=SimpleNamespace(update_menu=lambda: None), state=state)
+
+    assert settings_calls == ["dialog"]
+
+
+def test_any_dialog_open_is_true_when_either_dialog_is_open() -> None:
+    state = TrayRuntimeState(
+        stop_event=threading.Event(),
+        settings_dialog_open=threading.Event(),
+        report_dialog_open=threading.Event(),
+    )
+
+    assert _any_dialog_open(state) is False
+    state.settings_dialog_open.set()
+    assert _any_dialog_open(state) is True
+    state.settings_dialog_open.clear()
+    state.report_dialog_open.set()
+    assert _any_dialog_open(state) is True
+
+
+def test_tray_menu_contains_restart_reinstall_and_uninstall_before_exit(temp_paths, monkeypatch) -> None:
+    class FakeMenu(list):
+        def __init__(self, *items):
+            super().__init__(items)
+
+    class FakeMenuItem:
+        def __init__(self, text, action, enabled=True, default=False):
+            self.text = text
+            self.action = action
+            self.enabled = enabled
+            self.default = default
+
+    monkeypatch.setattr(
+        "selfsnap.tray.app.load_or_create_config",
+        lambda _paths: AppConfig(
+            capture_storage_root=str(temp_paths.default_capture_root),
+            archive_storage_root=str(temp_paths.default_archive_root),
+        ),
+    )
+
+    state = TrayRuntimeState(
+        stop_event=threading.Event(),
+        settings_dialog_open=threading.Event(),
+        report_dialog_open=threading.Event(),
+    )
+    items = _build_menu_items(
+        SimpleNamespace(MenuItem=FakeMenuItem, Menu=FakeMenu), temp_paths, SimpleNamespace(), state
+    )
+
+    labels = [item.text for item in items if not callable(item.text)]
+    assert labels[-4:] == ["Restart", "Reinstall", "Uninstall", "Exit"]
+
+    submenu_by_label = {item.text: item.action for item in items if not callable(item.text)}
+    assert [item.text for item in submenu_by_label["Restart"]] == ["Restart SelfSnap"]
+    assert [item.text for item in submenu_by_label["Reinstall"]] == [
+        "From Local Source",
+        "From Source and Update",
+    ]
+    assert [item.text for item in submenu_by_label["Uninstall"]] == [
+        "Keep User Data",
+        "Remove All User Data",
+    ]

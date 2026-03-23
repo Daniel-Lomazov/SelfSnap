@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 import xml.etree.ElementTree as ET
 
 from selfsnap.config_store import load_or_create_config, save_config
@@ -52,7 +53,7 @@ def test_build_desired_tasks_includes_enabled_schedules(temp_paths) -> None:
         "--schedule-id",
         "morning",
     ]
-    assert invocation.working_directory == str(temp_paths.root)
+    assert (Path(invocation.working_directory) / "pyproject.toml").exists()
 
 
 def test_build_desired_tasks_still_returns_tasks_while_sync_state_is_failed(temp_paths) -> None:

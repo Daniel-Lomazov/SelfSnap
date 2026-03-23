@@ -37,9 +37,10 @@ def show_report_issue_dialog(paths: AppPaths) -> ReportIssueDialogResult:
     intro = ttk.Label(
         header,
         text=(
-            "Describe the problem in a short paragraph. SelfSnap will never attach screenshots, "
-            "local file paths, or logs automatically. By default it shares only safe diagnostics "
-            "such as app version, storage preset, and the latest outcome code."
+            "Describe the problem in a short paragraph. SelfSnap stays offline unless you explicitly "
+            "open feedback in the browser. It never attaches screenshots, local file paths, logs, "
+            "or database contents automatically, and it shares only safe diagnostics when you leave "
+            "that option enabled."
         ),
         justify="left",
         wraplength=680,
@@ -90,7 +91,7 @@ def show_report_issue_dialog(paths: AppPaths) -> ReportIssueDialogResult:
         root.destroy()
 
     ttk.Button(footer, text="Cancel", command=root.destroy).pack(side="right")
-    ttk.Button(footer, text="Send to GitHub", command=_submit).pack(side="right", padx=(0, 8))
+    ttk.Button(footer, text="Open GitHub Issue", command=_submit).pack(side="right", padx=(0, 8))
 
     root.after_idle(description_text.focus_set)
     root.protocol("WM_DELETE_WINDOW", root.destroy)

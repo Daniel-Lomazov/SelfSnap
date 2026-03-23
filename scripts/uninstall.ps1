@@ -1,5 +1,6 @@
 param(
-    [string]$PythonExe = ""
+    [string]$PythonExe = "",
+    [switch]$RemoveUserData
 )
 
 $ErrorActionPreference = "Stop"
@@ -51,6 +52,114 @@ function Get-ResolvedRepoRoot {
     )
 
     return (Resolve-Path $RepoRoot).Path
+}
+
+function Get-PreferredOneDriveRoot {
+    if ($env:OneDrive) {
+        return $env:OneDrive
+    }
+    return (Join-Path $env:USERPROFILE "OneDrive")
+}
+
+function Get-StorageTargetsFromConfig {
+    param(
+        [string]$ConfigPath
+    )
+
+    $defaultCaptureRoot = Join-Path $env:USERPROFILE "Pictures\SelfSnap\captures"
+    $defaultArchiveRoot = Join-Path $env:USERPROFILE "Pictures\SelfSnap\archive"
+    $oneDriveRoot = Get-PreferredOneDriveRoot
+    $oneDriveCaptureRoot = Join-Path $oneDriveRoot "Pictures\SelfSnap\captures"
+    $oneDriveArchiveRoot = Join-Path $oneDriveRoot "Pictures\SelfSnap\archive"
+
+    $result = [ordered]@{
+        capture_root = $defaultCaptureRoot
+        archive_root = $defaultArchiveRoot
+        owned_roots = @($defaultCaptureRoot, $defaultArchiveRoot, $oneDriveCaptureRoot, $oneDriveArchiveRoot)
+    }
+
+    if (-not (Test-Path $ConfigPath)) {
+        return $result
+    }
+
+    try {
+        $config = Get-Content -Path $ConfigPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        Write-Warning "Could not read config at $ConfigPath while resolving uninstall cleanup paths. Falling back to default roots."
+        return $result
+    }
+
+    if ($config.capture_storage_root) {
+        $result.capture_root = [string]$config.capture_storage_root
+    }
+    if ($config.archive_storage_root) {
+        $result.archive_root = [string]$config.archive_storage_root
+    }
+    return $result
+}
+
+function Remove-ManagedCaptureFiles {
+    param(
+        [string]$RootPath
+    )
+
+    if (-not (Test-Path $RootPath)) {
+        return
+    }
+
+    Get-ChildItem -Path $RootPath -Recurse -File -Filter "cap_*.png" -ErrorAction SilentlyContinue |
+        Remove-Item -Force -ErrorAction SilentlyContinue
+
+    Get-ChildItem -Path $RootPath -Recurse -Directory -ErrorAction SilentlyContinue |
+        Sort-Object FullName -Descending |
+        ForEach-Object {
+            try {
+                $_.Delete()
+            }
+            catch {
+            }
+        }
+
+    try {
+        Remove-Item -LiteralPath $RootPath -Force
+    }
+    catch {
+        return
+    }
+}
+
+function Remove-StorageRoot {
+    param(
+        [string]$RootPath,
+        [string[]]$OwnedRoots
+    )
+
+    if (-not $RootPath) {
+        return
+    }
+
+    try {
+        $resolvedRoot = (Resolve-Path $RootPath).Path
+    }
+    catch {
+        return
+    }
+
+    foreach ($ownedRoot in $OwnedRoots) {
+        try {
+            $resolvedOwnedRoot = (Resolve-Path $ownedRoot).Path
+        }
+        catch {
+            continue
+        }
+        if ($resolvedOwnedRoot -eq $resolvedRoot) {
+            Remove-Item -LiteralPath $resolvedRoot -Recurse -Force -ErrorAction SilentlyContinue
+            return
+        }
+    }
+
+    Remove-ManagedCaptureFiles -RootPath $resolvedRoot
 }
 
 function Get-TrustedInstallMetadata {
@@ -149,9 +258,11 @@ $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $appRoot = Join-Path $env:LOCALAPPDATA "SelfSnap"
 $binRoot = Join-Path $appRoot "bin"
 $metaPath = Join-Path $binRoot "install-meta.json"
+$configPath = Join-Path $appRoot "config\config.json"
 $startupDir = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Startup"
 $shortcutPath = Join-Path $startupDir "SelfSnap Win11.lnk"
 $picturesRoot = Join-Path $env:USERPROFILE "Pictures\SelfSnap"
+$storageTargets = Get-StorageTargetsFromConfig -ConfigPath $configPath
 
 if (Test-Path $shortcutPath) {
     Remove-Item $shortcutPath -Force
@@ -194,9 +305,22 @@ if (Test-Path $binRoot) {
     Remove-Item $binRoot -Recurse -Force
 }
 
+if ($RemoveUserData) {
+    Remove-StorageRoot -RootPath $storageTargets.capture_root -OwnedRoots $storageTargets.owned_roots
+    Remove-StorageRoot -RootPath $storageTargets.archive_root -OwnedRoots $storageTargets.owned_roots
+    if (Test-Path $appRoot) {
+        Remove-Item $appRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 if (-not $packageRemoved) {
     Write-Warning "SelfSnap wrapper files were removed, but no installed selfsnap-win11 package was found in the checked Python environments."
 }
 
 Write-Host "SelfSnap startup shortcut, wrapper files, scheduled tasks, and editable package install were removed."
-Write-Host "Preserved app data under $appRoot and screenshots/archive under $picturesRoot."
+if ($RemoveUserData) {
+    Write-Host "SelfSnap user data under $appRoot and managed screenshot/archive data were also removed."
+}
+else {
+    Write-Host "Preserved app data under $appRoot and screenshots/archive under $picturesRoot."
+}

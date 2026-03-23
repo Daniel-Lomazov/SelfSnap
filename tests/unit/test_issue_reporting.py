@@ -1,6 +1,4 @@
 from __future__ import annotations
-
-import json
 from datetime import UTC, datetime
 from urllib.parse import parse_qs, urlparse
 
@@ -96,11 +94,8 @@ def test_build_issue_url_targets_default_report_template() -> None:
     assert query["title"] == ["App report: Example"]
 
 
-def test_submit_issue_report_opens_browser_when_no_token(temp_paths, monkeypatch) -> None:
+def test_submit_issue_report_opens_browser(temp_paths, monkeypatch) -> None:
     opened: list[str] = []
-    monkeypatch.delenv("SELFSNAP_GITHUB_TOKEN", raising=False)
-    monkeypatch.delenv("GH_TOKEN", raising=False)
-    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     monkeypatch.setattr(
         "selfsnap.issue_reporting.webbrowser.open", lambda url: opened.append(url) or True
     )
@@ -115,22 +110,13 @@ def test_submit_issue_report_opens_browser_when_no_token(temp_paths, monkeypatch
     assert "issues/new" in opened[0]
 
 
-def test_submit_issue_report_uses_api_when_token_is_available(temp_paths, monkeypatch) -> None:
-    class FakeResponse:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-        def read(self) -> bytes:
-            return json.dumps(
-                {"html_url": "https://github.com/Daniel-Lomazov/SelfSnap/issues/999"}
-            ).encode("utf-8")
-
+def test_submit_issue_report_ignores_token_environment_variables(temp_paths, monkeypatch) -> None:
+    opened: list[str] = []
     monkeypatch.setenv("SELFSNAP_GITHUB_TOKEN", "token")
+    monkeypatch.setenv("GH_TOKEN", "token")
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
     monkeypatch.setattr(
-        "selfsnap.issue_reporting.request.urlopen", lambda _request, timeout=10: FakeResponse()
+        "selfsnap.issue_reporting.webbrowser.open", lambda url: opened.append(url) or True
     )
 
     result = submit_issue_report(
@@ -138,5 +124,5 @@ def test_submit_issue_report_uses_api_when_token_is_available(temp_paths, monkey
     )
 
     assert result.ok is True
-    assert result.method == "api"
-    assert result.issue_url.endswith("/issues/999")
+    assert result.method == "browser"
+    assert len(opened) == 1

@@ -1,0 +1,115 @@
+param(
+    [string]$PythonExe = "",
+    [string]$PythonwExe = "",
+    [switch]$UpdateSource,
+    [switch]$RelaunchTray
+)
+
+$ErrorActionPreference = "Stop"
+$PSNativeCommandUseErrorActionPreference = $true
+
+function Assert-LastExitCode {
+    param(
+        [string]$Step
+    )
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Step failed with exit code $LASTEXITCODE."
+    }
+}
+
+function Resolve-PythonPath {
+    param(
+        [string]$PythonPreference
+    )
+
+    if ($PythonPreference) {
+        if (Test-Path $PythonPreference) {
+            return (Resolve-Path $PythonPreference).Path
+        }
+        $resolved = (& $PythonPreference -c "import sys; print(sys.executable)").Trim()
+        Assert-LastExitCode "python path resolution"
+        if ($resolved) {
+            return $resolved
+        }
+    }
+
+    $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
+    if ($pythonCommand -and $pythonCommand.Source) {
+        $resolved = (& $pythonCommand.Source -c "import sys; print(sys.executable)").Trim()
+        Assert-LastExitCode "python path resolution"
+        if ($resolved) {
+            return $resolved
+        }
+    }
+
+    throw "Could not resolve a usable Python executable. Pass -PythonExe with a full path to the intended interpreter."
+}
+
+function Resolve-PythonwPath {
+    param(
+        [string]$PythonPath,
+        [string]$ExplicitPythonw
+    )
+
+    if ($ExplicitPythonw) {
+        if (Test-Path $ExplicitPythonw) {
+            return (Resolve-Path $ExplicitPythonw).Path
+        }
+        $resolved = (& $ExplicitPythonw -c "import sys; print(sys.executable)").Trim()
+        Assert-LastExitCode "pythonw path resolution"
+        if ($resolved -and [System.IO.Path]::GetFileName($resolved).ToLowerInvariant() -eq "pythonw.exe") {
+            return $resolved
+        }
+        throw "Explicit -PythonwExe must resolve to pythonw.exe."
+    }
+
+    $candidate = Join-Path (Split-Path -Parent $PythonPath) "pythonw.exe"
+    if (Test-Path $candidate) {
+        return (Resolve-Path $candidate).Path
+    }
+
+    throw "pythonw.exe was not found next to the selected Python interpreter. Pass -PythonwExe explicitly if needed."
+}
+
+$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+$installScript = Join-Path $repoRoot "scripts\install.ps1"
+$pythonFullPath = Resolve-PythonPath -PythonPreference $PythonExe
+$pythonwFullPath = Resolve-PythonwPath -PythonPath $pythonFullPath -ExplicitPythonw $PythonwExe
+
+Push-Location $repoRoot
+try {
+    if ($UpdateSource) {
+        if (-not (Test-Path (Join-Path $repoRoot ".git"))) {
+            throw "Reinstall from source update requires a valid Git checkout with a .git directory."
+        }
+
+        $statusOutput = (& git status --porcelain --untracked-files=normal).Trim()
+        Assert-LastExitCode "git status"
+        if ($statusOutput) {
+            throw "Reinstall from source update requires a clean repo. Commit, stash, or discard local changes first."
+        }
+
+        $env:GIT_TERMINAL_PROMPT = "0"
+        & git -c credential.interactive=never pull --ff-only
+        Assert-LastExitCode "git pull --ff-only"
+    }
+
+    & powershell -ExecutionPolicy Bypass -File $installScript -PythonExe $pythonFullPath -PythonwExe $pythonwFullPath
+    Assert-LastExitCode "SelfSnap install"
+
+    if ($RelaunchTray) {
+        Start-Process -FilePath $pythonwFullPath -ArgumentList '-m','selfsnap','tray' -WorkingDirectory $repoRoot.Path -WindowStyle Hidden
+    }
+}
+catch {
+    if ($RelaunchTray) {
+        Start-Process -FilePath $pythonwFullPath -ArgumentList '-m','selfsnap','tray' -WorkingDirectory $repoRoot.Path -WindowStyle Hidden
+    }
+    throw
+}
+finally {
+    Pop-Location
+}
+
+Write-Host "SelfSnap reinstall completed."

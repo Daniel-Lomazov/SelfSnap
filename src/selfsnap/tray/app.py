@@ -3,11 +3,19 @@ from __future__ import annotations
 import logging
 import os
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
+import tkinter as tk
+from tkinter import messagebox
 
 from selfsnap.config_store import load_or_create_config, save_config
 from selfsnap.db import connect, ensure_database
+from selfsnap.lifecycle_actions import (
+    launch_and_confirm,
+    resolve_reinstall_invocation,
+    resolve_restart_invocation,
+    resolve_uninstall_invocation,
+)
 from selfsnap.logging_setup import setup_logging
 from selfsnap.models import AppConfig, CaptureRecord, OutcomeCategory
 from selfsnap.paths import AppPaths, resolve_app_paths
@@ -31,7 +39,9 @@ from selfsnap.worker import EXIT_OK
 @dataclass(slots=True)
 class TrayRuntimeState:
     stop_event: threading.Event
-    ui_dialog_open: threading.Event
+    settings_dialog_open: threading.Event
+    report_dialog_open: threading.Event
+    dialog_state_lock: threading.Lock = field(default_factory=threading.Lock)
     last_announced_record_id: str | None = None
 
 
@@ -58,7 +68,8 @@ def run_tray_app(paths: AppPaths | None = None) -> int:
 
     state = TrayRuntimeState(
         stop_event=threading.Event(),
-        ui_dialog_open=threading.Event(),
+        settings_dialog_open=threading.Event(),
+        report_dialog_open=threading.Event(),
         last_announced_record_id=_latest_record_id(paths),
     )
     icon = pystray.Icon("selfsnap", _build_icon_image(Image, ImageDraw), "SelfSnap Win11")
@@ -71,7 +82,7 @@ def run_tray_app(paths: AppPaths | None = None) -> int:
     def background_loop() -> None:
         while not state.stop_event.is_set():
             try:
-                if state.ui_dialog_open.is_set():
+                if _any_dialog_open(state):
                     state.stop_event.wait(60)
                     continue
                 _run_housekeeping(paths)
@@ -128,6 +139,49 @@ def _build_menu_items(pystray, paths: AppPaths, icon, state: TrayRuntimeState) -
             pystray.MenuItem(
                 "Settings", lambda _icon, _item: _run_async(_open_settings, paths, icon, state)
             ),
+            pystray.MenuItem(
+                "Restart",
+                pystray.Menu(
+                    pystray.MenuItem(
+                        "Restart SelfSnap",
+                        lambda _icon, _item: _run_async(_restart_selfsnap, paths, icon, state),
+                    )
+                ),
+            ),
+            pystray.MenuItem(
+                "Reinstall",
+                pystray.Menu(
+                    pystray.MenuItem(
+                        "From Local Source",
+                        lambda _icon, _item: _run_async(
+                            _reinstall_selfsnap, paths, icon, state, False
+                        ),
+                    ),
+                    pystray.MenuItem(
+                        "From Source and Update",
+                        lambda _icon, _item: _run_async(
+                            _reinstall_selfsnap, paths, icon, state, True
+                        ),
+                    ),
+                ),
+            ),
+            pystray.MenuItem(
+                "Uninstall",
+                pystray.Menu(
+                    pystray.MenuItem(
+                        "Keep User Data",
+                        lambda _icon, _item: _run_async(
+                            _uninstall_selfsnap, paths, icon, state, False
+                        ),
+                    ),
+                    pystray.MenuItem(
+                        "Remove All User Data",
+                        lambda _icon, _item: _run_async(
+                            _uninstall_selfsnap, paths, icon, state, True
+                        ),
+                    ),
+                ),
+            ),
             pystray.MenuItem("Exit", lambda _icon, _item: _exit(icon, state.stop_event)),
         ]
     )
@@ -141,7 +195,7 @@ def _run_async(func, *args) -> None:
 def _capture_now(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
     config = load_or_create_config(paths)
     setup_logging(paths, config.log_level)
-    suppress_ui_updates = state.ui_dialog_open.is_set()
+    suppress_ui_updates = _any_dialog_open(state)
     previous_record_id = state.last_announced_record_id
     completed = run_background_command(resolve_manual_capture_background_invocation(paths))
     latest = _latest_record(paths)
@@ -181,14 +235,13 @@ def _toggle_enabled(paths: AppPaths, icon) -> None:
 
 
 def _open_settings(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
-    if state.ui_dialog_open.is_set():
+    if not _begin_dialog(state, state.settings_dialog_open):
         return
     config = load_or_create_config(paths)
-    state.ui_dialog_open.set()
     try:
         result = show_settings_dialog(config, paths)
     finally:
-        state.ui_dialog_open.clear()
+        _end_dialog(state, state.settings_dialog_open)
 
     if result.requested_reset:
         state.stop_event.set()
@@ -206,14 +259,84 @@ def _open_settings(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
 
 
 def _open_report_issue(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
-    if state.ui_dialog_open.is_set():
+    if not _begin_dialog(state, state.report_dialog_open):
         return
-    state.ui_dialog_open.set()
     try:
         show_report_issue_dialog(paths)
     finally:
-        state.ui_dialog_open.clear()
+        _end_dialog(state, state.report_dialog_open)
     icon.update_menu()
+
+
+def _restart_selfsnap(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
+    launched = launch_and_confirm(resolve_restart_invocation(paths))
+    if not launched:
+        _show_error_dialog(
+            "Restart SelfSnap",
+            "SelfSnap could not start a replacement tray process. The current tray is still running.",
+        )
+        return
+    _exit(icon, state.stop_event)
+
+
+def _reinstall_selfsnap(paths: AppPaths, icon, state: TrayRuntimeState, update_source: bool) -> None:
+    title = "Reinstall SelfSnap"
+    if update_source:
+        message = (
+            "SelfSnap will pull the latest fast-forward changes from the current source checkout, "
+            "reinstall itself, preserve your data, and relaunch the tray.\n\nContinue?"
+        )
+    else:
+        message = (
+            "SelfSnap will reinstall itself from the current local source checkout, preserve your "
+            "data, and relaunch the tray.\n\nContinue?"
+        )
+    if not _ask_confirmation(title, message, warning=False):
+        return
+
+    launched = launch_and_confirm(
+        resolve_reinstall_invocation(paths, update_source=update_source, relaunch_tray=True)
+    )
+    if not launched:
+        _show_error_dialog(
+            title,
+            "SelfSnap could not start the reinstall process. The current tray is still running.",
+        )
+        return
+    _exit(icon, state.stop_event)
+
+
+def _uninstall_selfsnap(
+    paths: AppPaths,
+    icon,
+    state: TrayRuntimeState,
+    remove_user_data: bool,
+) -> None:
+    title = "Uninstall SelfSnap"
+    if remove_user_data:
+        message = (
+            "This removes SelfSnap startup/task/install links and all SelfSnap user data, including "
+            "config, database, logs, captures, archive files, and app temp data.\n\n"
+            "The source checkout and .venv will stay in place.\n\nContinue?"
+        )
+    else:
+        message = (
+            "This removes SelfSnap startup/task/install links but keeps your config, history, logs, "
+            "captures, and archive files.\n\nContinue?"
+        )
+    if not _ask_confirmation(title, message, warning=remove_user_data):
+        return
+
+    launched = launch_and_confirm(
+        resolve_uninstall_invocation(paths, remove_user_data=remove_user_data)
+    )
+    if not launched:
+        _show_error_dialog(
+            title,
+            "SelfSnap could not start the uninstall process. The current tray is still running.",
+        )
+        return
+    _exit(icon, state.stop_event)
 
 
 def _open_capture_folder(paths: AppPaths) -> None:
@@ -316,7 +439,7 @@ def _announce_latest_record(paths: AppPaths, icon, state: TrayRuntimeState) -> N
         icon,
         config,
         latest,
-        suppress_overlay=state.ui_dialog_open.is_set(),
+        suppress_overlay=_any_dialog_open(state),
     )
     state.last_announced_record_id = latest.record_id
 
@@ -395,3 +518,47 @@ def _sync_startup_shortcut_safe(paths: AppPaths, config: AppConfig, logger) -> N
         sync_startup_shortcut(paths, config)
     except Exception:
         logger.exception("Failed to sync startup shortcut")
+
+
+def _any_dialog_open(state: TrayRuntimeState) -> bool:
+    return state.settings_dialog_open.is_set() or state.report_dialog_open.is_set()
+
+
+def _ask_confirmation(title: str, message: str, *, warning: bool) -> bool:
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    try:
+        return bool(
+            messagebox.askyesno(
+                title,
+                message,
+                parent=root,
+                icon="warning" if warning else "question",
+            )
+        )
+    finally:
+        root.destroy()
+
+
+def _show_error_dialog(title: str, message: str) -> None:
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    try:
+        messagebox.showerror(title, message, parent=root)
+    finally:
+        root.destroy()
+
+
+def _begin_dialog(state: TrayRuntimeState, dialog_event: threading.Event) -> bool:
+    with state.dialog_state_lock:
+        if dialog_event.is_set():
+            return False
+        dialog_event.set()
+        return True
+
+
+def _end_dialog(state: TrayRuntimeState, dialog_event: threading.Event) -> None:
+    with state.dialog_state_lock:
+        dialog_event.clear()
