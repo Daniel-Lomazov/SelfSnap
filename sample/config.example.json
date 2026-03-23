@@ -16,8 +16,8 @@
   "wake_for_scheduled_captures": false,
   "scheduler_sync_state": "ok",
   "scheduler_sync_message": null,
-  "settings_window_width": 760,
-  "settings_window_height": 680,
+  "settings_window_width": 960,
+  "settings_window_height": 760,
   "slot_match_tolerance_seconds": 120,
   "schedules": [
     {

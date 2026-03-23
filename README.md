@@ -10,6 +10,7 @@ This release keeps background work console-free and adds:
 - storage presets for `Local Pictures`, `OneDrive`, and `Custom`
 - a destructive `Reset Capture History` flow that returns the app to first-run state
 - a resizable, scroll-safe settings window
+- a tray `Report Issue` flow that opens or creates GitHub issues without uploading screenshots automatically
 - data-preserving reinstall by default
 
 ## v1 scope
@@ -141,6 +142,15 @@ $env:LOCALAPPDATA\SelfSnap\bin\SelfSnap.cmd tray
 $env:LOCALAPPDATA\SelfSnap\bin\SelfSnap.cmd capture --trigger manual
 ```
 
+## Report Issue
+
+- `Report Issue` is available from the tray menu and is the default tray action where the Windows shell supports pystray default activation.
+- The dialog asks for a short paragraph and can include only safe diagnostics such as app version, storage preset, scheduler sync state, and the latest outcome code.
+- SelfSnap does not attach screenshots, local file paths, logs, or database contents automatically.
+- If `SELFSNAP_GITHUB_TOKEN`, `GH_TOKEN`, or `GITHUB_TOKEN` is present, SelfSnap can create the GitHub issue directly through the API.
+- Otherwise SelfSnap opens a prefilled GitHub issue page in the browser and leaves the final submission under user control.
+- `SELFSNAP_GITHUB_REPO` can override the default issue destination if you are working from a fork.
+
 ## Config reference
 
 See `sample/config.example.json` for the full schema.
@@ -228,6 +238,12 @@ This optional build is prepared to create:
 
 - `SelfSnapTray.exe` as a windowless tray executable
 - `SelfSnapWorker.exe` as a windowless scheduled worker executable
+
+## GitHub automation
+
+- `.github/workflows/ci.yml` keeps the repo healthy on pushes and pull requests with Windows-based compile smoke checks and `pytest`.
+- `.github/workflows/issue-intake.yml` preprocesses new issues, applies managed labels, and posts a planning starter comment for the next local-agent session.
+- `.github/ISSUE_TEMPLATE/report_issue.md` is the template used by the in-app issue reporting flow.
 
 ## Known limitations
 

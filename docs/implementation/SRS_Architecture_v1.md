@@ -6,6 +6,7 @@
 - `selfsnap capture`: one-shot manual or scheduled capture worker
 - Windows Task Scheduler: one daily task per enabled schedule entry
 - Tray `Capture Now` launches the one-shot capture worker out of process so capture-side DPI or monitor state cannot mutate tray UI geometry.
+- Tray `Report Issue` opens a dedicated report dialog and routes the result into GitHub issue creation or a prefilled GitHub issue page.
 
 ## Current operational constraints
 
@@ -15,6 +16,7 @@
 - Settings UI supports resizing and content-aware layout, but it does not auto-persist incidental geometry changes from capture activity.
 - Reinstall is non-destructive by default and preserves user data and configuration unless cleanup is requested separately.
 - A separate elevated cleanup script removes stale ACL-poisoned pytest folders when needed.
+- GitHub issue intake is handled by repository workflows, not by long-running local services.
 
 ## Storage contracts
 

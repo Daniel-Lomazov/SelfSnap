@@ -5,6 +5,7 @@
 - Install dependencies or run the source-based install script.
 - Run `selfsnap diag` and confirm config, DB, log, Pictures capture, and Pictures archive paths are created.
 - Start `selfsnap tray` and confirm a tray icon appears.
+- Use the tray default action or menu `Report Issue` and confirm the report dialog opens without affecting Settings geometry.
 - Complete the first-run setup dialog and confirm scheduled capture stays OFF unless explicitly enabled there.
 - If the tray settings window has been opened and reused, confirm a manual capture does not change its size or reopen it smaller.
 
@@ -21,6 +22,7 @@
 - Confirm the settings window can be resized and content does not crop.
 - Confirm a manual capture does not resize an open settings window and that reopening returns to the stable minimum size.
 - Confirm reinstall keeps user data and settings by default.
+- Confirm `Report Issue` never attaches screenshots, logs, or local file paths automatically.
 - If one tray launch shows both a parent `.venv` `pythonw.exe` and a child `uv`-backed `pythonw.exe` in Task Manager, do not treat that alone as a failure. Only treat it as a bug if duplicate tray icons, duplicate notifications, or duplicate Settings windows appear.
 
 ## Manual capture
@@ -50,6 +52,7 @@
 - Confirm filenames follow `cap_YYYY-MM-DD_HH-MM-SS_trigger_schedule.png`.
 - Confirm the latest record can be opened from the tray.
 - Confirm the capture folder opens from the tray.
+- Confirm `Report Issue` opens a GitHub issue page or creates an issue directly when a GitHub token is configured.
 - If notifications are enabled, confirm failed or missed events notify and successful captures only notify when that toggle is ON.
 
 ## Retention
