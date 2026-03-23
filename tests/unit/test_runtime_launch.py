@@ -5,9 +5,11 @@ from pathlib import Path
 import pytest
 
 from selfsnap.runtime_launch import (
-    resolve_background_python_executable,
     resolve_background_working_directory,
+    resolve_background_python_executable,
+    resolve_foreground_python_executable,
     resolve_manual_capture_background_invocation,
+    resolve_source_repo_root,
 )
 
 
@@ -108,7 +110,7 @@ def test_resolve_background_working_directory_ignores_stale_metadata(temp_paths)
 
     result = resolve_background_working_directory(temp_paths)
 
-    assert Path(result) == temp_paths.root
+    assert (Path(result) / "pyproject.toml").exists()
 
 
 def test_resolve_manual_capture_background_invocation_uses_pythonw_and_repo_root(
@@ -132,3 +134,35 @@ def test_resolve_manual_capture_background_invocation_uses_pythonw_and_repo_root
     assert Path(spec.executable) == pythonw
     assert spec.arguments == ["-m", "selfsnap", "capture", "--trigger", "manual"]
     assert spec.working_directory == str(temp_paths.user_profile)
+
+
+def test_resolve_foreground_python_executable_prefers_install_metadata(temp_paths) -> None:
+    temp_paths.bin_dir.mkdir(parents=True, exist_ok=True)
+    python_executable = temp_paths.bin_dir / "python.exe"
+    python_executable.write_text("", encoding="utf-8")
+    (temp_paths.bin_dir / "install-meta.json").write_text(
+        '{"python_executable": "'
+        + str(python_executable).replace("\\", "\\\\")
+        + '", "repo_root": "'
+        + str(temp_paths.user_profile).replace("\\", "\\\\")
+        + '"}',
+        encoding="utf-8",
+    )
+
+    result = resolve_foreground_python_executable(temp_paths)
+
+    assert Path(result) == python_executable
+
+
+def test_resolve_source_repo_root_prefers_trusted_install_metadata(temp_paths) -> None:
+    temp_paths.bin_dir.mkdir(parents=True, exist_ok=True)
+    (temp_paths.bin_dir / "install-meta.json").write_text(
+        '{"repo_root": "'
+        + str(temp_paths.user_profile).replace("\\", "\\\\")
+        + '"}',
+        encoding="utf-8",
+    )
+
+    result = resolve_source_repo_root(temp_paths)
+
+    assert Path(result) == temp_paths.user_profile

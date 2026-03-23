@@ -7,6 +7,14 @@ from tkinter import filedialog, messagebox, ttk
 from selfsnap.models import AppConfig, ConfigValidationError, Schedule, StoragePreset
 from selfsnap.paths import AppPaths
 from selfsnap.storage import apply_storage_preset, validate_storage_config
+from selfsnap.ui_labels import (
+    retention_mode_label,
+    retention_mode_labels,
+    retention_mode_value,
+    storage_preset_label,
+    storage_preset_labels,
+    storage_preset_value,
+)
 
 
 WINDOW_MIN_WIDTH = 960
@@ -31,10 +39,10 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     root.minsize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
     root.resizable(True, True)
 
-    preset_var = tk.StringVar(value=config.storage_preset)
+    preset_var = tk.StringVar(value=storage_preset_label(config.storage_preset))
     capture_root_var = tk.StringVar(value=config.capture_storage_root)
     archive_root_var = tk.StringVar(value=config.archive_storage_root)
-    retention_mode_var = tk.StringVar(value=config.retention_mode)
+    retention_mode_var = tk.StringVar(value=retention_mode_label(config.retention_mode))
     retention_days_var = tk.StringVar(value="" if config.retention_days is None else str(config.retention_days))
     start_tray_on_login_var = tk.BooleanVar(value=config.start_tray_on_login)
     wake_for_scheduled_captures_var = tk.BooleanVar(value=config.wake_for_scheduled_captures)
@@ -58,7 +66,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     scrollbar.grid(row=0, column=1, sticky="ns")
     canvas.configure(yscrollcommand=scrollbar.set)
 
-    content = ttk.Frame(canvas, padding=16)
+    content = ttk.Frame(canvas, padding=10)
     content.columnconfigure(0, weight=1)
     canvas_window = canvas.create_window((0, 0), window=content, anchor="nw")
 
@@ -71,26 +79,18 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
 
     def _bind_wrap(widget: ttk.Label, padding: int = 56) -> None:
         def _update_wrap(_event=None) -> None:
-            wrap = max(content.winfo_width() - padding, 420)
+            wrap = max(content.winfo_width() - padding, 380)
             widget.configure(wraplength=wrap)
 
         content.bind("<Configure>", _update_wrap, add="+")
         root.after_idle(_update_wrap)
 
-    def _stabilize_geometry() -> None:
-        root.update_idletasks()
-        required_width = max(WINDOW_MIN_WIDTH, root.winfo_reqwidth() + 24)
-        required_height = max(WINDOW_MIN_HEIGHT, root.winfo_reqheight() + 24)
-        current_width = max(root.winfo_width(), required_width)
-        current_height = max(root.winfo_height(), required_height)
-        root.minsize(required_width, required_height)
-        root.geometry(f"{current_width}x{current_height}")
-
-    def _set_preset(preset: str) -> None:
+    def _set_preset_from_label(selected_label: str) -> None:
         internal_preset_update["active"] = True
         try:
+            preset = storage_preset_value(selected_label)
             preset_config = apply_storage_preset(paths, config, preset)
-            preset_var.set(preset)
+            preset_var.set(storage_preset_label(preset))
             capture_root_var.set(preset_config.capture_storage_root)
             archive_root_var.set(preset_config.archive_storage_root)
         finally:
@@ -100,8 +100,8 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     def _mark_custom(*_args) -> None:
         if internal_preset_update["active"]:
             return
-        if preset_var.get() != StoragePreset.CUSTOM.value:
-            preset_var.set(StoragePreset.CUSTOM.value)
+        if preset_var.get() != storage_preset_label(StoragePreset.CUSTOM.value):
+            preset_var.set(storage_preset_label(StoragePreset.CUSTOM.value))
 
     def _update_path_state() -> None:
         capture_entry.configure(state="normal")
@@ -113,71 +113,67 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     archive_root_var.trace_add("write", _mark_custom)
 
     row = 0
-    storage_frame = ttk.LabelFrame(content, text="Storage", padding=12)
+    storage_frame = ttk.LabelFrame(content, text="Storage", padding=10)
     storage_frame.grid(row=row, column=0, sticky="ew")
     storage_frame.columnconfigure(1, weight=1)
     row += 1
 
-    ttk.Label(storage_frame, text="Storage preset").grid(row=0, column=0, sticky="w", pady=(0, 8))
+    ttk.Label(storage_frame, text="Storage Preset").grid(row=0, column=0, sticky="w", pady=(0, 6))
     preset_combo = ttk.Combobox(
         storage_frame,
         textvariable=preset_var,
         state="readonly",
-        values=[
-            StoragePreset.LOCAL_PICTURES.value,
-            StoragePreset.ONEDRIVE_PICTURES.value,
-            StoragePreset.CUSTOM.value,
-        ],
+        values=storage_preset_labels(),
         width=24,
     )
-    preset_combo.grid(row=0, column=1, sticky="w", pady=(0, 8))
+    preset_combo.grid(row=0, column=1, sticky="ew", pady=(0, 6))
 
-    ttk.Label(storage_frame, text="Capture storage root").grid(row=1, column=0, sticky="w", pady=(0, 8))
+    ttk.Label(storage_frame, text="Capture Storage Root").grid(row=1, column=0, sticky="w", pady=(0, 6))
     capture_entry = ttk.Entry(storage_frame, textvariable=capture_root_var)
-    capture_entry.grid(row=1, column=1, sticky="ew", pady=(0, 8))
+    capture_entry.grid(row=1, column=1, sticky="ew", pady=(0, 6))
     capture_browse = ttk.Button(
         storage_frame,
         text="Browse",
         command=lambda: _browse_directory(root, capture_root_var),
     )
-    capture_browse.grid(row=1, column=2, sticky="w", padx=(8, 0), pady=(0, 8))
+    capture_browse.grid(row=1, column=2, sticky="w", padx=(6, 0), pady=(0, 6))
 
-    ttk.Label(storage_frame, text="Archive storage root").grid(row=2, column=0, sticky="w", pady=(0, 8))
+    ttk.Label(storage_frame, text="Archive Storage Root").grid(row=2, column=0, sticky="w", pady=(0, 6))
     archive_entry = ttk.Entry(storage_frame, textvariable=archive_root_var)
-    archive_entry.grid(row=2, column=1, sticky="ew", pady=(0, 8))
+    archive_entry.grid(row=2, column=1, sticky="ew", pady=(0, 6))
     archive_browse = ttk.Button(
         storage_frame,
         text="Browse",
         command=lambda: _browse_directory(root, archive_root_var),
     )
-    archive_browse.grid(row=2, column=2, sticky="w", padx=(8, 0), pady=(0, 8))
+    archive_browse.grid(row=2, column=2, sticky="w", padx=(6, 0), pady=(0, 6))
 
-    ttk.Label(storage_frame, text="Retention mode").grid(row=3, column=0, sticky="w")
+    ttk.Label(storage_frame, text="Retention Mode").grid(row=3, column=0, sticky="w")
     ttk.Combobox(
         storage_frame,
         textvariable=retention_mode_var,
-        values=["keep_forever", "keep_days"],
+        values=retention_mode_labels(),
         width=18,
         state="readonly",
-    ).grid(row=3, column=1, sticky="w")
-    ttk.Label(storage_frame, text="Retention days").grid(row=3, column=2, sticky="w", padx=(12, 0))
+    ).grid(row=3, column=1, sticky="ew")
+    ttk.Label(storage_frame, text="Archive After Days").grid(row=3, column=2, sticky="w", padx=(10, 0))
     ttk.Entry(storage_frame, textvariable=retention_days_var, width=8).grid(row=3, column=3, sticky="w")
 
-    schedules_frame = ttk.LabelFrame(content, text="Schedules", padding=12)
-    schedules_frame.grid(row=row, column=0, sticky="ew", pady=(12, 0))
+    schedules_frame = ttk.LabelFrame(content, text="Schedules", padding=10)
+    schedules_frame.grid(row=row, column=0, sticky="ew", pady=(8, 0))
     schedules_frame.columnconfigure(0, weight=1)
     row += 1
 
     ttk.Label(
         schedules_frame,
         text="One per line: schedule_id,label,HH:MM,enabled",
-    ).grid(row=0, column=0, sticky="w", pady=(0, 8))
-    schedules_text = tk.Text(schedules_frame, height=10, wrap="none")
+    ).grid(row=0, column=0, sticky="w", pady=(0, 6))
+    schedules_text = tk.Text(schedules_frame, height=9, wrap="none")
     schedules_text.grid(row=1, column=0, sticky="nsew")
     schedules_text.insert("1.0", _serialize_schedules(config.schedules))
 
-    visibility_frame = ttk.LabelFrame(content, text="Visibility", padding=12)
-    visibility_frame.grid(row=row, column=0, sticky="ew", pady=(12, 0))
+    visibility_frame = ttk.LabelFrame(content, text="Visibility", padding=10)
+    visibility_frame.grid(row=row, column=0, sticky="ew", pady=(8, 0))
     visibility_frame.columnconfigure(0, weight=1)
     row += 1
 
@@ -212,8 +208,8 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         variable=show_capture_overlay_var,
     ).grid(row=5, column=0, sticky="w")
 
-    maintenance_frame = ttk.LabelFrame(content, text="Maintenance", padding=12)
-    maintenance_frame.grid(row=row, column=0, sticky="ew", pady=(12, 0))
+    maintenance_frame = ttk.LabelFrame(content, text="Maintenance", padding=10)
+    maintenance_frame.grid(row=row, column=0, sticky="ew", pady=(8, 0))
     maintenance_frame.columnconfigure(0, weight=1)
     row += 1
 
@@ -226,7 +222,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         justify="left",
         foreground="#7f1d1d",
     )
-    maintenance_message.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+    maintenance_message.grid(row=0, column=0, sticky="ew", pady=(0, 6))
     _bind_wrap(maintenance_message)
 
     result = SettingsDialogResult(updated_config=None, window_size=(config.settings_window_width, config.settings_window_height))
@@ -258,21 +254,22 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         command=_request_reset,
     ).grid(row=1, column=0, sticky="w")
 
-    action_row = ttk.Frame(root, padding=(16, 12))
+    action_row = ttk.Frame(root, padding=(10, 8))
     action_row.grid(row=1, column=0, sticky="ew")
 
     def _save_and_close() -> None:
         try:
             parsed_schedules = _parse_schedules(schedules_text.get("1.0", "end").strip())
+            retention_mode = retention_mode_value(retention_mode_var.get())
             retention_days = None
-            if retention_mode_var.get() == "keep_days":
+            if retention_mode == "keep_days":
                 retention_days = int(retention_days_var.get())
             updated = replace(
                 config,
-                storage_preset=preset_var.get().strip(),
+                storage_preset=storage_preset_value(preset_var.get().strip()),
                 capture_storage_root=capture_root_var.get().strip(),
                 archive_storage_root=archive_root_var.get().strip(),
-                retention_mode=retention_mode_var.get().strip(),
+                retention_mode=retention_mode,
                 retention_days=retention_days,
                 start_tray_on_login=start_tray_on_login_var.get(),
                 wake_for_scheduled_captures=wake_for_scheduled_captures_var.get(),
@@ -303,9 +300,8 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     ttk.Button(action_row, text="Save", command=_save_and_close).pack(side="right")
     ttk.Button(action_row, text="Cancel", command=_cancel).pack(side="right", padx=(0, 8))
 
-    preset_combo.bind("<<ComboboxSelected>>", lambda _event: _set_preset(preset_var.get()))
+    preset_combo.bind("<<ComboboxSelected>>", lambda _event: _set_preset_from_label(preset_var.get()))
     _update_path_state()
-    root.after_idle(_stabilize_geometry)
     root.protocol("WM_DELETE_WINDOW", _cancel)
     root.mainloop()
     return result

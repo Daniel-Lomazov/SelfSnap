@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import json
 import os
 import platform
 import sys
 import webbrowser
 from dataclasses import dataclass
-from typing import Any
-from urllib import error as urllib_error
-from urllib import parse, request
+from urllib import parse
 
 from selfsnap.config_store import load_or_create_config
 from selfsnap.db import connect, ensure_database
@@ -39,13 +36,7 @@ def submit_issue_report(
 ) -> IssueSubmissionResult:
     title = build_issue_title(description)
     body = build_issue_body(paths, description, include_diagnostics=include_diagnostics)
-    repo = resolve_issue_repo()
-    token = resolve_issue_token()
-    if token:
-        result = _submit_issue_via_api(repo, title, body, token)
-        if result.ok:
-            return result
-    return _open_issue_in_browser(repo, title, body)
+    return _open_issue_in_browser(resolve_issue_repo(), title, body)
 
 
 def build_issue_title(description: str) -> str:
@@ -145,49 +136,6 @@ def collect_safe_issue_diagnostics(paths: AppPaths) -> dict[str, str]:
 
 def resolve_issue_repo() -> str:
     return os.environ.get("SELFSNAP_GITHUB_REPO", DEFAULT_GITHUB_REPO)
-
-
-def resolve_issue_token() -> str | None:
-    for env_name in ("SELFSNAP_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"):
-        value = os.environ.get(env_name)
-        if value:
-            return value
-    return None
-
-
-def _submit_issue_via_api(repo: str, title: str, body: str, token: str) -> IssueSubmissionResult:
-    payload = json.dumps({"title": title, "body": body}).encode("utf-8")
-    api_url = f"https://api.github.com/repos/{repo}/issues"
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-        "User-Agent": f"selfsnap-win11/{__version__}",
-    }
-    try:
-        api_request = request.Request(api_url, data=payload, headers=headers, method="POST")
-        with request.urlopen(api_request, timeout=10) as response:
-            issue_payload: dict[str, Any] = json.load(response)
-    except (
-        TimeoutError,
-        OSError,
-        urllib_error.HTTPError,
-        urllib_error.URLError,
-        json.JSONDecodeError,
-    ):
-        return IssueSubmissionResult(
-            ok=False,
-            method="api",
-            issue_url="",
-            message="Direct GitHub issue submission failed; falling back to the browser flow.",
-        )
-    issue_url = str(issue_payload.get("html_url", ""))
-    return IssueSubmissionResult(
-        ok=True,
-        method="api",
-        issue_url=issue_url,
-        message=f"Issue created on GitHub: {issue_url}",
-    )
 
 
 def _open_issue_in_browser(repo: str, title: str, body: str) -> IssueSubmissionResult:

@@ -32,13 +32,59 @@ def read_install_metadata(paths: AppPaths) -> dict[str, object]:
         return {}
 
 
+def _resolve_metadata_repo_root(paths: AppPaths | None = None) -> Path | None:
+    if paths is None:
+        return None
+    metadata = read_install_metadata(paths)
+    repo_root = metadata.get("repo_root")
+    if isinstance(repo_root, str) and repo_root:
+        candidate = Path(repo_root)
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def resolve_source_repo_root(paths: AppPaths | None = None) -> str:
+    metadata_repo_root = _resolve_metadata_repo_root(paths)
+    if metadata_repo_root is not None:
+        return str(metadata_repo_root)
+
+    repo_root = Path(__file__).resolve().parents[2]
+    if (repo_root / "pyproject.toml").exists():
+        return str(repo_root)
+
+    if paths is not None:
+        return str(paths.root)
+    return str(repo_root)
+
+
+def resolve_foreground_python_executable(paths: AppPaths | None = None) -> str:
+    metadata_repo_root = _resolve_metadata_repo_root(paths)
+    if paths is not None and metadata_repo_root is not None:
+        metadata = read_install_metadata(paths)
+        python_executable = metadata.get("python_executable")
+        if isinstance(python_executable, str) and Path(python_executable).exists():
+            return python_executable
+
+    executable = Path(sys.executable)
+    if executable.name.lower() == "pythonw.exe":
+        python_executable = executable.with_name("python.exe")
+        if python_executable.exists():
+            return str(python_executable)
+    if executable.exists():
+        return str(executable)
+    raise RuntimeError(
+        "Foreground launch requires python.exe. Re-run scripts/setup.ps1 and scripts/install.ps1 "
+        "with a standard Windows Python installation."
+    )
+
+
 def resolve_background_python_executable(paths: AppPaths | None = None) -> str:
     if paths is not None:
         metadata = read_install_metadata(paths)
         pythonw_executable = metadata.get("pythonw_executable")
         python_executable = metadata.get("python_executable")
-        repo_root = metadata.get("repo_root")
-        repo_root_valid = isinstance(repo_root, str) and Path(repo_root).exists()
+        repo_root_valid = _resolve_metadata_repo_root(paths) is not None
         if (
             repo_root_valid
             and isinstance(pythonw_executable, str)
@@ -64,11 +110,7 @@ def resolve_background_python_executable(paths: AppPaths | None = None) -> str:
 
 
 def resolve_background_working_directory(paths: AppPaths) -> str:
-    metadata = read_install_metadata(paths)
-    repo_root = metadata.get("repo_root")
-    if isinstance(repo_root, str) and repo_root and Path(repo_root).exists():
-        return repo_root
-    return str(paths.root)
+    return resolve_source_repo_root(paths)
 
 
 def resolve_tray_background_invocation(paths: AppPaths) -> LaunchSpec:
