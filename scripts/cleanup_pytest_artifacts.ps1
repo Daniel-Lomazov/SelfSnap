@@ -7,6 +7,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $PSNativeCommandUseErrorActionPreference = $true
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 
 function Test-Administrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -16,6 +17,7 @@ function Test-Administrator {
 
 function Get-RepairArgumentList {
     $arguments = @(
+        "-NoProfile",
         "-ExecutionPolicy", "Bypass",
         "-File", $PSCommandPath
     )
@@ -33,18 +35,23 @@ function Get-RepairArgumentList {
 }
 
 function Get-ArtifactTargets {
+    param(
+        [string]$RepoRoot
+    )
+
     $targets = New-Object System.Collections.Generic.List[System.IO.FileSystemInfo]
 
     foreach ($literal in @(".pytest_cache", ".pytest_tmp", ".pytest-work")) {
-        if (Test-Path -LiteralPath $literal) {
-            $item = Get-Item -LiteralPath $literal -Force
+        $artifactPath = Join-Path $RepoRoot $literal
+        if (Test-Path -LiteralPath $artifactPath) {
+            $item = Get-Item -LiteralPath $artifactPath -Force
             if ($item) {
                 $targets.Add($item)
             }
         }
     }
 
-    Get-ChildItem -Force -Directory -Filter "pytest-cache-files-*" | ForEach-Object {
+    Get-ChildItem -LiteralPath $RepoRoot -Force -Directory -Filter "pytest-cache-files-*" | ForEach-Object {
         $targets.Add($_)
     }
 
@@ -61,7 +68,11 @@ function Get-LocalAppDataTargets {
 }
 
 function Get-AllTargets {
-    $targets = @(Get-ArtifactTargets)
+    param(
+        [string]$RepoRoot
+    )
+
+    $targets = @(Get-ArtifactTargets -RepoRoot $RepoRoot)
     if ($IncludeLocalAppData) {
         $targets += @(Get-LocalAppDataTargets)
     }
@@ -121,9 +132,17 @@ function Remove-Artifact {
     }
 }
 
-$targets = Get-AllTargets
+$targets = Get-AllTargets -RepoRoot $repoRoot
 if (-not $targets) {
-    Write-Host "No pytest artifact directories were found."
+    Write-Host "No pytest artifact directories were found under $repoRoot."
+    if ($IncludeLocalAppData) {
+        $localAppData = $env:LOCALAPPDATA
+        if (-not $localAppData) {
+            $localAppData = Join-Path $HOME "AppData\\Local"
+        }
+        $localPytestRoot = Join-Path $localAppData "SelfSnap\\pytest"
+        Write-Host "No local pytest artifact directories were found under $localPytestRoot."
+    }
     exit 0
 }
 
@@ -137,16 +156,18 @@ if ($ListOnly) {
 }
 
 if ($RepairAcl -and -not (Test-Administrator) -and -not $RelaunchedElevated) {
-    Write-Host "Relaunching cleanup with elevation for ACL repair..."
+    $repairArgs = Get-RepairArgumentList
+    Write-Host "Relaunching cleanup with elevation for ACL repair under $repoRoot..."
+    Write-Host ("Elevated arguments: powershell.exe " + ($repairArgs -join " "))
     try {
-        $process = Start-Process -FilePath "powershell.exe" -Verb RunAs -ArgumentList (Get-RepairArgumentList) -Wait -PassThru
+        $process = Start-Process -FilePath "powershell.exe" -Verb RunAs -WorkingDirectory $repoRoot -ArgumentList $repairArgs -Wait -PassThru
     }
     catch {
         Write-Warning "Elevation was not completed. Cleanup was not repaired."
         exit 2
     }
 
-    $remainingTargets = Get-AllTargets
+    $remainingTargets = Get-AllTargets -RepoRoot $repoRoot
     if ($remainingTargets.Count -gt 0) {
         Write-Warning "Elevation returned, but pytest artifact targets still remain."
         Write-Warning "Either the UAC prompt was dismissed or the elevated cleanup did not complete successfully."

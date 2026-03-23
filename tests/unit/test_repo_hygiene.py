@@ -15,6 +15,10 @@ def test_pytest_artifact_cleanup_script_targets_acl_poisoned_folders() -> None:
     assert "Start-Process" in script
     assert "RunAs" in script
     assert "Elevation returned, but pytest artifact targets still remain." in script
+    assert '-WorkingDirectory $repoRoot' in script
+    assert '"-NoProfile"' in script
+    assert 'Get-AllTargets -RepoRoot $repoRoot' in script
+    assert 'No pytest artifact directories were found under $repoRoot.' in script
 
 
 def test_install_and_uninstall_scripts_support_interpreter_overrides() -> None:
