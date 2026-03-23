@@ -144,18 +144,27 @@ def resolve_manual_capture_background_invocation(paths: AppPaths) -> LaunchSpec:
     )
 
 
-def resolve_worker_background_invocation(paths: AppPaths, schedule_id: str) -> LaunchSpec:
+def resolve_worker_background_invocation(
+    paths: AppPaths,
+    schedule_id: str,
+    planned_local_ts: str | None = None,
+) -> LaunchSpec:
+    scheduled_arguments = ["capture", "--trigger", "scheduled", "--schedule-id", schedule_id]
+    module_arguments = ["-m", "selfsnap", "capture", "--trigger", "scheduled", "--schedule-id", schedule_id]
+    if planned_local_ts:
+        scheduled_arguments.extend(["--planned-local-ts", planned_local_ts])
+        module_arguments.extend(["--planned-local-ts", planned_local_ts])
     if getattr(sys, "frozen", False):
         executable = Path(sys.executable)
         worker_path = executable.with_name("SelfSnapWorker.exe")
         return LaunchSpec(
             executable=str(worker_path),
-            arguments=["capture", "--trigger", "scheduled", "--schedule-id", schedule_id],
+            arguments=scheduled_arguments,
             working_directory=str(worker_path.parent),
         )
     return LaunchSpec(
         executable=resolve_background_python_executable(paths),
-        arguments=["-m", "selfsnap", "capture", "--trigger", "scheduled", "--schedule-id", schedule_id],
+        arguments=module_arguments,
         working_directory=resolve_background_working_directory(paths),
     )
 

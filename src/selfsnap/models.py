@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import date, datetime, time
 from enum import StrEnum
 import re
 from typing import Any
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 SCHEDULE_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
-LOCAL_TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+LOCAL_TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d$")
+LEGACY_LOCAL_TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 
 
 class SelfSnapError(Exception):
@@ -55,11 +56,33 @@ class StoragePreset(StrEnum):
     CUSTOM = "custom"
 
 
+class IntervalUnit(StrEnum):
+    SECOND = "second"
+    MINUTE = "minute"
+    HOUR = "hour"
+    DAY = "day"
+    WEEK = "week"
+    MONTH = "month"
+    YEAR = "year"
+
+
+def normalize_time_string(value: str) -> str:
+    value = value.strip()
+    if LOCAL_TIME_PATTERN.match(value):
+        return value
+    if LEGACY_LOCAL_TIME_PATTERN.match(value):
+        return f"{value}:00"
+    raise ConfigValidationError("start_time_local must be in HH:MM:SS 24-hour format")
+
+
 @dataclass(slots=True)
 class Schedule:
     schedule_id: str
     label: str
-    local_time: str
+    interval_value: int
+    interval_unit: str
+    start_date_local: str
+    start_time_local: str
     enabled: bool = True
 
     def validate(self) -> None:
@@ -68,20 +91,51 @@ class Schedule:
             raise ConfigValidationError(msg)
         if not self.label.strip():
             raise ConfigValidationError("label must not be empty")
-        if not LOCAL_TIME_PATTERN.match(self.local_time):
-            raise ConfigValidationError("local_time must be in HH:MM 24-hour format")
+        if self.interval_value < 1:
+            raise ConfigValidationError("interval_value must be >= 1")
+        if self.interval_unit not in {item.value for item in IntervalUnit}:
+            raise ConfigValidationError(
+                "interval_unit must be second, minute, hour, day, week, month, or year"
+            )
+        try:
+            date.fromisoformat(self.start_date_local)
+        except ValueError as exc:
+            raise ConfigValidationError("start_date_local must be in YYYY-MM-DD format") from exc
+        try:
+            time.fromisoformat(normalize_time_string(self.start_time_local))
+        except ValueError as exc:
+            raise ConfigValidationError("start_time_local must be in HH:MM:SS format") from exc
 
     @property
-    def minute_of_day(self) -> int:
-        hour, minute = self.local_time.split(":")
-        return (int(hour) * 60) + int(minute)
+    def normalized_start_time_local(self) -> str:
+        return normalize_time_string(self.start_time_local)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Schedule":
+    def _from_legacy_dict(cls, data: dict[str, Any]) -> "Schedule":
+        local_time = normalize_time_string(str(data["local_time"]))
         schedule = cls(
             schedule_id=str(data["schedule_id"]),
             label=str(data["label"]),
-            local_time=str(data["local_time"]),
+            interval_value=1,
+            interval_unit=IntervalUnit.DAY.value,
+            start_date_local=date.today().isoformat(),
+            start_time_local=local_time,
+            enabled=bool(data.get("enabled", True)),
+        )
+        schedule.validate()
+        return schedule
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Schedule":
+        if "interval_unit" not in data:
+            return cls._from_legacy_dict(data)
+        schedule = cls(
+            schedule_id=str(data["schedule_id"]),
+            label=str(data["label"]),
+            interval_value=int(data.get("interval_value", 1)),
+            interval_unit=str(data["interval_unit"]),
+            start_date_local=str(data["start_date_local"]),
+            start_time_local=normalize_time_string(str(data["start_time_local"])),
             enabled=bool(data.get("enabled", True)),
         )
         schedule.validate()
@@ -89,7 +143,9 @@ class Schedule:
 
     def to_dict(self) -> dict[str, Any]:
         self.validate()
-        return asdict(self)
+        payload = asdict(self)
+        payload["start_time_local"] = self.normalized_start_time_local
+        return payload
 
 
 @dataclass(slots=True)
@@ -172,8 +228,14 @@ class AppConfig:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AppConfig":
+        raw_schema_version = int(data.get("schema_version", SCHEMA_VERSION))
+        if raw_schema_version not in {1, SCHEMA_VERSION}:
+            raise ConfigValidationError(
+                f"schema_version must be 1 or {SCHEMA_VERSION}, got {raw_schema_version}"
+            )
+
         config = cls(
-            schema_version=int(data.get("schema_version", SCHEMA_VERSION)),
+            schema_version=SCHEMA_VERSION,
             app_enabled=bool(data.get("app_enabled", False)),
             first_run_completed=bool(data.get("first_run_completed", False)),
             storage_preset=str(data.get("storage_preset", StoragePreset.LOCAL_PICTURES.value)),

@@ -2,12 +2,12 @@
 
 ## Goal
 
-Deliver a Windows 11 personal utility that captures composite desktop screenshots at configured daily times and stores them locally with honest metadata.
+Deliver a Windows 11 personal utility that captures composite desktop screenshots on recurring schedules and stores them locally with honest metadata.
 
 ## Must-have behavior
 
 - Manual capture works from CLI and tray.
-- Multiple daily schedules are supported.
+- Recurring schedules are supported for seconds, minutes, hours, days, weeks, months, and years.
 - A scheduled trigger that does not run because of sleep or unavailability is recorded later as a missed slot.
 - Global disable stops scheduled task runs entirely until re-enabled.
 - First-run setup must be completed before scheduled capture becomes active.
@@ -28,6 +28,8 @@ Deliver a Windows 11 personal utility that captures composite desktop screenshot
 - Tray issue reporting opens a browser-prepared GitHub issue without attaching screenshots automatically.
 - Reinstall preserves user data and settings by default unless cleanup is requested separately.
 - A dedicated elevated cleanup script is available for stale ACL-poisoned pytest folders from older runs.
+- Schedule editing uses a structured builder with `Add`, `Save`, `Cancel`, `Delete`, and multi-select delete-only behavior.
+- Recurrence anchors are explicit local start date and start time values.
 
 ## Reset scope
 

@@ -6,6 +6,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from selfsnap.models import AppConfig, ConfigValidationError, StoragePreset
 from selfsnap.paths import AppPaths
+from selfsnap.tray.schedule_editor import first_run_schedule_help_text
 from selfsnap.storage import apply_storage_preset, validate_storage_config
 from selfsnap.ui_labels import storage_preset_label, storage_preset_labels, storage_preset_value
 
@@ -162,6 +163,14 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
         variable=enable_schedules_var,
     ).grid(row=3, column=0, sticky="w", pady=(8, 0))
 
+    schedules_help = ttk.Label(
+        content,
+        text=first_run_schedule_help_text(),
+        justify="left",
+    )
+    schedules_help.grid(row=4, column=0, sticky="ew", pady=(6, 0))
+    _bind_wrap(schedules_help)
+
     result: dict[str, AppConfig | None] = {"value": None}
 
     def _save_and_close() -> None:
@@ -193,7 +202,7 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
         root.destroy()
 
     button_row = ttk.Frame(content)
-    button_row.grid(row=4, column=0, sticky="ew", pady=(10, 0))
+    button_row.grid(row=5, column=0, sticky="ew", pady=(10, 0))
     ttk.Button(button_row, text="Finish Setup", command=_save_and_close).pack(side="right")
     ttk.Button(button_row, text="Cancel", command=root.destroy).pack(side="right", padx=(0, 8))
 

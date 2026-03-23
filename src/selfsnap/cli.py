@@ -31,7 +31,9 @@ def build_parser() -> argparse.ArgumentParser:
     capture_parser.add_argument("--planned-local-ts")
     capture_parser.set_defaults(handler=handle_capture)
 
-    reconcile_parser = subparsers.add_parser("reconcile", help="Record missed schedule slots")
+    reconcile_parser = subparsers.add_parser(
+        "reconcile", help="Record missed recurring schedule occurrences"
+    )
     reconcile_parser.set_defaults(handler=handle_reconcile)
 
     sync_parser = subparsers.add_parser("sync-scheduler", help="Sync Task Scheduler tasks from config")

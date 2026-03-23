@@ -4,8 +4,23 @@ from dataclasses import dataclass, replace
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from selfsnap.models import AppConfig, ConfigValidationError, Schedule, StoragePreset
+from selfsnap.models import AppConfig, ConfigValidationError, StoragePreset
 from selfsnap.paths import AppPaths
+from selfsnap.tray.schedule_editor import (
+    RecurringScheduleDraft,
+    default_unit_label,
+    default_draft,
+    draft_from_form,
+    draft_from_schedule,
+    draft_to_schedule,
+    format_date_text,
+    format_time_text,
+    schedule_help_text,
+    selection_state,
+    unit_labels,
+    unit_label,
+    unit_phrase,
+)
 from selfsnap.storage import apply_storage_preset, validate_storage_config
 from selfsnap.ui_labels import (
     retention_mode_label,
@@ -51,6 +66,8 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     notify_on_every_capture_var = tk.BooleanVar(value=config.notify_on_every_capture)
     show_capture_overlay_var = tk.BooleanVar(value=config.show_capture_overlay)
     internal_preset_update = {"active": False}
+    drafts: list[RecurringScheduleDraft] = [draft_from_schedule(schedule) for schedule in config.schedules]
+    selected_indices: list[int] = []
 
     root.columnconfigure(0, weight=1)
     root.rowconfigure(0, weight=1)
@@ -164,13 +181,222 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     schedules_frame.columnconfigure(0, weight=1)
     row += 1
 
-    ttk.Label(
-        schedules_frame,
-        text="One per line: schedule_id,label,HH:MM,enabled",
-    ).grid(row=0, column=0, sticky="w", pady=(0, 6))
-    schedules_text = tk.Text(schedules_frame, height=9, wrap="none")
-    schedules_text.grid(row=1, column=0, sticky="nsew")
-    schedules_text.insert("1.0", _serialize_schedules(config.schedules))
+    schedule_help_label = ttk.Label(schedules_frame, text=schedule_help_text(), justify="left")
+    schedule_help_label.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+    _bind_wrap(schedule_help_label, padding=56)
+
+    schedules_body = ttk.Frame(schedules_frame)
+    schedules_body.grid(row=1, column=0, sticky="nsew")
+    schedules_body.columnconfigure(0, weight=1)
+    schedules_body.columnconfigure(1, weight=1)
+    schedules_frame.rowconfigure(1, weight=1)
+
+    list_frame = ttk.LabelFrame(schedules_body, text="Existing Schedules", padding=8)
+    list_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+    list_frame.columnconfigure(0, weight=1)
+    list_frame.rowconfigure(0, weight=1)
+
+    schedule_tree = ttk.Treeview(
+        list_frame,
+        columns=("label", "recurrence", "start", "enabled"),
+        show="headings",
+        selectmode="extended",
+        height=8,
+    )
+    schedule_tree.heading("label", text="Label")
+    schedule_tree.heading("recurrence", text="Recurrence")
+    schedule_tree.heading("start", text="Start")
+    schedule_tree.heading("enabled", text="Enabled")
+    schedule_tree.column("label", width=170, anchor="w", stretch=True)
+    schedule_tree.column("recurrence", width=220, anchor="w", stretch=True)
+    schedule_tree.column("start", width=170, anchor="w", stretch=True)
+    schedule_tree.column("enabled", width=72, anchor="center", stretch=False)
+    schedule_tree.grid(row=0, column=0, sticky="nsew")
+    tree_scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=schedule_tree.yview)
+    tree_scrollbar.grid(row=0, column=1, sticky="ns")
+    schedule_tree.configure(yscrollcommand=tree_scrollbar.set)
+
+    editor_frame = ttk.LabelFrame(schedules_body, text="Schedule Editor", padding=8)
+    editor_frame.grid(row=0, column=1, sticky="nsew")
+    editor_frame.columnconfigure(1, weight=1)
+
+    label_var = tk.StringVar(value=default_draft().label)
+    every_var = tk.StringVar(value="1")
+    unit_var = tk.StringVar(value=default_unit_label())
+    start_date_var = tk.StringVar(value=format_date_text(default_draft().start_date_local))
+    start_time_var = tk.StringVar(value=format_time_text(default_draft().start_time_local))
+    enabled_var = tk.BooleanVar(value=True)
+    widgets_to_toggle: list[tk.Widget] = []
+
+    def _new_default_draft() -> RecurringScheduleDraft:
+        return default_draft()
+
+    def _draft_from_form(schedule_id: str | None = None) -> RecurringScheduleDraft:
+        return draft_from_form(
+            label=label_var.get(),
+            interval_value=every_var.get(),
+            unit_label_value=unit_var.get(),
+            start_date=start_date_var.get(),
+            start_time=start_time_var.get(),
+            enabled=enabled_var.get(),
+            schedule_id=schedule_id,
+        )
+
+    def _selection_indices() -> list[int]:
+        return sorted(int(item) for item in schedule_tree.selection())
+
+    def _load_draft_to_form(draft: RecurringScheduleDraft) -> None:
+        label_var.set(draft.label)
+        every_var.set(str(draft.interval_value))
+        try:
+            unit_var.set(unit_label(draft.interval_unit))
+        except ConfigValidationError:
+            unit_var.set(default_unit_label())
+        start_date_var.set(format_date_text(draft.start_date_local))
+        start_time_var.set(format_time_text(draft.start_time_local))
+        enabled_var.set(draft.enabled)
+
+    def _selected_mode() -> None:
+        state = selection_state(len(selected_indices))
+        _set_editor_state(state)
+
+    def _set_editor_state(state) -> None:
+        for widget in widgets_to_toggle:
+            try:
+                if isinstance(widget, ttk.Checkbutton):
+                    widget.state(["!disabled"] if state.fields_enabled else ["disabled"])
+                elif isinstance(widget, ttk.Combobox):
+                    widget.state(["readonly"] if state.fields_enabled else ["disabled"])
+                else:
+                    widget.configure(state="normal" if state.fields_enabled else "disabled")
+            except tk.TclError:
+                continue
+        add_button.state(["!disabled"] if state.add_enabled else ["disabled"])
+        save_schedule_button.state(["!disabled"] if state.save_enabled else ["disabled"])
+        cancel_schedule_button.state(["!disabled"] if state.cancel_enabled else ["disabled"])
+        delete_schedule_button.state(["!disabled"] if state.delete_enabled else ["disabled"])
+
+    def _refresh_tree(select: list[int] | None = None) -> None:
+        schedule_tree.delete(*schedule_tree.get_children())
+        for index, draft in enumerate(drafts):
+            schedule_tree.insert(
+                "",
+                "end",
+                iid=str(index),
+                values=(
+                    draft.label,
+                    f"Every {draft.interval_value} {unit_phrase(draft.interval_value, draft.interval_unit)}",
+                    f"{format_date_text(draft.start_date_local)} {format_time_text(draft.start_time_local)}",
+                    "Yes" if draft.enabled else "No",
+                ),
+            )
+        if select:
+            for index in select:
+                schedule_tree.selection_add(str(index))
+            schedule_tree.see(str(select[0]))
+        _update_selection_from_tree()
+
+    def _update_selection_from_tree(_event=None) -> None:
+        nonlocal selected_indices
+        selected_indices = _selection_indices()
+        if len(selected_indices) == 1:
+            _load_draft_to_form(drafts[selected_indices[0]])
+        elif len(selected_indices) == 0:
+            _load_draft_to_form(_new_default_draft())
+        else:
+            _load_draft_to_form(drafts[selected_indices[0]])
+        _selected_mode()
+
+    def _add_schedule() -> None:
+        try:
+            draft = _draft_from_form()
+        except ConfigValidationError as exc:
+            messagebox.showerror("Invalid schedule", str(exc), parent=root)
+            return
+        drafts.append(draft)
+        _refresh_tree([len(drafts) - 1])
+        _load_draft_to_form(draft)
+
+    def _save_schedule() -> None:
+        if len(selected_indices) != 1:
+            return
+        index = selected_indices[0]
+        try:
+            drafts[index] = _draft_from_form(schedule_id=drafts[index].schedule_id)
+        except ConfigValidationError as exc:
+            messagebox.showerror("Invalid schedule", str(exc), parent=root)
+            return
+        _refresh_tree([index])
+        _load_draft_to_form(drafts[index])
+
+    def _cancel_schedule_edit() -> None:
+        if len(selected_indices) == 1:
+            _load_draft_to_form(drafts[selected_indices[0]])
+            return
+        _load_draft_to_form(_new_default_draft())
+
+    def _delete_schedule() -> None:
+        if not selected_indices:
+            return
+        for index in sorted(selected_indices, reverse=True):
+            del drafts[index]
+        if drafts:
+            next_index = min(selected_indices[0], len(drafts) - 1)
+            _refresh_tree([next_index])
+            _load_draft_to_form(drafts[next_index])
+        else:
+            _refresh_tree([])
+            _load_draft_to_form(_new_default_draft())
+
+    ttk.Label(editor_frame, text="Label").grid(row=0, column=0, sticky="w", pady=(0, 6))
+    label_entry = ttk.Entry(editor_frame, textvariable=label_var)
+    label_entry.grid(row=0, column=1, sticky="ew", pady=(0, 6))
+
+    ttk.Label(editor_frame, text="Every N").grid(row=1, column=0, sticky="w", pady=(0, 6))
+    every_spinbox = tk.Spinbox(editor_frame, from_=1, to=999999, textvariable=every_var, width=10)
+    every_spinbox.grid(row=1, column=1, sticky="w", pady=(0, 6))
+
+    ttk.Label(editor_frame, text="Unit").grid(row=2, column=0, sticky="w", pady=(0, 6))
+    unit_combo = ttk.Combobox(
+        editor_frame,
+        textvariable=unit_var,
+        values=unit_labels(),
+        state="readonly",
+    )
+    unit_combo.grid(row=2, column=1, sticky="ew", pady=(0, 6))
+
+    ttk.Label(editor_frame, text="Start Date").grid(row=3, column=0, sticky="w", pady=(0, 6))
+    start_date_entry = ttk.Entry(editor_frame, textvariable=start_date_var)
+    start_date_entry.grid(row=3, column=1, sticky="ew", pady=(0, 6))
+
+    ttk.Label(editor_frame, text="Start Time").grid(row=4, column=0, sticky="w", pady=(0, 6))
+    start_time_entry = ttk.Entry(editor_frame, textvariable=start_time_var)
+    start_time_entry.grid(row=4, column=1, sticky="ew", pady=(0, 6))
+
+    enabled_check = ttk.Checkbutton(editor_frame, text="Enabled", variable=enabled_var)
+    enabled_check.grid(row=5, column=1, sticky="w", pady=(0, 8))
+
+    form_buttons = ttk.Frame(editor_frame)
+    form_buttons.grid(row=6, column=0, columnspan=2, sticky="ew")
+    form_buttons.columnconfigure(0, weight=1)
+
+    add_button = ttk.Button(form_buttons, text="Add", command=_add_schedule)
+    save_schedule_button = ttk.Button(form_buttons, text="Save", command=_save_schedule)
+    cancel_schedule_button = ttk.Button(form_buttons, text="Cancel", command=_cancel_schedule_edit)
+    delete_schedule_button = ttk.Button(form_buttons, text="Delete", command=_delete_schedule)
+    delete_schedule_button.pack(side="right")
+    cancel_schedule_button.pack(side="right", padx=(0, 8))
+    save_schedule_button.pack(side="right", padx=(0, 8))
+    add_button.pack(side="right", padx=(0, 8))
+
+    widgets_to_toggle.extend(
+        [label_entry, every_spinbox, unit_combo, start_date_entry, start_time_entry, enabled_check]
+    )
+
+    schedule_tree.bind("<<TreeviewSelect>>", _update_selection_from_tree)
+    _refresh_tree([])
+    _load_draft_to_form(_new_default_draft())
+    _selected_mode()
 
     visibility_frame = ttk.LabelFrame(content, text="Visibility", padding=10)
     visibility_frame.grid(row=row, column=0, sticky="ew", pady=(8, 0))
@@ -259,7 +485,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
 
     def _save_and_close() -> None:
         try:
-            parsed_schedules = _parse_schedules(schedules_text.get("1.0", "end").strip())
+            parsed_schedules = [draft_to_schedule(draft) for draft in drafts]
             retention_mode = retention_mode_value(retention_mode_var.get())
             retention_days = None
             if retention_mode == "keep_days":
@@ -311,32 +537,3 @@ def _browse_directory(parent: tk.Tk, target: tk.StringVar) -> None:
     chosen = filedialog.askdirectory(parent=parent, initialdir=target.get() or None)
     if chosen:
         target.set(chosen)
-
-
-def _serialize_schedules(schedules: list[Schedule]) -> str:
-    return "\n".join(
-        f"{schedule.schedule_id},{schedule.label},{schedule.local_time},{str(schedule.enabled).lower()}"
-        for schedule in schedules
-    )
-
-
-def _parse_schedules(raw_text: str) -> list[Schedule]:
-    schedules: list[Schedule] = []
-    if not raw_text.strip():
-        return schedules
-    for line in raw_text.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        parts = [part.strip() for part in line.split(",")]
-        if len(parts) not in {3, 4}:
-            raise ConfigValidationError(
-                "Each schedule line must be schedule_id,label,HH:MM or schedule_id,label,HH:MM,enabled"
-            )
-        enabled = True
-        if len(parts) == 4:
-            enabled = parts[3].lower() not in {"false", "0", "no"}
-        schedule = Schedule(schedule_id=parts[0], label=parts[1], local_time=parts[2], enabled=enabled)
-        schedule.validate()
-        schedules.append(schedule)
-    return schedules

@@ -4,7 +4,7 @@ import logging
 import os
 import threading
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import tkinter as tk
 from tkinter import messagebox
 
@@ -19,11 +19,14 @@ from selfsnap.lifecycle_actions import (
 from selfsnap.logging_setup import setup_logging
 from selfsnap.models import AppConfig, CaptureRecord, OutcomeCategory
 from selfsnap.paths import AppPaths, resolve_app_paths
+from selfsnap.recurrence import is_high_frequency_schedule, iter_occurrences_between
 from selfsnap.records import get_latest_record, resolve_latest_capture_path
 from selfsnap.reset_service import perform_clean_reset
 from selfsnap.retention import apply_retention
 from selfsnap.runtime_launch import (
+    launch_background,
     resolve_manual_capture_background_invocation,
+    resolve_worker_background_invocation,
     run_background_command,
 )
 from selfsnap.runtime_probe import probe_runtime_dependencies
@@ -41,6 +44,8 @@ class TrayRuntimeState:
     stop_event: threading.Event
     settings_dialog_open: threading.Event
     report_dialog_open: threading.Event
+    last_high_frequency_check: datetime
+    next_housekeeping_at: datetime
     dialog_state_lock: threading.Lock = field(default_factory=threading.Lock)
     last_announced_record_id: str | None = None
 
@@ -66,10 +71,13 @@ def run_tray_app(paths: AppPaths | None = None) -> int:
     sync_scheduler_from_config(paths, emit_console=False)
     _run_housekeeping(paths)
 
+    initial_now = datetime.now().astimezone()
     state = TrayRuntimeState(
         stop_event=threading.Event(),
         settings_dialog_open=threading.Event(),
         report_dialog_open=threading.Event(),
+        last_high_frequency_check=initial_now - timedelta(seconds=1),
+        next_housekeeping_at=initial_now + timedelta(seconds=60),
         last_announced_record_id=_latest_record_id(paths),
     )
     icon = pystray.Icon("selfsnap", _build_icon_image(Image, ImageDraw), "SelfSnap Win11")
@@ -82,15 +90,16 @@ def run_tray_app(paths: AppPaths | None = None) -> int:
     def background_loop() -> None:
         while not state.stop_event.is_set():
             try:
-                if _any_dialog_open(state):
-                    state.stop_event.wait(60)
-                    continue
-                _run_housekeeping(paths)
-                refresh_menu()
-                _announce_latest_record(paths, icon, state)
+                now_local = datetime.now().astimezone()
+                _run_high_frequency_scheduler(paths, state, logger, now_local)
+                if now_local >= state.next_housekeeping_at:
+                    _run_housekeeping(paths)
+                    refresh_menu()
+                    _announce_latest_record(paths, icon, state)
+                    state.next_housekeeping_at = now_local + timedelta(seconds=60)
             except Exception:
                 logger.exception("Background maintenance loop failed")
-            state.stop_event.wait(60)
+            state.stop_event.wait(1)
 
     refresh_menu()
     threading.Thread(target=background_loop, daemon=True).start()
@@ -440,6 +449,7 @@ def _announce_latest_record(paths: AppPaths, icon, state: TrayRuntimeState) -> N
         config,
         latest,
         suppress_overlay=_any_dialog_open(state),
+        suppress_notifications=_any_dialog_open(state),
     )
     state.last_announced_record_id = latest.record_id
 
@@ -449,14 +459,15 @@ def _announce_record(
     config: AppConfig,
     record: CaptureRecord,
     suppress_overlay: bool = False,
+    suppress_notifications: bool = False,
 ) -> None:
     if record.outcome_category in {OutcomeCategory.FAILED.value, OutcomeCategory.MISSED.value}:
-        if config.notify_on_failed_or_missed:
+        if config.notify_on_failed_or_missed and not suppress_notifications:
             _show_notification(icon, "SelfSnap", _format_record_message(record))
         return
 
     if record.outcome_category == OutcomeCategory.SUCCESS.value:
-        if config.notify_on_every_capture:
+        if config.notify_on_every_capture and not suppress_notifications:
             _show_notification(icon, "SelfSnap", _format_record_message(record))
         if config.show_capture_overlay and not suppress_overlay:
             _show_capture_overlay()
@@ -518,6 +529,52 @@ def _sync_startup_shortcut_safe(paths: AppPaths, config: AppConfig, logger) -> N
         sync_startup_shortcut(paths, config)
     except Exception:
         logger.exception("Failed to sync startup shortcut")
+
+
+def _run_high_frequency_scheduler(
+    paths: AppPaths,
+    state: TrayRuntimeState,
+    logger: logging.Logger,
+    now_local: datetime,
+) -> None:
+    previous_check = state.last_high_frequency_check
+    if now_local <= previous_check:
+        return
+
+    config = load_or_create_config(paths)
+    state.last_high_frequency_check = now_local
+    if not config.first_run_completed or not config.app_enabled:
+        return
+
+    for schedule in config.schedules:
+        if not schedule.enabled or not is_high_frequency_schedule(schedule):
+            continue
+        for planned in iter_occurrences_between(
+            schedule,
+            previous_check,
+            now_local,
+            include_start=False,
+        ):
+            try:
+                launch_background(
+                    resolve_worker_background_invocation(
+                        paths,
+                        schedule.schedule_id,
+                        planned.isoformat(),
+                    )
+                )
+            except Exception:
+                logger.exception(
+                    "High-frequency scheduled capture launch failed for %s at %s",
+                    schedule.schedule_id,
+                    planned.isoformat(),
+                )
+            else:
+                logger.debug(
+                    "Launched high-frequency scheduled capture for %s at %s",
+                    schedule.schedule_id,
+                    planned.isoformat(),
+                )
 
 
 def _any_dialog_open(state: TrayRuntimeState) -> bool:

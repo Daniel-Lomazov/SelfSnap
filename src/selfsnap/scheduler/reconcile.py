@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 from selfsnap.config_store import load_or_create_config
 from selfsnap.db import connect, ensure_database
@@ -8,9 +9,9 @@ from selfsnap.logging_setup import setup_logging
 from selfsnap.models import CaptureRecord, OutcomeCategory, OutcomeCode, TriggerSource
 from selfsnap.paths import AppPaths, resolve_app_paths
 from selfsnap.records import has_record_for_slot, insert_capture_record
+from selfsnap.recurrence import is_coarse_schedule, iter_occurrences_between
 from selfsnap.version import __version__
 from selfsnap.worker import EXIT_OK
-from uuid import uuid4
 
 
 RECONCILE_LOOKBACK_HOURS = 12
@@ -41,16 +42,11 @@ def reconcile_missed_slots(paths: AppPaths | None = None, emit_console: bool = F
 
     with connect(paths.db_path) as connection:
         for schedule in config.schedules:
-            if not schedule.enabled:
+            if not schedule.enabled or not is_coarse_schedule(schedule):
                 continue
-            for planned in iter_planned_slots(schedule.local_time, start_local, cutoff_local):
+            for planned in iter_occurrences_between(schedule, start_local, cutoff_local):
                 planned_local_ts = planned.isoformat()
-                if has_record_for_slot(
-                    connection,
-                    schedule.schedule_id,
-                    planned_local_ts,
-                    config.slot_match_tolerance_seconds,
-                ):
+                if has_record_for_slot(connection, schedule.schedule_id, planned_local_ts):
                     continue
                 record = CaptureRecord(
                     record_id=str(uuid4()),
@@ -74,7 +70,7 @@ def reconcile_missed_slots(paths: AppPaths | None = None, emit_console: bool = F
                     archived_at_utc=None,
                     retention_deleted_at_utc=None,
                     app_version=__version__,
-                    created_utc=datetime.now(timezone.utc).isoformat(),
+                    created_utc=datetime.now(UTC).isoformat(),
                 )
                 insert_capture_record(connection, record)
                 created += 1
@@ -83,15 +79,3 @@ def reconcile_missed_slots(paths: AppPaths | None = None, emit_console: bool = F
     if emit_console:
         print(f"Reconcile completed, created {created} missed-slot records")
     return EXIT_OK
-
-
-def iter_planned_slots(local_time: str, start_local: datetime, end_local: datetime) -> list[datetime]:
-    hour, minute = [int(part) for part in local_time.split(":")]
-    cursor = start_local.date()
-    output: list[datetime] = []
-    while cursor <= end_local.date():
-        planned = datetime.combine(cursor, time(hour=hour, minute=minute), tzinfo=end_local.tzinfo)
-        if start_local <= planned <= end_local:
-            output.append(planned)
-        cursor += timedelta(days=1)
-    return output

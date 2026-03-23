@@ -27,7 +27,16 @@ class FakeCapture:
 
 def test_manual_capture_writes_file_and_db_row(temp_paths, monkeypatch) -> None:
     config = load_or_create_config(temp_paths)
-    config.schedules = [Schedule(schedule_id="afternoon", label="Afternoon", local_time="14:00")]
+    config.schedules = [
+        Schedule(
+            schedule_id="afternoon",
+            label="Afternoon",
+            interval_value=1,
+            interval_unit="day",
+            start_date_local="2026-03-23",
+            start_time_local="14:00:00",
+        )
+    ]
     save_config(temp_paths, config)
     ensure_database(temp_paths.db_path)
 
@@ -69,7 +78,16 @@ def test_scheduled_capture_is_blocked_when_scheduler_sync_failed(temp_paths) -> 
     config.first_run_completed = True
     config.app_enabled = True
     config.mark_scheduler_sync_failed("task creation failed")
-    config.schedules = [Schedule(schedule_id="afternoon", label="Afternoon", local_time="14:00")]
+    config.schedules = [
+        Schedule(
+            schedule_id="afternoon",
+            label="Afternoon",
+            interval_value=1,
+            interval_unit="day",
+            start_date_local="2026-03-23",
+            start_time_local="14:00:00",
+        )
+    ]
     save_config(temp_paths, config)
     ensure_database(temp_paths.db_path)
 
@@ -83,3 +101,36 @@ def test_scheduled_capture_is_blocked_when_scheduler_sync_failed(temp_paths) -> 
     assert result.exit_code == EXIT_SCHEDULER_FAILURE
     assert result.record is not None
     assert result.record.outcome_code == "scheduler_sync_error"
+
+
+def test_high_frequency_scheduled_capture_is_not_blocked_by_scheduler_sync_failed(
+    temp_paths, monkeypatch
+) -> None:
+    config = load_or_create_config(temp_paths)
+    config.first_run_completed = True
+    config.app_enabled = True
+    config.mark_scheduler_sync_failed("task creation failed")
+    config.schedules = [
+        Schedule(
+            schedule_id="break",
+            label="Break",
+            interval_value=5,
+            interval_unit="minute",
+            start_date_local="2026-03-23",
+            start_time_local="14:00:00",
+        )
+    ]
+    save_config(temp_paths, config)
+    ensure_database(temp_paths.db_path)
+    monkeypatch.setattr("selfsnap.worker.capture_virtual_desktop", lambda: FakeCapture(FakeImage()))
+
+    result = run_capture_command(
+        TriggerSource.SCHEDULED,
+        schedule_id="break",
+        planned_local_ts="2026-03-23T14:05:00+02:00",
+        paths=temp_paths,
+    )
+
+    assert result.exit_code == EXIT_OK
+    assert result.record is not None
+    assert result.record.outcome_code == "capture_saved"

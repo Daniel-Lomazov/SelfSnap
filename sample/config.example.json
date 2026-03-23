@@ -21,7 +21,7 @@
   "slot_match_tolerance_seconds": 120,
   "schedules": [
     {
-      "schedule_id": "morning",
+      "schedule_id": "sched_morning01",
       "label": "Morning",
       "enabled": true,
       "interval_value": 1,
@@ -30,7 +30,7 @@
       "start_time_local": "09:00:00"
     },
     {
-      "schedule_id": "work_break",
+      "schedule_id": "sched_workbreak01",
       "label": "Work Break",
       "enabled": true,
       "interval_value": 5,

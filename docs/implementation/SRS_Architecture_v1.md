@@ -2,9 +2,10 @@
 
 ## Runtime shape
 
-- `selfsnap tray`: long-running tray agent with first-run setup, scheduler sync, retention housekeeping, and reconcile loop
+- `selfsnap tray`: long-running tray agent with first-run setup, fine-grained recurrence checks, scheduler sync, retention housekeeping, and reconcile loop
 - `selfsnap capture`: one-shot manual or scheduled capture worker
-- Windows Task Scheduler: one daily task per enabled schedule entry
+- Windows Task Scheduler: one one-shot task per enabled coarse schedule entry (`hours` and above)
+- Tray runtime scheduler: `seconds` and `minutes` schedules while the tray is running
 - Tray `Capture Now` launches the one-shot capture worker out of process so capture-side DPI or monitor state cannot mutate tray UI geometry.
 - Tray `Report Issue` opens a dedicated report dialog and always routes the result into a browser-opened prefilled GitHub issue page.
 
@@ -53,6 +54,9 @@ If `%OneDrive%` is unavailable, resolution falls back to `%USERPROFILE%\OneDrive
 - Individual disabled schedules are not kept active in Task Scheduler.
 - A scheduler sync failure leaves config saved, marks sync state failed, blocks scheduled capture, and keeps manual capture available.
 - Wake-for-scheduled-captures is an optional best-effort setting, default OFF.
+- Recurrences are anchored to explicit local start date and start time values.
+- `months` and `years` skip invalid calendar dates instead of rolling to the last valid day.
+- High-frequency schedules are tray-managed; coarse schedules are Task Scheduler-backed and re-register the next one-shot occurrence after each run.
 
 ## Reset semantics
 

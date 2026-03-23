@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import csv
-from datetime import date
+from datetime import datetime
 import io
 import json
 import logging
@@ -15,6 +15,7 @@ from selfsnap.config_store import load_or_create_config, save_config
 from selfsnap.logging_setup import setup_logging
 from selfsnap.models import AppConfig, OutcomeCode
 from selfsnap.paths import AppPaths, resolve_app_paths
+from selfsnap.recurrence import is_coarse_schedule, next_occurrence
 from selfsnap.runtime_launch import LaunchSpec, resolve_worker_background_invocation
 from selfsnap.worker import EXIT_OK, EXIT_SCHEDULER_FAILURE
 
@@ -50,7 +51,7 @@ def sync_tasks(paths: AppPaths, config: AppConfig, logger: logging.Logger) -> No
     for task_name, task_spec in desired.items():
         create_or_replace_task(
             task_name,
-            task_spec["time_value"],
+            task_spec["run_at_local"],
             task_spec["invocation"],
             bool(task_spec["wake"]),
             logger,
@@ -65,16 +66,29 @@ def delete_all_selfsnap_tasks(logger: logging.Logger | None = None) -> list[str]
     return deleted
 
 
-def build_desired_tasks(paths: AppPaths, config: AppConfig) -> dict[str, dict[str, object]]:
+def build_desired_tasks(
+    paths: AppPaths,
+    config: AppConfig,
+    now_local: datetime | None = None,
+) -> dict[str, dict[str, object]]:
     if not config.first_run_completed or not config.app_enabled:
         return {}
+
+    reference_local = (now_local or datetime.now().astimezone()).astimezone()
     desired: dict[str, dict[str, object]] = {}
     for schedule in config.schedules:
-        if not schedule.enabled:
+        if not schedule.enabled or not is_coarse_schedule(schedule):
             continue
-        invocation = resolve_worker_background_invocation(paths, schedule.schedule_id)
+        run_at_local = next_occurrence(schedule, reference_local, include_reference=False)
+        if run_at_local is None:
+            continue
+        invocation = resolve_worker_background_invocation(
+            paths,
+            schedule.schedule_id,
+            planned_local_ts=run_at_local.isoformat(),
+        )
         desired[f"{TASK_PREFIX}{schedule.schedule_id}"] = {
-            "time_value": schedule.local_time,
+            "run_at_local": run_at_local,
             "invocation": invocation,
             "wake": config.wake_for_scheduled_captures,
         }
@@ -98,18 +112,18 @@ def list_selfsnap_tasks() -> set[str]:
 
 def create_or_replace_task(
     task_name: str,
-    time_value: str,
+    run_at_local: datetime,
     invocation: LaunchSpec,
     wake_for_run: bool,
     logger: logging.Logger,
 ) -> None:
     delete_task(task_name, logger, ignore_missing=True)
     try:
-        result = _register_task_with_powershell(task_name, time_value, invocation, wake_for_run)
+        result = _register_task_with_powershell(task_name, run_at_local, invocation, wake_for_run)
     except RuntimeError as exc:
         logger.warning("Falling back to schtasks XML registration for %s: %s", task_name, exc)
-        result = _register_task_with_xml(task_name, time_value, invocation, wake_for_run)
-    logger.info("Created task %s at %s (wake=%s)", task_name, time_value, wake_for_run)
+        result = _register_task_with_xml(task_name, run_at_local, invocation, wake_for_run)
+    logger.info("Created task %s at %s (wake=%s)", task_name, run_at_local.isoformat(), wake_for_run)
     if result.stdout:
         logger.debug("schtasks output: %s", result.stdout.strip())
 
@@ -128,21 +142,23 @@ def delete_task(
     raise RuntimeError(result.stderr or result.stdout or f"Failed to delete task {task_name}")
 
 
-def build_task_action(paths: AppPaths, schedule_id: str) -> str:
-    invocation = resolve_worker_background_invocation(paths, schedule_id)
+def build_task_action(paths: AppPaths, schedule_id: str, planned_local_ts: str | None = None) -> str:
+    invocation = resolve_worker_background_invocation(paths, schedule_id, planned_local_ts)
     arguments = invocation.argument_string()
     if arguments:
         return f'"{invocation.executable}" {arguments}'
     return f'"{invocation.executable}"'
 
 
-def resolve_worker_invocation(paths: AppPaths, schedule_id: str) -> LaunchSpec:
-    return resolve_worker_background_invocation(paths, schedule_id)
+def resolve_worker_invocation(
+    paths: AppPaths, schedule_id: str, planned_local_ts: str | None = None
+) -> LaunchSpec:
+    return resolve_worker_background_invocation(paths, schedule_id, planned_local_ts)
 
 
 def _register_task_with_powershell(
     task_name: str,
-    time_value: str,
+    run_at_local: datetime,
     invocation: LaunchSpec,
     wake_for_run: bool,
 ) -> subprocess.CompletedProcess[str]:
@@ -153,12 +169,12 @@ $taskName = '{_escape_powershell_string(task_name)}'
 $execute = '{_escape_powershell_string(invocation.executable)}'
 $arguments = '{_escape_powershell_string(invocation.argument_string())}'
 $workingDirectory = '{_escape_powershell_string(invocation.working_directory)}'
-$timeValue = '{_escape_powershell_string(time_value)}'
+$runAt = '{_escape_powershell_string(run_at_local.strftime("%Y-%m-%dTH:%M:%S"))}'
 $userId = '{_escape_powershell_string(current_user)}'
 $wake = {'$true' if wake_for_run else '$false'}
 $action = New-ScheduledTaskAction -Execute $execute -Argument $arguments -WorkingDirectory $workingDirectory
-$trigger = New-ScheduledTaskTrigger -Daily -At ([datetime]::ParseExact($timeValue, 'HH:mm', $null))
-$settings = New-ScheduledTaskSettingsSet -WakeToRun:$wake -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew
+$trigger = New-ScheduledTaskTrigger -Once -At ([datetime]::Parse($runAt))
+$settings = New-ScheduledTaskSettingsSet -WakeToRun:$wake -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances Parallel
 $principal = New-ScheduledTaskPrincipal -UserId $userId -LogonType Interactive -RunLevel Limited
 $task = New-ScheduledTask -Action $action -Trigger $trigger -Settings $settings -Principal $principal
 Register-ScheduledTask -TaskName $taskName -InputObject $task -Force | Out-Null
@@ -179,11 +195,11 @@ if ($registeredAction.Arguments -ne $arguments) {{
 
 def _register_task_with_xml(
     task_name: str,
-    time_value: str,
+    run_at_local: datetime,
     invocation: LaunchSpec,
     wake_for_run: bool,
 ) -> subprocess.CompletedProcess[str]:
-    task_xml = _build_task_xml(task_name, time_value, invocation, wake_for_run)
+    task_xml = _build_task_xml(task_name, run_at_local, invocation, wake_for_run)
     with tempfile.NamedTemporaryFile("w", delete=False, suffix=".xml", encoding="utf-8") as handle:
         handle.write(task_xml)
         xml_path = Path(handle.name)
@@ -197,12 +213,12 @@ def _register_task_with_xml(
 
 def _build_task_xml(
     task_name: str,
-    time_value: str,
+    run_at_local: datetime,
     invocation: LaunchSpec,
     wake_for_run: bool,
 ) -> str:
     current_user = _resolve_current_windows_user()
-    start_boundary = f"{date.today().isoformat()}T{time_value}:00"
+    start_boundary = run_at_local.strftime("%Y-%m-%dT%H:%M:%S")
     task = ET.Element(
         "Task",
         {
@@ -215,11 +231,9 @@ def _build_task_xml(
     ET.SubElement(registration, "Description").text = f"{task_name} scheduled capture"
 
     triggers = ET.SubElement(task, "Triggers")
-    calendar_trigger = ET.SubElement(triggers, "CalendarTrigger")
-    ET.SubElement(calendar_trigger, "StartBoundary").text = start_boundary
-    ET.SubElement(calendar_trigger, "Enabled").text = "true"
-    schedule_by_day = ET.SubElement(calendar_trigger, "ScheduleByDay")
-    ET.SubElement(schedule_by_day, "DaysInterval").text = "1"
+    time_trigger = ET.SubElement(triggers, "TimeTrigger")
+    ET.SubElement(time_trigger, "StartBoundary").text = start_boundary
+    ET.SubElement(time_trigger, "Enabled").text = "true"
 
     principals = ET.SubElement(task, "Principals")
     principal = ET.SubElement(principals, "Principal", {"id": "Author"})
@@ -228,7 +242,7 @@ def _build_task_xml(
     ET.SubElement(principal, "RunLevel").text = "LeastPrivilege"
 
     settings = ET.SubElement(task, "Settings")
-    ET.SubElement(settings, "MultipleInstancesPolicy").text = "IgnoreNew"
+    ET.SubElement(settings, "MultipleInstancesPolicy").text = "Parallel"
     ET.SubElement(settings, "DisallowStartIfOnBatteries").text = "false"
     ET.SubElement(settings, "StopIfGoingOnBatteries").text = "false"
     ET.SubElement(settings, "AllowHardTerminate").text = "true"

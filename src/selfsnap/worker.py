@@ -21,6 +21,7 @@ from selfsnap.models import (
     TriggerSource,
 )
 from selfsnap.paths import AppPaths, resolve_app_paths
+from selfsnap.recurrence import is_coarse_schedule, previous_occurrence
 from selfsnap.records import insert_capture_record
 from selfsnap.retention import apply_retention
 from selfsnap.version import __version__
@@ -51,6 +52,8 @@ def run_capture_command(
 
     logger = logging.getLogger("selfsnap")
     config: AppConfig | None = None
+    schedule = None
+    should_resync_coarse_schedule = False
 
     try:
         config = load_or_create_config(paths)
@@ -68,12 +71,12 @@ def run_capture_command(
             schedule = config.get_schedule(schedule_id)
             if schedule is None:
                 return WorkerCommandResult(EXIT_CONFIG_FAILURE, None, f"Unknown schedule_id: {schedule_id}")
+            should_resync_coarse_schedule = is_coarse_schedule(schedule)
             if planned_local_ts is None:
-                planned_local_ts = datetime.combine(
-                    now_local.date(),
-                    datetime.strptime(schedule.local_time, "%H:%M").time(),
-                    tzinfo=now_local.tzinfo,
-                ).isoformat()
+                inferred = previous_occurrence(schedule, now_local, include_reference=True)
+                if inferred is None:
+                    inferred = now_local
+                planned_local_ts = inferred.isoformat()
 
             if not config.first_run_completed:
                 record = _build_non_capture_record(
@@ -85,6 +88,7 @@ def run_capture_command(
                     error_message="Scheduled capture skipped because first-run setup is incomplete.",
                 )
                 insert_capture_record(connection, record)
+                _resync_coarse_scheduler_if_needed(paths, should_resync_coarse_schedule, logger)
                 return WorkerCommandResult(EXIT_OK, record, record.error_message or "")
 
             if not config.app_enabled:
@@ -97,6 +101,7 @@ def run_capture_command(
                     error_message="Scheduled capture skipped because app_enabled is false.",
                 )
                 insert_capture_record(connection, record)
+                _resync_coarse_scheduler_if_needed(paths, should_resync_coarse_schedule, logger)
                 return WorkerCommandResult(EXIT_OK, record, record.error_message or "")
 
             if not schedule.enabled:
@@ -109,9 +114,10 @@ def run_capture_command(
                     error_message="Scheduled capture skipped because the schedule is disabled.",
                 )
                 insert_capture_record(connection, record)
+                _resync_coarse_scheduler_if_needed(paths, should_resync_coarse_schedule, logger)
                 return WorkerCommandResult(EXIT_OK, record, record.error_message or "")
 
-            if config.scheduler_sync_failed():
+            if should_resync_coarse_schedule and config.scheduler_sync_failed():
                 record = _build_failure_record(
                     trigger_source=trigger_source,
                     schedule_id=schedule_id,
@@ -124,20 +130,29 @@ def run_capture_command(
                     ),
                 )
                 insert_capture_record(connection, record)
+                _resync_coarse_scheduler_if_needed(paths, should_resync_coarse_schedule, logger)
                 return WorkerCommandResult(EXIT_SCHEDULER_FAILURE, record, record.error_message or "")
 
         started_utc = datetime.now(timezone.utc)
+        record_id = str(uuid4())
+        destination: Path | None = None
         try:
             capture = capture_virtual_desktop()
             capture_root = paths.resolve_capture_root(config)
-            destination = paths.capture_file_path(capture_root, now_local, trigger_source, schedule_id)
-            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination = _reserve_capture_destination(
+                paths=paths,
+                capture_root=capture_root,
+                when_local=now_local,
+                trigger_source=trigger_source,
+                schedule_id=schedule_id,
+                record_id=record_id,
+            )
             capture.image.save(destination, format="PNG")
             file_bytes = destination.stat().st_size
             image_hash = _hash_file(destination)
             finished_utc = datetime.now(timezone.utc)
             record = CaptureRecord(
-                record_id=str(uuid4()),
+                record_id=record_id,
                 trigger_source=trigger_source.value,
                 schedule_id=schedule_id,
                 planned_local_ts=planned_local_ts,
@@ -162,6 +177,7 @@ def run_capture_command(
             )
             insert_capture_record(connection, record)
             apply_retention(connection, config, paths=paths)
+            _resync_coarse_scheduler_if_needed(paths, should_resync_coarse_schedule, logger)
             return WorkerCommandResult(EXIT_OK, record, f"Capture saved to {destination}")
         except CaptureBackendError as exc:
             record = _build_failure_record(
@@ -173,8 +189,11 @@ def run_capture_command(
                 message=str(exc),
             )
             insert_capture_record(connection, record)
+            _resync_coarse_scheduler_if_needed(paths, should_resync_coarse_schedule, logger)
             return WorkerCommandResult(EXIT_OPERATIONAL_FAILURE, record, str(exc))
         except OSError as exc:
+            if destination is not None:
+                destination.unlink(missing_ok=True)
             record = _build_failure_record(
                 trigger_source=trigger_source,
                 schedule_id=schedule_id,
@@ -184,8 +203,11 @@ def run_capture_command(
                 message=str(exc),
             )
             insert_capture_record(connection, record)
+            _resync_coarse_scheduler_if_needed(paths, should_resync_coarse_schedule, logger)
             return WorkerCommandResult(EXIT_OPERATIONAL_FAILURE, record, str(exc))
         except Exception as exc:  # pragma: no cover - final safety net
+            if destination is not None:
+                destination.unlink(missing_ok=True)
             logger.error("Unexpected worker failure\n%s", traceback.format_exc())
             record = _build_failure_record(
                 trigger_source=trigger_source,
@@ -199,6 +221,7 @@ def run_capture_command(
                 insert_capture_record(connection, record)
             except Exception:
                 logger.exception("Failed to persist unexpected failure record")
+            _resync_coarse_scheduler_if_needed(paths, should_resync_coarse_schedule, logger)
             return WorkerCommandResult(EXIT_UNEXPECTED, record, str(exc))
 
 
@@ -278,3 +301,40 @@ def _hash_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(65536), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _reserve_capture_destination(
+    *,
+    paths: AppPaths,
+    capture_root: Path,
+    when_local: datetime,
+    trigger_source: TriggerSource,
+    schedule_id: str | None,
+    record_id: str,
+) -> Path:
+    base = paths.capture_file_path(capture_root, when_local, trigger_source, schedule_id)
+    base.parent.mkdir(parents=True, exist_ok=True)
+    candidates = [base, base.with_stem(f"{base.stem}_{record_id[:8]}")]
+    for candidate in candidates:
+        try:
+            with candidate.open("xb"):
+                pass
+            return candidate
+        except FileExistsError:
+            continue
+    raise FileExistsError(f"No unique capture file path available for {base.name}")
+
+
+def _resync_coarse_scheduler_if_needed(
+    paths: AppPaths,
+    should_resync: bool,
+    logger: logging.Logger,
+) -> None:
+    if not should_resync:
+        return
+    try:
+        from selfsnap.scheduler.task_scheduler import sync_scheduler_from_config
+
+        sync_scheduler_from_config(paths, emit_console=False)
+    except Exception:
+        logger.exception("Failed to resync coarse scheduler after scheduled capture")

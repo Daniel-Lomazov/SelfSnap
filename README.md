@@ -233,7 +233,7 @@ Important fields:
 - `wake_for_scheduled_captures`: best-effort scheduler wake setting, default `false`
 - `scheduler_sync_state`: `ok` or `failed`; when `failed`, manual capture still works and scheduled capture is blocked
 - `settings_window_width` and `settings_window_height`: legacy geometry fields retained for compatibility
-- `schedules`: list of recurring schedule entries with `label`, `interval_value`, `interval_unit`, `start_date_local`, `start_time_local`, and `enabled`
+- `schedules`: list of recurring schedule entries with an internal `schedule_id`, plus `label`, `interval_value`, `interval_unit`, `start_date_local`, `start_time_local`, and `enabled`
 
 ## Settings and reset behavior
 

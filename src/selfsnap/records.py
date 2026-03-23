@@ -52,7 +52,6 @@ def has_record_for_slot(
     connection: sqlite3.Connection,
     schedule_id: str,
     planned_local_ts: str,
-    tolerance_seconds: int,
 ) -> bool:
     row = connection.execute(
         """
@@ -60,10 +59,10 @@ def has_record_for_slot(
         FROM capture_records
         WHERE schedule_id = ?
           AND planned_local_ts IS NOT NULL
-          AND ABS(strftime('%s', planned_local_ts) - strftime('%s', ?)) <= ?
+          AND planned_local_ts = ?
         LIMIT 1
         """,
-        (schedule_id, planned_local_ts, tolerance_seconds),
+        (schedule_id, planned_local_ts),
     ).fetchone()
     return row is not None
 

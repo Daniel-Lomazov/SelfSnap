@@ -13,6 +13,8 @@ def test_readme_describes_recurring_schedule_setup() -> None:
     assert "Every 1 day" in readme
     assert "start date = today" in readme
     assert "start time = now" in readme
+    assert "You can type the date and time by hand" in readme
+    assert "Multi-select is for deleting several schedules at once." in readme
     assert "months" in readme and "years" in readme
     assert "High-frequency schedules" in readme
     assert "Task Scheduler-backed" in readme

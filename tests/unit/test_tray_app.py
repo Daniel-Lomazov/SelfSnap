@@ -4,7 +4,7 @@ import threading
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
-from selfsnap.models import AppConfig, CaptureRecord
+from selfsnap.models import AppConfig, CaptureRecord, Schedule
 from selfsnap.tray.app import (
     TrayRuntimeState,
     _any_dialog_open,
@@ -13,6 +13,7 @@ from selfsnap.tray.app import (
     _capture_now,
     _open_report_issue,
     _open_settings,
+    _run_high_frequency_scheduler,
 )
 from selfsnap.tray.settings_window import SettingsDialogResult
 
@@ -40,8 +41,19 @@ def _sample_record(record_id: str = "record-1") -> CaptureRecord:
         archived=False,
         archived_at_utc=None,
         retention_deleted_at_utc=None,
-        app_version="0.1.0",
+        app_version="0.8.0",
         created_utc=now,
+    )
+
+
+def _state() -> TrayRuntimeState:
+    now = datetime.now(UTC)
+    return TrayRuntimeState(
+        stop_event=threading.Event(),
+        settings_dialog_open=threading.Event(),
+        report_dialog_open=threading.Event(),
+        last_high_frequency_check=now,
+        next_housekeeping_at=now,
     )
 
 
@@ -63,11 +75,7 @@ def test_open_settings_does_not_persist_window_size_on_cancel(temp_paths, monkey
         "selfsnap.tray.app.save_config", lambda _paths, config: saved_configs.append(config)
     )
 
-    state = TrayRuntimeState(
-        stop_event=threading.Event(),
-        settings_dialog_open=threading.Event(),
-        report_dialog_open=threading.Event(),
-    )
+    state = _state()
 
     _open_settings(temp_paths, icon=SimpleNamespace(update_menu=lambda: None), state=state)
 
@@ -92,11 +100,7 @@ def test_open_settings_ignores_duplicate_requests(temp_paths, monkeypatch) -> No
         ),
     )
 
-    state = TrayRuntimeState(
-        stop_event=threading.Event(),
-        settings_dialog_open=threading.Event(),
-        report_dialog_open=threading.Event(),
-    )
+    state = _state()
     state.settings_dialog_open.set()
 
     _open_settings(temp_paths, icon=SimpleNamespace(update_menu=lambda: None), state=state)
@@ -158,12 +162,8 @@ def test_capture_now_runs_out_of_process_and_suppresses_ui_updates_with_settings
     )
 
     icon = SimpleNamespace(update_menu=lambda: menu_updates.append("menu"))
-    state = TrayRuntimeState(
-        stop_event=threading.Event(),
-        settings_dialog_open=threading.Event(),
-        report_dialog_open=threading.Event(),
-        last_announced_record_id=None,
-    )
+    state = _state()
+    state.last_announced_record_id = None
     state.settings_dialog_open.set()
 
     _capture_now(temp_paths, icon=icon, state=state)
@@ -194,11 +194,7 @@ def test_report_issue_menu_item_is_default_action(temp_paths, monkeypatch) -> No
         ),
     )
 
-    state = TrayRuntimeState(
-        stop_event=threading.Event(),
-        settings_dialog_open=threading.Event(),
-        report_dialog_open=threading.Event(),
-    )
+    state = _state()
     items = _build_menu_items(
         SimpleNamespace(MenuItem=FakeMenuItem, Menu=FakeMenu), temp_paths, SimpleNamespace(), state
     )
@@ -217,11 +213,7 @@ def test_report_issue_ignores_duplicate_requests(temp_paths, monkeypatch) -> Non
         "selfsnap.tray.app.show_report_issue_dialog", lambda _paths: report_calls.append("dialog")
     )
 
-    state = TrayRuntimeState(
-        stop_event=threading.Event(),
-        settings_dialog_open=threading.Event(),
-        report_dialog_open=threading.Event(),
-    )
+    state = _state()
     state.report_dialog_open.set()
 
     _open_report_issue(temp_paths, icon=SimpleNamespace(update_menu=lambda: None), state=state)
@@ -235,11 +227,7 @@ def test_report_issue_can_open_while_settings_is_open(temp_paths, monkeypatch) -
         "selfsnap.tray.app.show_report_issue_dialog", lambda _paths: report_calls.append("dialog")
     )
 
-    state = TrayRuntimeState(
-        stop_event=threading.Event(),
-        settings_dialog_open=threading.Event(),
-        report_dialog_open=threading.Event(),
-    )
+    state = _state()
     state.settings_dialog_open.set()
 
     _open_report_issue(temp_paths, icon=SimpleNamespace(update_menu=lambda: None), state=state)
@@ -264,11 +252,7 @@ def test_settings_can_open_while_report_issue_is_open(temp_paths, monkeypatch) -
         ),
     )
 
-    state = TrayRuntimeState(
-        stop_event=threading.Event(),
-        settings_dialog_open=threading.Event(),
-        report_dialog_open=threading.Event(),
-    )
+    state = _state()
     state.report_dialog_open.set()
 
     _open_settings(temp_paths, icon=SimpleNamespace(update_menu=lambda: None), state=state)
@@ -277,11 +261,7 @@ def test_settings_can_open_while_report_issue_is_open(temp_paths, monkeypatch) -
 
 
 def test_any_dialog_open_is_true_when_either_dialog_is_open() -> None:
-    state = TrayRuntimeState(
-        stop_event=threading.Event(),
-        settings_dialog_open=threading.Event(),
-        report_dialog_open=threading.Event(),
-    )
+    state = _state()
 
     assert _any_dialog_open(state) is False
     state.settings_dialog_open.set()
@@ -311,11 +291,7 @@ def test_tray_menu_contains_restart_reinstall_and_uninstall_before_exit(temp_pat
         ),
     )
 
-    state = TrayRuntimeState(
-        stop_event=threading.Event(),
-        settings_dialog_open=threading.Event(),
-        report_dialog_open=threading.Event(),
-    )
+    state = _state()
     items = _build_menu_items(
         SimpleNamespace(MenuItem=FakeMenuItem, Menu=FakeMenu), temp_paths, SimpleNamespace(), state
     )
@@ -332,4 +308,52 @@ def test_tray_menu_contains_restart_reinstall_and_uninstall_before_exit(temp_pat
     assert [item.text for item in submenu_by_label["Uninstall"]] == [
         "Keep User Data",
         "Remove All User Data",
+    ]
+
+
+def test_run_high_frequency_scheduler_launches_due_occurrences(temp_paths, monkeypatch) -> None:
+    launched: list[list[str]] = []
+    config = AppConfig(
+        capture_storage_root=str(temp_paths.default_capture_root),
+        archive_storage_root=str(temp_paths.default_archive_root),
+        first_run_completed=True,
+        app_enabled=True,
+        schedules=[
+            Schedule(
+                schedule_id="fast",
+                label="Fast",
+                interval_value=1,
+                interval_unit="minute",
+                start_date_local="2026-03-23",
+                start_time_local="10:00:00",
+            )
+        ],
+    )
+
+    monkeypatch.setattr("selfsnap.tray.app.load_or_create_config", lambda _paths: config)
+    monkeypatch.setattr(
+        "selfsnap.tray.app.resolve_worker_background_invocation",
+        lambda _paths, schedule_id, planned_local_ts: SimpleNamespace(
+            command=lambda: ["pythonw.exe", "-m", "selfsnap", "capture", planned_local_ts],
+            working_directory=str(temp_paths.root),
+        ),
+    )
+    monkeypatch.setattr(
+        "selfsnap.tray.app.launch_background", lambda spec: launched.append(spec.command())
+    )
+
+    logger = SimpleNamespace(debug=lambda *args, **kwargs: None, exception=lambda *args, **kwargs: None)
+    state = _state()
+    state.last_high_frequency_check = datetime(2026, 3, 23, 10, 0, 0, tzinfo=UTC)
+
+    _run_high_frequency_scheduler(
+        temp_paths,
+        state,
+        logger,
+        datetime(2026, 3, 23, 10, 2, 5, tzinfo=UTC),
+    )
+
+    assert [command[-1] for command in launched] == [
+        "2026-03-23T10:01:00+00:00",
+        "2026-03-23T10:02:00+00:00",
     ]
