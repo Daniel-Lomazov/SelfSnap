@@ -14,6 +14,7 @@ from selfsnap.issue_reporting import (
 )
 from selfsnap.models import AppConfig, CaptureRecord
 from selfsnap.records import insert_capture_record
+from selfsnap.version import __version__
 
 
 def _sample_record(image_path: str) -> CaptureRecord:
@@ -78,7 +79,7 @@ def test_build_issue_body_includes_safe_diagnostics_without_local_paths(temp_pat
 def test_collect_safe_issue_diagnostics_reports_runtime_context(temp_paths) -> None:
     diagnostics = collect_safe_issue_diagnostics(temp_paths)
 
-    assert diagnostics["App version"] == "0.1.0"
+    assert diagnostics["App version"] == __version__
     assert diagnostics["Storage preset"] == "local_pictures"
     assert diagnostics["Schedule count"] == "0"
 
