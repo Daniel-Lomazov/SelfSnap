@@ -42,3 +42,14 @@ def test_storage_preset_is_validated() -> None:
     )
     with pytest.raises(ConfigValidationError):
         config.validate()
+
+
+def test_settings_window_size_floor_is_validated() -> None:
+    config = AppConfig(
+        capture_storage_root="C:\\captures",
+        archive_storage_root="C:\\archive",
+        settings_window_width=900,
+        settings_window_height=700,
+    )
+    with pytest.raises(ConfigValidationError):
+        config.validate()

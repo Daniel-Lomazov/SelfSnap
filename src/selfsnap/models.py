@@ -111,8 +111,8 @@ class AppConfig:
     wake_for_scheduled_captures: bool = False
     scheduler_sync_state: str = "ok"
     scheduler_sync_message: str | None = None
-    settings_window_width: int = 760
-    settings_window_height: int = 680
+    settings_window_width: int = 960
+    settings_window_height: int = 760
     slot_match_tolerance_seconds: int = 120
     schedules: list[Schedule] = field(default_factory=list)
 
@@ -140,10 +140,10 @@ class AppConfig:
             raise ConfigValidationError("log_level must be INFO or DEBUG")
         if self.scheduler_sync_state not in {"ok", "failed"}:
             raise ConfigValidationError("scheduler_sync_state must be ok or failed")
-        if self.settings_window_width < 640:
-            raise ConfigValidationError("settings_window_width must be >= 640")
-        if self.settings_window_height < 520:
-            raise ConfigValidationError("settings_window_height must be >= 520")
+        if self.settings_window_width < 960:
+            raise ConfigValidationError("settings_window_width must be >= 960")
+        if self.settings_window_height < 760:
+            raise ConfigValidationError("settings_window_height must be >= 760")
         if self.slot_match_tolerance_seconds < 0:
             raise ConfigValidationError("slot_match_tolerance_seconds must be >= 0")
         seen_ids: set[str] = set()
@@ -190,8 +190,8 @@ class AppConfig:
             wake_for_scheduled_captures=bool(data.get("wake_for_scheduled_captures", False)),
             scheduler_sync_state=str(data.get("scheduler_sync_state", "ok")),
             scheduler_sync_message=data.get("scheduler_sync_message"),
-            settings_window_width=int(data.get("settings_window_width", 760)),
-            settings_window_height=int(data.get("settings_window_height", 680)),
+            settings_window_width=int(data.get("settings_window_width", 960)),
+            settings_window_height=int(data.get("settings_window_height", 760)),
             slot_match_tolerance_seconds=int(data.get("slot_match_tolerance_seconds", 120)),
             schedules=[Schedule.from_dict(item) for item in data.get("schedules", [])],
         )
