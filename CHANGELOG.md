@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.0 - 2026-03-23
+
+Why: The first broad post-v1 stabilization pass closed the most disruptive product and UI regressions.
+
+- Finalized the post-v1 fixes across storage presets, reset behavior, tray state, and runtime launch paths.
+- Isolated tray UI state more safely and hardened uninstall fallback behavior.
+- Stabilized the settings window after capture-related regressions and expanded UI regression coverage.
+
 ## v0.3.0 - 2026-03-22
 
 Why: Source setup and runtime verification became reliable enough for repeated local installs.
