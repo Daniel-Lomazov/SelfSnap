@@ -36,7 +36,13 @@ def resolve_background_python_executable(paths: AppPaths | None = None) -> str:
     if paths is not None:
         metadata = read_install_metadata(paths)
         pythonw_executable = metadata.get("pythonw_executable")
-        if isinstance(pythonw_executable, str) and Path(pythonw_executable).exists():
+        repo_root = metadata.get("repo_root")
+        repo_root_valid = isinstance(repo_root, str) and Path(repo_root).exists()
+        if (
+            repo_root_valid
+            and isinstance(pythonw_executable, str)
+            and Path(pythonw_executable).exists()
+        ):
             return pythonw_executable
 
     executable = Path(sys.executable)
@@ -54,7 +60,7 @@ def resolve_background_python_executable(paths: AppPaths | None = None) -> str:
 def resolve_background_working_directory(paths: AppPaths) -> str:
     metadata = read_install_metadata(paths)
     repo_root = metadata.get("repo_root")
-    if isinstance(repo_root, str) and repo_root:
+    if isinstance(repo_root, str) and repo_root and Path(repo_root).exists():
         return repo_root
     return str(paths.root)
 

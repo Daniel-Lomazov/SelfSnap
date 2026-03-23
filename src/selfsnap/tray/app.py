@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import logging
 import os
@@ -26,6 +26,7 @@ from selfsnap.worker import EXIT_OK, run_capture_command
 @dataclass(slots=True)
 class TrayRuntimeState:
     stop_event: threading.Event
+    settings_dialog_open: threading.Event
     last_announced_record_id: str | None = None
 
 
@@ -50,7 +51,11 @@ def run_tray_app(paths: AppPaths | None = None) -> int:
     sync_scheduler_from_config(paths, emit_console=False)
     _run_housekeeping(paths)
 
-    state = TrayRuntimeState(stop_event=threading.Event(), last_announced_record_id=_latest_record_id(paths))
+    state = TrayRuntimeState(
+        stop_event=threading.Event(),
+        settings_dialog_open=threading.Event(),
+        last_announced_record_id=_latest_record_id(paths),
+    )
     icon = pystray.Icon("selfsnap", _build_icon_image(Image, ImageDraw), "SelfSnap Win11")
 
     def refresh_menu() -> None:
@@ -117,7 +122,12 @@ def _capture_now(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
     setup_logging(paths, config.log_level)
     result = run_capture_command(TriggerSource.MANUAL, paths=paths)
     if result.record is not None:
-        _announce_record(icon, config, result.record)
+        _announce_record(
+            icon,
+            config,
+            result.record,
+            suppress_overlay=state.settings_dialog_open.is_set(),
+        )
         state.last_announced_record_id = result.record.record_id
     icon.update_menu()
 
@@ -142,12 +152,11 @@ def _toggle_enabled(paths: AppPaths, icon) -> None:
 
 def _open_settings(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
     config = load_or_create_config(paths)
-    result = show_settings_dialog(config, paths)
-    size_only_config = replace(
-        config,
-        settings_window_width=result.window_size[0],
-        settings_window_height=result.window_size[1],
-    )
+    state.settings_dialog_open.set()
+    try:
+        result = show_settings_dialog(config, paths)
+    finally:
+        state.settings_dialog_open.clear()
 
     if result.requested_reset:
         state.stop_event.set()
@@ -156,10 +165,6 @@ def _open_settings(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
         _exit(icon, state.stop_event)
         return
     if result.updated_config is None:
-        try:
-            save_config(paths, size_only_config)
-        except Exception:
-            return
         return
     updated = result.updated_config
     save_config(paths, updated)
@@ -262,11 +267,21 @@ def _announce_latest_record(paths: AppPaths, icon, state: TrayRuntimeState) -> N
     if latest is None or latest.record_id == state.last_announced_record_id:
         return
     config = load_or_create_config(paths)
-    _announce_record(icon, config, latest)
+    _announce_record(
+        icon,
+        config,
+        latest,
+        suppress_overlay=state.settings_dialog_open.is_set(),
+    )
     state.last_announced_record_id = latest.record_id
 
 
-def _announce_record(icon, config: AppConfig, record: CaptureRecord) -> None:
+def _announce_record(
+    icon,
+    config: AppConfig,
+    record: CaptureRecord,
+    suppress_overlay: bool = False,
+) -> None:
     if record.outcome_category in {OutcomeCategory.FAILED.value, OutcomeCategory.MISSED.value}:
         if config.notify_on_failed_or_missed:
             _show_notification(icon, "SelfSnap", _format_record_message(record))
@@ -275,7 +290,7 @@ def _announce_record(icon, config: AppConfig, record: CaptureRecord) -> None:
     if record.outcome_category == OutcomeCategory.SUCCESS.value:
         if config.notify_on_every_capture:
             _show_notification(icon, "SelfSnap", _format_record_message(record))
-        if config.show_capture_overlay:
+        if config.show_capture_overlay and not suppress_overlay:
             _show_capture_overlay()
 
 

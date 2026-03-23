@@ -161,6 +161,7 @@ Important fields:
 ## Settings and reset behavior
 
 - The settings window is resizable, scrollable, and remembers its last saved size.
+- Settings-window size is only persisted on an explicit Save.
 - Storage preset selection updates both capture and archive roots together.
 - Editing either path manually switches the preset to `custom`.
 - `Reset Capture History` permanently removes SelfSnap capture files, archive files, DB history, logs, config, startup shortcut, and scheduled tasks, then relaunches into first run.
