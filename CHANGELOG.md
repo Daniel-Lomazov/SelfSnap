@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.0 - 2026-03-22
+
+Why: Source setup and runtime verification became reliable enough for repeated local installs.
+
+- Added a bootstrap setup script for creating a clean development or runtime environment.
+- Hardened runtime dependency detection so broken Pillow/runtime states fail clearly.
+- Added targeted tests around runtime verification and setup-related behavior.
+
 ## v0.2.0 - 2026-03-22
 
 Why: Windows runtime and installation flow became usable end to end.
