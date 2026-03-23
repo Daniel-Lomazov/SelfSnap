@@ -255,6 +255,7 @@ This optional build is prepared to create:
 - `.github/workflows/release.yml` creates GitHub releases automatically for future version tags and can also be run manually for existing historical tags.
 - `.github/workflows/issue-intake.yml` preprocesses new issues, applies managed labels, and posts a planning starter comment for maintainer triage.
 - `.github/ISSUE_TEMPLATE/report_issue.md` is the template used by the in-app issue reporting flow.
+- `scripts/publish_github_metadata.ps1` updates the repo description/topics and can publish historical releases once `gh auth login` is valid.
 
 ## Known limitations
 
