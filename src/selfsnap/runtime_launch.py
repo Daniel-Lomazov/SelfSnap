@@ -36,6 +36,7 @@ def resolve_background_python_executable(paths: AppPaths | None = None) -> str:
     if paths is not None:
         metadata = read_install_metadata(paths)
         pythonw_executable = metadata.get("pythonw_executable")
+        python_executable = metadata.get("python_executable")
         repo_root = metadata.get("repo_root")
         repo_root_valid = isinstance(repo_root, str) and Path(repo_root).exists()
         if (
@@ -44,6 +45,11 @@ def resolve_background_python_executable(paths: AppPaths | None = None) -> str:
             and Path(pythonw_executable).exists()
         ):
             return pythonw_executable
+        if repo_root_valid and isinstance(python_executable, str):
+            metadata_python = Path(python_executable)
+            metadata_pythonw = metadata_python.with_name("pythonw.exe")
+            if metadata_python.exists() and metadata_pythonw.exists():
+                return str(metadata_pythonw)
 
     executable = Path(sys.executable)
     if executable.name.lower() == "pythonw.exe":
@@ -80,6 +86,22 @@ def resolve_tray_background_invocation(paths: AppPaths) -> LaunchSpec:
     )
 
 
+def resolve_manual_capture_background_invocation(paths: AppPaths) -> LaunchSpec:
+    if getattr(sys, "frozen", False):
+        executable = Path(sys.executable)
+        worker_path = executable.with_name("SelfSnapWorker.exe")
+        return LaunchSpec(
+            executable=str(worker_path),
+            arguments=["capture", "--trigger", "manual"],
+            working_directory=str(worker_path.parent),
+        )
+    return LaunchSpec(
+        executable=resolve_background_python_executable(paths),
+        arguments=["-m", "selfsnap", "capture", "--trigger", "manual"],
+        working_directory=resolve_background_working_directory(paths),
+    )
+
+
 def resolve_worker_background_invocation(paths: AppPaths, schedule_id: str) -> LaunchSpec:
     if getattr(sys, "frozen", False):
         executable = Path(sys.executable)
@@ -96,17 +118,29 @@ def resolve_worker_background_invocation(paths: AppPaths, schedule_id: str) -> L
     )
 
 
+def _background_creation_flags() -> int:
+    if sys.platform != "win32":
+        return 0
+    return (
+        getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        | getattr(subprocess, "DETACHED_PROCESS", 0)
+        | getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    )
+
+
 def launch_background(spec: LaunchSpec) -> subprocess.Popen[str]:
-    creation_flags = 0
-    if sys.platform == "win32":
-        creation_flags = (
-            getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-            | getattr(subprocess, "DETACHED_PROCESS", 0)
-            | getattr(subprocess, "CREATE_NO_WINDOW", 0)
-        )
     return subprocess.Popen(
         spec.command(),
         cwd=spec.working_directory,
-        creationflags=creation_flags,
+        creationflags=_background_creation_flags(),
         close_fds=False,
+    )
+
+
+def run_background_command(spec: LaunchSpec) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        spec.command(),
+        cwd=spec.working_directory,
+        creationflags=_background_creation_flags(),
+        check=False,
     )

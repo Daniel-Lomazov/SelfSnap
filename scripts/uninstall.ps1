@@ -1,3 +1,7 @@
+param(
+    [string]$PythonExe = ""
+)
+
 $ErrorActionPreference = "Stop"
 $PSNativeCommandUseErrorActionPreference = $true
 
@@ -41,29 +45,101 @@ function Test-SelfSnapInstalled {
     return $LASTEXITCODE -eq 0
 }
 
+function Get-ResolvedRepoRoot {
+    param(
+        [string]$RepoRoot
+    )
+
+    return (Resolve-Path $RepoRoot).Path
+}
+
+function Get-TrustedInstallMetadata {
+    param(
+        [string]$MetaPath,
+        [string]$RepoRoot
+    )
+
+    if (-not (Test-Path $MetaPath)) {
+        return $null
+    }
+
+    try {
+        $meta = Get-Content -Path $MetaPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        Write-Warning "Ignoring unreadable install metadata at $MetaPath."
+        return $null
+    }
+
+    if (-not $meta.repo_root) {
+        return $null
+    }
+
+    try {
+        $metaRoot = (Resolve-Path $meta.repo_root).Path
+    }
+    catch {
+        return $null
+    }
+
+    $resolvedRepoRoot = Get-ResolvedRepoRoot $RepoRoot
+    if ($metaRoot -ne $resolvedRepoRoot) {
+        return $null
+    }
+
+    return $meta
+}
+
 function Get-UninstallPythonCandidates {
     param(
         [string]$RepoRoot,
-        [string]$MetaPath
+        [string]$MetaPath,
+        [string]$ExplicitPythonExe
     )
 
     $candidates = New-Object System.Collections.Generic.List[string]
 
-    if (Test-Path $MetaPath) {
-        $meta = Get-Content -Path $MetaPath -Raw | ConvertFrom-Json
-        if ($meta.python_executable -and (Test-Path $meta.python_executable)) {
-            $candidates.Add($meta.python_executable)
+    if ($ExplicitPythonExe) {
+        if (Test-Path $ExplicitPythonExe) {
+            $candidates.Add((Resolve-Path $ExplicitPythonExe).Path)
+        }
+        else {
+            $resolved = (& $ExplicitPythonExe -c "import sys; print(sys.executable)").Trim()
+            Assert-LastExitCode "python override resolution"
+            if ($resolved) {
+                $candidates.Add($resolved)
+            }
         }
     }
+    $trustedMeta = Get-TrustedInstallMetadata -MetaPath $MetaPath -RepoRoot $RepoRoot
 
     $repoVenvPython = Join-Path $RepoRoot ".venv\Scripts\python.exe"
     if (Test-Path $repoVenvPython) {
         $candidates.Add($repoVenvPython)
     }
 
+    if ($trustedMeta -and $trustedMeta.python_executable -and (Test-Path $trustedMeta.python_executable)) {
+        $candidates.Add($trustedMeta.python_executable)
+    }
+
     $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
     if ($pythonCommand -and $pythonCommand.Source) {
         $candidates.Add($pythonCommand.Source)
+    }
+
+    $pyCommand = Get-Command py -ErrorAction SilentlyContinue
+    if ($pyCommand -and $pyCommand.Source) {
+        foreach ($version in @("-3.12", "-3.11", "-3")) {
+            try {
+                $resolved = (& $pyCommand.Source $version -c "import sys; print(sys.executable)").Trim()
+                if ($resolved) {
+                    $candidates.Add($resolved)
+                }
+            }
+            catch {
+                continue
+            }
+        }
     }
 
     return $candidates | Select-Object -Unique
@@ -94,7 +170,7 @@ foreach ($taskName in $taskNames) {
 }
 
 $packageRemoved = $false
-foreach ($pythonCandidate in Get-UninstallPythonCandidates -RepoRoot $repoRoot -MetaPath $metaPath) {
+foreach ($pythonCandidate in Get-UninstallPythonCandidates -RepoRoot $repoRoot -MetaPath $metaPath -ExplicitPythonExe $PythonExe) {
     if (-not (Test-Path $pythonCandidate)) {
         continue
     }
