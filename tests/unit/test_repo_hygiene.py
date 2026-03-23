@@ -49,3 +49,24 @@ def test_pytest_config_keeps_temp_output_out_of_repo() -> None:
     assert ".pytest_tmp" in pyproject
     assert ".pytest-work" in pyproject
     assert 'Path(local_appdata) / "SelfSnap" / "pytest" / "tmp"' in conftest
+
+
+def test_repo_contains_github_automation_for_ci_and_issue_intake() -> None:
+    ci = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    intake = Path(".github/workflows/issue-intake.yml").read_text(encoding="utf-8")
+
+    assert "windows-latest" in ci
+    assert "compileall src tests" in ci
+    assert "pytest -q" in ci
+    assert "actions/github-script" in intake
+    assert "ready-for-local-planning" in intake
+    assert "selfsnap-planning-intake" in intake
+
+
+def test_readme_documents_issue_reporting_and_github_workflows() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    assert "Report Issue" in readme
+    assert "SELFSNAP_GITHUB_REPO" in readme
+    assert "SELFSNAP_GITHUB_TOKEN" in readme
+    assert "issue-intake" in readme

@@ -1,0 +1,179 @@
+name: Issue Intake
+
+on:
+  issues:
+    types:
+      - opened
+      - edited
+      - reopened
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  preprocess:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const body = issue.body || "";
+            const marker = "<!-- reported-via-selfsnap -->";
+            const planningMarker = "<!-- selfsnap-planning-intake -->";
+            const bodyValue = (name, fallback) => {
+              const match = body.match(new RegExp(`^${name}=([^\\r\\n]+)$`, "m"));
+              return match ? match[1].trim() : fallback;
+            };
+            const normalizeSource = (value) => {
+              if (value === "selfsnap") return "app";
+              if (value === "developer") return "developer";
+              return "manual";
+            };
+            const normalizeKind = (value) => (value === "feature" ? "enhancement" : "bug");
+            const normalizeArea = (value) => {
+              const known = new Set(["tray", "capture", "scheduler", "settings", "storage", "retention", "install", "uninstall", "docs", "other"]);
+              return known.has(value) ? value : "other";
+            };
+            const normalizeImpact = (value) => {
+              const known = new Set(["blocking", "major", "minor", "cosmetic", "unknown"]);
+              return known.has(value) ? value : "unknown";
+            };
+            const sectionText = (heading) => {
+              const match = body.match(new RegExp(`## ${heading}\\s+([\\s\\S]*?)(?:\\n## |$)`));
+              return match ? match[1].trim() : "";
+            };
+
+            const source = normalizeSource(bodyValue("submitted_from", body.includes(marker) ? "selfsnap" : "manual"));
+            const kind = normalizeKind(bodyValue("issue_kind", "bug"));
+            const area = normalizeArea(bodyValue("area", "other"));
+            const impact = normalizeImpact(bodyValue("impact", "unknown"));
+            const diagIncluded = bodyValue("diag_included", "no") === "yes";
+            const userReport = sectionText("User report");
+            const hasUserReport = Boolean(userReport && !userReport.startsWith("Describe the problem"));
+
+            const desiredLabels = [
+              kind,
+              "needs-triage",
+              `source:${source}`,
+              `area:${area}`,
+              `impact:${impact}`,
+            ];
+            if (body.includes(marker)) {
+              desiredLabels.push("reported-via-app");
+            }
+            desiredLabels.push(hasUserReport ? "ready-for-local-planning" : "blocked:needs-info");
+
+            const labelPalette = {
+              "bug": { color: "d73a4a", description: "Confirmed defect or malfunction" },
+              "enhancement": { color: "a2eeef", description: "Requested product enhancement" },
+              "needs-triage": { color: "fbca04", description: "Needs maintainer triage" },
+              "ready-for-local-planning": { color: "0e8a16", description: "Prepared for the next local planning session" },
+              "blocked:needs-info": { color: "b60205", description: "Missing detail before implementation planning" },
+              "reported-via-app": { color: "5319e7", description: "Submitted from the tray app flow" },
+              "source:app": { color: "5319e7", description: "Submitted from the app UI" },
+              "source:manual": { color: "c2e0c6", description: "Submitted manually in GitHub" },
+              "source:developer": { color: "0052cc", description: "Submitted by a developer workflow" },
+              "area:tray": { color: "1d76db", description: "Tray runtime or menu behavior" },
+              "area:capture": { color: "1d76db", description: "Capture worker or image output" },
+              "area:scheduler": { color: "1d76db", description: "Task Scheduler integration" },
+              "area:settings": { color: "1d76db", description: "Settings or first-run UI" },
+              "area:storage": { color: "1d76db", description: "Storage roots or cloud preset mapping" },
+              "area:retention": { color: "1d76db", description: "Retention or archive lifecycle" },
+              "area:install": { color: "1d76db", description: "Install behavior" },
+              "area:uninstall": { color: "1d76db", description: "Uninstall or cleanup behavior" },
+              "area:docs": { color: "1d76db", description: "Documentation quality or gaps" },
+              "area:other": { color: "1d76db", description: "Other product area" },
+              "impact:blocking": { color: "b60205", description: "Blocks normal use" },
+              "impact:major": { color: "d93f0b", description: "Major user-visible problem" },
+              "impact:minor": { color: "fbca04", description: "Minor issue" },
+              "impact:cosmetic": { color: "c5def5", description: "Cosmetic or polish issue" },
+              "impact:unknown": { color: "ededed", description: "Impact not yet classified" },
+            };
+            const managedPrefixes = ["source:", "area:", "impact:"];
+            const managedNames = new Set([
+              "bug",
+              "enhancement",
+              "needs-triage",
+              "ready-for-local-planning",
+              "blocked:needs-info",
+              "reported-via-app",
+            ]);
+            const isManagedLabel = (name) =>
+              managedNames.has(name) || managedPrefixes.some((prefix) => name.startsWith(prefix));
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const existingLabels = await github.paginate(github.rest.issues.listLabelsForRepo, {
+              owner,
+              repo,
+              per_page: 100,
+            });
+            const existingNames = new Set(existingLabels.map((label) => label.name));
+            for (const labelName of desiredLabels) {
+              if (!existingNames.has(labelName)) {
+                const settings = labelPalette[labelName] || { color: "ededed", description: "Auto-managed label" };
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name: labelName,
+                  color: settings.color,
+                  description: settings.description,
+                });
+                existingNames.add(labelName);
+              }
+            }
+
+            const currentLabelNames = issue.labels.map((label) => typeof label === "string" ? label : label.name);
+            const unmanagedLabels = currentLabelNames.filter((labelName) => !isManagedLabel(labelName));
+            const finalLabels = [...new Set([...unmanagedLabels, ...desiredLabels])];
+            await github.rest.issues.setLabels({
+              owner,
+              repo,
+              issue_number: issue.number,
+              labels: finalLabels,
+            });
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: issue.number,
+              per_page: 100,
+            });
+            const guidance = [];
+            if (!diagIncluded) {
+              guidance.push("- If the issue is reproducible, add `selfsnap diag` and `selfsnap doctor` output in a follow-up comment.");
+            }
+            guidance.push("- Confirm whether the problem is still reproducible on the latest `main` build.");
+            guidance.push("- Reduce the issue to a minimal user-visible symptom before implementation work starts.");
+            guidance.push("- Translate the issue into scope, acceptance criteria, and the smallest safe fix plan.");
+            const commentBody = [
+              planningMarker,
+              "## SelfSnap intake summary",
+              `- Source: ${source}`,
+              `- Type: ${kind}`,
+              `- Area: ${area}`,
+              `- Impact: ${impact}`,
+              `- Diagnostics included: ${diagIncluded ? "yes" : "no"}`,
+              `- Ready for local planning: ${hasUserReport ? "yes" : "needs more user detail"}`,
+              "",
+              "## Local planning starter",
+              ...guidance,
+            ].join("\n");
+            const existingComment = comments.find((comment) => comment.body && comment.body.includes(planningMarker));
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existingComment.id,
+                body: commentBody,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issue.number,
+                body: commentBody,
+              });
+            }

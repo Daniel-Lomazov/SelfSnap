@@ -1,24 +1,28 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import logging
 import os
 import threading
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from selfsnap.config_store import load_or_create_config, save_config
 from selfsnap.db import connect, ensure_database
 from selfsnap.logging_setup import setup_logging
 from selfsnap.models import AppConfig, CaptureRecord, OutcomeCategory
 from selfsnap.paths import AppPaths, resolve_app_paths
-from selfsnap.reset_service import perform_clean_reset
 from selfsnap.records import get_latest_record, resolve_latest_capture_path
+from selfsnap.reset_service import perform_clean_reset
 from selfsnap.retention import apply_retention
-from selfsnap.runtime_launch import resolve_manual_capture_background_invocation, run_background_command
+from selfsnap.runtime_launch import (
+    resolve_manual_capture_background_invocation,
+    run_background_command,
+)
 from selfsnap.runtime_probe import probe_runtime_dependencies
 from selfsnap.scheduler.reconcile import reconcile_missed_slots
 from selfsnap.scheduler.task_scheduler import sync_scheduler_from_config
 from selfsnap.tray.first_run import show_first_run_dialog
+from selfsnap.tray.report_issue_window import show_report_issue_dialog
 from selfsnap.tray.settings_window import show_settings_dialog
 from selfsnap.tray.startup import sync_startup_shortcut
 from selfsnap.worker import EXIT_OK
@@ -27,7 +31,7 @@ from selfsnap.worker import EXIT_OK
 @dataclass(slots=True)
 class TrayRuntimeState:
     stop_event: threading.Event
-    settings_dialog_open: threading.Event
+    ui_dialog_open: threading.Event
     last_announced_record_id: str | None = None
 
 
@@ -54,7 +58,7 @@ def run_tray_app(paths: AppPaths | None = None) -> int:
 
     state = TrayRuntimeState(
         stop_event=threading.Event(),
-        settings_dialog_open=threading.Event(),
+        ui_dialog_open=threading.Event(),
         last_announced_record_id=_latest_record_id(paths),
     )
     icon = pystray.Icon("selfsnap", _build_icon_image(Image, ImageDraw), "SelfSnap Win11")
@@ -67,7 +71,7 @@ def run_tray_app(paths: AppPaths | None = None) -> int:
     def background_loop() -> None:
         while not state.stop_event.is_set():
             try:
-                if state.settings_dialog_open.is_set():
+                if state.ui_dialog_open.is_set():
                     state.stop_event.wait(60)
                     continue
                 _run_housekeeping(paths)
@@ -103,14 +107,27 @@ def _build_menu_items(pystray, paths: AppPaths, icon, state: TrayRuntimeState) -
         items.append(pystray.MenuItem(lambda _item: _latest_label(paths), None, enabled=False))
     items.extend(
         [
-            pystray.MenuItem("Capture Now", lambda _icon, _item: _run_async(_capture_now, paths, icon, state)),
+            pystray.MenuItem(
+                "Report Issue",
+                lambda _icon, _item: _run_async(_open_report_issue, paths, icon, state),
+                default=True,
+            ),
+            pystray.MenuItem(
+                "Capture Now", lambda _icon, _item: _run_async(_capture_now, paths, icon, state)
+            ),
             pystray.MenuItem(
                 lambda _item: _toggle_enabled_label(config),
                 lambda _icon, _item: _toggle_enabled(paths, icon),
             ),
-            pystray.MenuItem("Open Capture Folder", lambda _icon, _item: _open_capture_folder(paths)),
-            pystray.MenuItem("Open Latest Capture", lambda _icon, _item: _open_latest_capture(paths)),
-            pystray.MenuItem("Settings", lambda _icon, _item: _run_async(_open_settings, paths, icon, state)),
+            pystray.MenuItem(
+                "Open Capture Folder", lambda _icon, _item: _open_capture_folder(paths)
+            ),
+            pystray.MenuItem(
+                "Open Latest Capture", lambda _icon, _item: _open_latest_capture(paths)
+            ),
+            pystray.MenuItem(
+                "Settings", lambda _icon, _item: _run_async(_open_settings, paths, icon, state)
+            ),
             pystray.MenuItem("Exit", lambda _icon, _item: _exit(icon, state.stop_event)),
         ]
     )
@@ -124,7 +141,7 @@ def _run_async(func, *args) -> None:
 def _capture_now(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
     config = load_or_create_config(paths)
     setup_logging(paths, config.log_level)
-    suppress_ui_updates = state.settings_dialog_open.is_set()
+    suppress_ui_updates = state.ui_dialog_open.is_set()
     previous_record_id = state.last_announced_record_id
     completed = run_background_command(resolve_manual_capture_background_invocation(paths))
     latest = _latest_record(paths)
@@ -138,7 +155,9 @@ def _capture_now(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
             )
         state.last_announced_record_id = latest.record_id
     elif completed.returncode != EXIT_OK and not suppress_ui_updates:
-        _show_notification(icon, "SelfSnap", "Manual capture failed. Open logs or run selfsnap diag.")
+        _show_notification(
+            icon, "SelfSnap", "Manual capture failed. Open logs or run selfsnap diag."
+        )
     if not suppress_ui_updates:
         icon.update_menu()
 
@@ -162,14 +181,14 @@ def _toggle_enabled(paths: AppPaths, icon) -> None:
 
 
 def _open_settings(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
-    if state.settings_dialog_open.is_set():
+    if state.ui_dialog_open.is_set():
         return
     config = load_or_create_config(paths)
-    state.settings_dialog_open.set()
+    state.ui_dialog_open.set()
     try:
         result = show_settings_dialog(config, paths)
     finally:
-        state.settings_dialog_open.clear()
+        state.ui_dialog_open.clear()
 
     if result.requested_reset:
         state.stop_event.set()
@@ -183,6 +202,17 @@ def _open_settings(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
     save_config(paths, updated)
     _sync_startup_shortcut_safe(paths, updated, setup_logging(paths, updated.log_level))
     sync_scheduler_from_config(paths, emit_console=False)
+    icon.update_menu()
+
+
+def _open_report_issue(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
+    if state.ui_dialog_open.is_set():
+        return
+    state.ui_dialog_open.set()
+    try:
+        show_report_issue_dialog(paths)
+    finally:
+        state.ui_dialog_open.clear()
     icon.update_menu()
 
 
@@ -249,7 +279,7 @@ def _run_housekeeping(paths: AppPaths) -> None:
     config = load_or_create_config(paths)
     ensure_database(paths.db_path)
     with connect(paths.db_path) as connection:
-        apply_retention(connection, config, paths=paths, now_utc=datetime.now(timezone.utc))
+        apply_retention(connection, config, paths=paths, now_utc=datetime.now(UTC))
     reconcile_missed_slots(paths)
 
 
@@ -286,7 +316,7 @@ def _announce_latest_record(paths: AppPaths, icon, state: TrayRuntimeState) -> N
         icon,
         config,
         latest,
-        suppress_overlay=state.settings_dialog_open.is_set(),
+        suppress_overlay=state.ui_dialog_open.is_set(),
     )
     state.last_announced_record_id = latest.record_id
 
