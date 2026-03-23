@@ -60,6 +60,14 @@ function Get-LocalAppDataTargets {
     return @()
 }
 
+function Get-AllTargets {
+    $targets = @(Get-ArtifactTargets)
+    if ($IncludeLocalAppData) {
+        $targets += @(Get-LocalAppDataTargets)
+    }
+    return @($targets | Sort-Object FullName -Unique)
+}
+
 function Remove-Artifact {
     param(
         [System.IO.FileSystemInfo]$Target,
@@ -113,11 +121,7 @@ function Remove-Artifact {
     }
 }
 
-$targets = Get-ArtifactTargets
-if ($IncludeLocalAppData) {
-    $targets += @(Get-LocalAppDataTargets)
-    $targets = $targets | Sort-Object FullName -Unique
-}
+$targets = Get-AllTargets
 if (-not $targets) {
     Write-Host "No pytest artifact directories were found."
     exit 0
@@ -136,12 +140,26 @@ if ($RepairAcl -and -not (Test-Administrator) -and -not $RelaunchedElevated) {
     Write-Host "Relaunching cleanup with elevation for ACL repair..."
     try {
         $process = Start-Process -FilePath "powershell.exe" -Verb RunAs -ArgumentList (Get-RepairArgumentList) -Wait -PassThru
-        exit $process.ExitCode
     }
     catch {
         Write-Warning "Elevation was not completed. Cleanup was not repaired."
         exit 2
     }
+
+    $remainingTargets = Get-AllTargets
+    if ($remainingTargets.Count -gt 0) {
+        Write-Warning "Elevation returned, but pytest artifact targets still remain."
+        Write-Warning "Either the UAC prompt was dismissed or the elevated cleanup did not complete successfully."
+        $remainingTargets | ForEach-Object {
+            Write-Warning "Remaining target: $($_.FullName)"
+        }
+        if ($process.ExitCode -ne 0) {
+            exit $process.ExitCode
+        }
+        exit 3
+    }
+
+    exit $process.ExitCode
 }
 
 $results = foreach ($target in $targets) {
