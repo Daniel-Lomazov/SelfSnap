@@ -59,6 +59,11 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     archive_root_var = tk.StringVar(value=config.archive_storage_root)
     retention_mode_var = tk.StringVar(value=retention_mode_label(config.retention_mode))
     retention_days_var = tk.StringVar(value="" if config.retention_days is None else str(config.retention_days))
+    capture_mode_var = tk.StringVar(value="Per Monitor" if config.capture_mode == "per_monitor" else "Composite")
+    image_format_var = tk.StringVar(value=config.image_format.upper())
+    image_quality_var = tk.StringVar(value=str(config.image_quality))
+    purge_enabled_var = tk.BooleanVar(value=config.purge_enabled)
+    retention_grace_days_var = tk.StringVar(value=str(config.retention_grace_days))
     start_tray_on_login_var = tk.BooleanVar(value=config.start_tray_on_login)
     wake_for_scheduled_captures_var = tk.BooleanVar(value=config.wake_for_scheduled_captures)
     show_last_capture_status_var = tk.BooleanVar(value=config.show_last_capture_status)
@@ -175,6 +180,34 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     ).grid(row=3, column=1, sticky="ew")
     ttk.Label(storage_frame, text="Archive After Days").grid(row=3, column=2, sticky="w", padx=(10, 0))
     ttk.Entry(storage_frame, textvariable=retention_days_var, width=8).grid(row=3, column=3, sticky="w")
+
+    ttk.Label(storage_frame, text="Capture Mode").grid(row=5, column=0, sticky="w", pady=(4, 0))
+    ttk.Combobox(
+        storage_frame,
+        textvariable=capture_mode_var,
+        values=["Composite", "Per Monitor"],
+        state="readonly",
+        width=18,
+    ).grid(row=5, column=1, sticky="ew", pady=(4, 0))
+
+    ttk.Label(storage_frame, text="Image Format").grid(row=6, column=0, sticky="w", pady=(4, 0))
+    ttk.Combobox(
+        storage_frame,
+        textvariable=image_format_var,
+        values=["PNG", "JPEG", "WEBP"],
+        state="readonly",
+        width=12,
+    ).grid(row=6, column=1, sticky="ew", pady=(4, 0))
+    ttk.Label(storage_frame, text="Quality (JPEG/WebP)").grid(row=6, column=2, sticky="w", padx=(10, 0), pady=(4, 0))
+    ttk.Entry(storage_frame, textvariable=image_quality_var, width=8).grid(row=6, column=3, sticky="w", pady=(4, 0))
+
+    ttk.Checkbutton(
+        storage_frame,
+        text="Permanently delete after grace period",
+        variable=purge_enabled_var,
+    ).grid(row=4, column=0, columnspan=2, sticky="w", pady=(4, 0))
+    ttk.Label(storage_frame, text="Grace Days").grid(row=4, column=2, sticky="w", padx=(10, 0), pady=(4, 0))
+    ttk.Entry(storage_frame, textvariable=retention_grace_days_var, width=8).grid(row=4, column=3, sticky="w", pady=(4, 0))
 
     schedules_frame = ttk.LabelFrame(content, text="Schedules", padding=10)
     schedules_frame.grid(row=row, column=0, sticky="ew", pady=(8, 0))
@@ -296,15 +329,45 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             schedule_tree.see(str(select[0]))
         _update_selection_from_tree()
 
+    def _refresh_history(schedule_id: str | None) -> None:
+        history_list.configure(state="normal")
+        history_list.delete(0, "end")
+        if schedule_id is None:
+            history_list.configure(state="disabled")
+            return
+        try:
+            from selfsnap.db import connect
+            from selfsnap.records import get_by_schedule
+            with connect(paths.db_path) as conn:
+                records = get_by_schedule(conn, schedule_id, limit=5)
+            for r in records:
+                ts = (r.started_utc or r.created_utc or "")[:19].replace("T", " ")
+                icon = {"success": "✓", "failed": "✗", "missed": "–", "skipped": "○"}.get(
+                    r.outcome_category, "?"
+                )
+                history_list.insert("end", f"{icon}  {ts}  {r.outcome_code}")
+        except Exception:
+            history_list.insert("end", "(history unavailable)")
+        finally:
+            history_list.configure(state="disabled")
+
+    def _clear_history() -> None:
+        history_list.configure(state="normal")
+        history_list.delete(0, "end")
+        history_list.configure(state="disabled")
+
     def _update_selection_from_tree(_event=None) -> None:
         nonlocal selected_indices
         selected_indices = _selection_indices()
         if len(selected_indices) == 1:
             _load_draft_to_form(drafts[selected_indices[0]])
+            _refresh_history(drafts[selected_indices[0]].schedule_id)
         elif len(selected_indices) == 0:
             _load_draft_to_form(_new_default_draft())
+            _clear_history()
         else:
             _load_draft_to_form(drafts[selected_indices[0]])
+            _clear_history()
         _selected_mode()
 
     def _add_schedule() -> None:
@@ -388,6 +451,13 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     cancel_schedule_button.pack(side="right", padx=(0, 8))
     save_schedule_button.pack(side="right", padx=(0, 8))
     add_button.pack(side="right", padx=(0, 8))
+
+    history_frame = ttk.LabelFrame(schedules_body, text="Recent Runs", padding=6)
+    history_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+    history_frame.columnconfigure(0, weight=1)
+
+    history_list = tk.Listbox(history_frame, height=5, state="disabled", selectmode="browse")
+    history_list.grid(row=0, column=0, sticky="ew")
 
     widgets_to_toggle.extend(
         [label_entry, every_spinbox, unit_combo, start_date_entry, start_time_entry, enabled_check]
@@ -497,6 +567,11 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
                 archive_storage_root=archive_root_var.get().strip(),
                 retention_mode=retention_mode,
                 retention_days=retention_days,
+                purge_enabled=purge_enabled_var.get(),
+                retention_grace_days=int(retention_grace_days_var.get()) if retention_grace_days_var.get().strip().isdigit() else config.retention_grace_days,
+                capture_mode="per_monitor" if capture_mode_var.get() == "Per Monitor" else "composite",
+                image_format=image_format_var.get().lower(),
+                image_quality=int(image_quality_var.get()) if image_quality_var.get().strip().isdigit() else config.image_quality,
                 start_tray_on_login=start_tray_on_login_var.get(),
                 wake_for_scheduled_captures=wake_for_scheduled_captures_var.get(),
                 show_last_capture_status=show_last_capture_status_var.get(),
