@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.9.4 - 2026-03-25
+
+Why: GitHub-native update check, three CLI lifecycle commands, and three settings window bugs that prevented schedule changes from taking effect.
+
+- **Fix — settings: schedule enabled/disabled change was silently discarded.** `_save_and_close()` iterated `drafts[]` which is only updated when the inline schedule editor "Save" button is clicked. Clicking the main Save without the inline Save discarded the edit — captures kept running unchanged. Fix: `_apply_settings()` now auto-commits the selected schedule's current form state before building `parsed_schedules`.
+- **Fix — settings: blank dropdowns on second open (Windows Tkinter multi-root bug).** All `tk.StringVar` / `tk.BooleanVar` were created without `master=root`. After the first `Tk()` is destroyed, the next open's variables bind to a stale default root; readonly comboboxes display blank. Fix: `master=root` added to every variable constructor.
+- **Fix — settings: window closed on Save.** The main Save button destroyed the window, preventing users from verifying their changes. Renamed `_save_and_close` → `_apply_settings`; Save now writes to disk and refreshes the schedule tree in-place, then briefly shows `✓ Saved` on the button. The window stays open. "Cancel" renamed "Close".
+- **Feat — Check for Updates: GitHub Releases API version check.** Previously ran `git pull --ff-only` unconditionally, which failed on dirty repos or missing credentials. Now fetches the latest release tag from `github.com/repos/…/releases/latest`, compares against the installed version, and skips the update entirely if already current. When a newer release is found, the update uses `git fetch --tags && git reset --hard refs/tags/<tag>` — works regardless of local uncommitted changes.
+- **Feat — CLI lifecycle commands.** Three new subcommands for terminal-based management:
+  - `selfsnap reinstall [--relaunch-tray]` — offline reinstall from the current source checkout
+  - `selfsnap uninstall [--remove-user-data] [--yes]` — prompts for confirmation unless `--yes`
+  - `selfsnap update [--check-only] [--relaunch-tray]` — version check + optional update; `--check-only` reports without installing
+
 ## v0.9.3 - 2026-03-25
 
 Why: Make lifecycle script launching uniform and robust across all three tray actions.

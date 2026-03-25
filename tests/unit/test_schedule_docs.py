@@ -7,7 +7,7 @@ from pathlib import Path
 def test_readme_describes_recurring_schedule_setup() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 
-    assert "Current version: `v0.9.3`" in readme
+    assert "Current version: `v0.9.4`" in readme
     assert "CHANGELOG.md" in readme
     assert "High-frequency schedules such as `seconds` and `minutes` are tray-managed" in readme
     assert "Windows Task Scheduler" in readme
@@ -40,9 +40,9 @@ def test_version_files_are_aligned_to_0_9_3() -> None:
     version_file = Path("src/selfsnap/version.py").read_text(encoding="utf-8")
     changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert 'version = "0.9.3"' in pyproject
-    assert '__version__ = "0.9.3"' in version_file
-    assert "## v0.9.3" in changelog
+    assert 'version = "0.9.4"' in pyproject
+    assert '__version__ = "0.9.4"' in version_file
+    assert "## v0.9.4" in changelog
 
 
 def test_product_release_notes_exist_for_v0_8_0() -> None:

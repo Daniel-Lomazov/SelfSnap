@@ -2,9 +2,9 @@
 
 SelfSnap Win11 is a Windows 11-only, local-first screenshot utility for personal use. It captures screenshots of all connected monitors on recurring schedules, stores them locally, and records honest metadata about what happened.
 
-Current version: `v0.9.3`. Technical release history lives in `CHANGELOG.md`.
+Current version: `v0.9.4`. Technical release history lives in `CHANGELOG.md`.
 
-SelfSnap is offline by default. The only user-triggered network actions are opening a browser for `Report Issue` and running `Reinstall -> From Source and Update`, which uses `git pull --ff-only`.
+SelfSnap is offline by default. The only user-triggered network actions are opening a browser for `Report Issue` and using `Check for Updates`, which queries the GitHub Releases API and optionally fetches the new release tag.
 There is no telemetry or silent upload in normal runtime.
 
 ## Project status
@@ -19,18 +19,16 @@ This repository is public for visibility and issue tracking, but the code remain
 
 ## Current release
 
-`v0.9.0` builds on the stable recurring schedule engine from v0.8.0 with the following additions:
+`v0.9.4` builds on v0.9.3 with settings reliability fixes, a proper update-check flow, and CLI lifecycle commands.
 
-- **True permanent retention** — archived captures are purged after a configurable grace period (default 30 days). DB records get a `purged_utc` timestamp. Disabled by default; opt in via Settings → Storage.
-- **Per-monitor capture mode** — each display can produce a separate dated image instead of a single composite.
-- **Output format & quality** — choose PNG (lossless), JPEG, or WebP; configure quality (1–100) for lossy formats.
-- **Recent Captures window** — thumbnail quick-view of the last 10 captures, openable from the tray menu.
-- **Statistics window** — totals, storage used, success/miss/fail counts, and a 30-day activity bar chart.
-- **Schedule run history** — last 5 capture outcomes per schedule shown in the schedule editor.
-- **Task Scheduler mock layer** — `InMemoryTaskSchedulerBackend` for environment-safe integration tests.
-- **Property-based tests** — Hypothesis strategies covering recurrence edge cases (leap years, DST, large intervals).
-- **Coverage gate** — CI fails if line coverage drops below 80%.
-- **Pre-commit hooks** — `ruff check --fix`, `ruff format`, and `mypy src` run on staged files.
+- **Settings: schedule changes now persist.** Editing a schedule's fields (including Enabled) and clicking Save now always commits the form state. Previously, the main Save button ignored in-progress edits unless the inline schedule "Save" button had been clicked first.
+- **Settings: blank dropdowns fixed.** On the second and subsequent opens, all comboboxes (Storage Preset, Capture Mode, Image Format, Retention Mode) now render correctly. Root cause was Tkinter `StringVar`/`BooleanVar` missing `master=root`, causing them to bind to a stale Tk instance after the first window was destroyed.
+- **Settings: window stays open after Save.** Save now writes to disk and briefly shows `✓ Saved` on the button. The window stays open for further edits. A `Close` button closes the window when done.
+- **Check for Updates: GitHub Releases API.** The tray menu item now queries `api.github.com` for the latest release tag and compares it against the installed version. No git interaction happens if you are already up to date. When a newer release is found it uses `git fetch --tags && git reset --hard` — works on a dirty repo, no credential prompt.
+- **CLI lifecycle commands.** Three new subcommands:
+  - `selfsnap reinstall [--relaunch-tray]`
+  - `selfsnap uninstall [--remove-user-data] [--yes]`
+  - `selfsnap update [--check-only] [--relaunch-tray]`
 
 For the full implementation-facing release history, see [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -162,8 +160,17 @@ selfsnap capture --trigger manual
 selfsnap capture --trigger scheduled --schedule-id morning
 selfsnap reconcile
 selfsnap sync-scheduler
+selfsnap reinstall [--relaunch-tray]
+selfsnap uninstall [--remove-user-data] [--yes]
+selfsnap update    [--check-only] [--relaunch-tray]
 selfsnap diag
+selfsnap doctor
 ```
+
+`reinstall`, `uninstall`, and `update` mirror the tray menu actions but are usable from any terminal — useful when the tray is not running or for scripted management.
+
+- `selfsnap update --check-only` prints whether a newer release is available without installing anything.
+- `selfsnap uninstall` prompts `Uninstall SelfSnap? [y/N]` unless `--yes` is passed.
 
 If `scripts/install.ps1` has been run, the wrapper command is:
 
@@ -205,8 +212,8 @@ The defaults are `Every 1 day`, `start date = today`, and `start time = now` in 
 To edit a schedule:
 
 1. Select one schedule in the list.
-2. Edit the fields in place.
-3. Click `Save` to keep the changes or `Cancel` to revert.
+2. Edit the fields in place (including the `Enabled` checkbox to pause it).
+3. Click `Save` in the main action bar to apply — no need to click the inline "Save" first.
 
 To delete schedules:
 
@@ -261,12 +268,14 @@ Important fields:
 - Tray `Capture Now` runs through a separate background worker so capture-side DPI or monitor handling cannot resize the settings window.
 - Storage preset selection updates both capture and archive roots together.
 - Editing either path manually switches the preset to `custom`.
+- **Save** writes changes to disk immediately and keeps the window open. The button briefly shows `✓ Saved`. Editing a schedule's fields (including Enabled) and clicking Save is enough — no need to click the inline schedule "Save" first.
+- **Close** closes the settings window.
 - `Reset Capture History` permanently removes SelfSnap capture files, archive files, DB history, logs, config, startup shortcut, and scheduled tasks, then relaunches into first run.
 - Reset is not uninstall: installed app files, wrapper scripts, and repo files stay in place.
-- The tray exposes `Settings`, `Reinstall`, `Uninstall`, `Restart`, and `Exit` (in that order at the bottom of the menu).
+- The tray exposes `Settings`, `Reinstall`, `Check for Updates`, `Uninstall`, `Restart`, and `Exit` (in that order at the bottom of the menu).
 - `Restart` is a single button directly above `Exit`.
-- `Reinstall → From Local Source` is offline and preserves user data by default.
-- `Reinstall → From Source and Update` requires a clean Git checkout and uses `git pull --ff-only` before reinstalling.
+- `Reinstall` is offline and preserves user data.
+- `Check for Updates` queries the GitHub Releases API, compares the latest tag against the installed version, and does nothing if already current. When a newer release is found it offers to fetch and install it; the window stays open if you decline.
 - `Uninstall → Keep User Data` removes only startup/task/install links.
 - `Uninstall → Remove All User Data` removes SelfSnap-owned config, DB, logs, captures, archive files, and app temp data, but not the repo checkout or `.venv`.
 - Background tray, startup, and scheduled operations do not open a visible console window.
