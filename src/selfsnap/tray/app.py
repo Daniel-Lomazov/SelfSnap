@@ -160,15 +160,6 @@ def _build_menu_items(pystray, paths: AppPaths, icon, state: TrayRuntimeState) -
                 "Settings", lambda _icon, _item: _run_async(_open_settings, paths, icon, state)
             ),
             pystray.MenuItem(
-                "Restart",
-                pystray.Menu(
-                    pystray.MenuItem(
-                        "Restart SelfSnap",
-                        lambda _icon, _item: _run_async(_restart_selfsnap, paths, icon, state),
-                    )
-                ),
-            ),
-            pystray.MenuItem(
                 "Reinstall",
                 pystray.Menu(
                     pystray.MenuItem(
@@ -201,6 +192,9 @@ def _build_menu_items(pystray, paths: AppPaths, icon, state: TrayRuntimeState) -
                         ),
                     ),
                 ),
+            ),
+            pystray.MenuItem(
+                "Restart", lambda _icon, _item: _run_async(_restart_selfsnap, paths, icon, state)
             ),
             pystray.MenuItem("Exit", lambda _icon, _item: _exit(icon, state.stop_event)),
         ]

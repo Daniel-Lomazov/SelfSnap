@@ -301,10 +301,9 @@ def test_tray_menu_contains_restart_reinstall_and_uninstall_before_exit(temp_pat
     )
 
     labels = [item.text for item in items if item is not None and not callable(item.text)]
-    assert labels[-4:] == ["Restart", "Reinstall", "Uninstall", "Exit"]
+    assert labels[-4:] == ["Reinstall", "Uninstall", "Restart", "Exit"]
 
     submenu_by_label = {item.text: item.action for item in items if item is not None and not callable(item.text)}
-    assert [item.text for item in submenu_by_label["Restart"]] == ["Restart SelfSnap"]
     assert [item.text for item in submenu_by_label["Reinstall"]] == [
         "From Local Source",
         "From Source and Update",
