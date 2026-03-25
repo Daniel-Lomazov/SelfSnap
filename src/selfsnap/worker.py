@@ -147,7 +147,7 @@ def run_capture_command(
                 schedule_id=schedule_id,
                 record_id=record_id,
             )
-            capture.image.save(destination, format="PNG")
+            capture.images[0].save(destination, format="PNG")
             file_bytes = destination.stat().st_size
             image_hash = _hash_file(destination)
             finished_utc = datetime.now(timezone.utc)
