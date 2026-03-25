@@ -28,9 +28,10 @@ INSERT INTO capture_records (
     archived,
     archived_at_utc,
     retention_deleted_at_utc,
+    purged_utc,
     app_version,
     created_utc
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 """
 
 
@@ -138,3 +139,104 @@ def list_all_record_paths(connection: sqlite3.Connection) -> list[Path]:
 def clear_capture_history(connection: sqlite3.Connection) -> None:
     connection.execute("DELETE FROM capture_records")
     connection.commit()
+
+
+def get_recent(connection: sqlite3.Connection, n: int = 10) -> list[CaptureRecord]:
+    rows = connection.execute(
+        """
+        SELECT *
+        FROM capture_records
+        WHERE image_path IS NOT NULL AND file_present = 1
+        ORDER BY started_utc DESC
+        LIMIT ?
+        """,
+        (n,),
+    ).fetchall()
+    return [CaptureRecord.from_row(dict(row)) for row in rows]
+
+
+def summary_stats(connection: sqlite3.Connection) -> dict[str, object]:
+    """Return aggregate statistics about all capture records."""
+    row = connection.execute(
+        """
+        SELECT
+            COUNT(*) AS total_captures,
+            SUM(CASE WHEN outcome_category = 'success' THEN 1 ELSE 0 END) AS total_success,
+            SUM(CASE WHEN outcome_category = 'missed' THEN 1 ELSE 0 END) AS total_missed,
+            SUM(CASE WHEN outcome_category = 'failed' THEN 1 ELSE 0 END) AS total_failed,
+            SUM(CASE WHEN outcome_category = 'skipped' THEN 1 ELSE 0 END) AS total_skipped,
+            COALESCE(SUM(file_bytes), 0) AS total_bytes,
+            COUNT(DISTINCT schedule_id) AS distinct_schedules
+        FROM capture_records
+        """
+    ).fetchone()
+    if row is None:
+        return {}
+    return dict(row)
+
+
+def daily_counts(connection: sqlite3.Connection, days: int = 30) -> list[tuple[str, int]]:
+    """Return (date_str, count) tuples for the last N days, ordered ascending."""
+    rows = connection.execute(
+        """
+        SELECT DATE(COALESCE(started_utc, created_utc)) AS day, COUNT(*) AS cnt
+        FROM capture_records
+        WHERE DATE(COALESCE(started_utc, created_utc)) >= DATE('now', ? || ' days')
+        GROUP BY day
+        ORDER BY day ASC
+        """,
+        (f"-{days}",),
+    ).fetchall()
+    return [(row["day"], row["cnt"]) for row in rows]
+
+
+def get_by_schedule(
+    connection: sqlite3.Connection, schedule_id: str, limit: int = 5
+) -> list[CaptureRecord]:
+    """Return the most recent capture records for a specific schedule."""
+    rows = connection.execute(
+        """
+        SELECT *
+        FROM capture_records
+        WHERE schedule_id = ?
+        ORDER BY COALESCE(started_utc, created_utc) DESC
+        LIMIT ?
+        """,
+        (schedule_id, limit),
+    ).fetchall()
+    return [CaptureRecord.from_row(dict(row)) for row in rows]
+
+
+def mark_record_purged(
+    connection: sqlite3.Connection, record_id: str, purged_utc: str
+) -> None:
+    """Mark a record as permanently purged (file deleted from archive)."""
+    connection.execute(
+        """
+        UPDATE capture_records
+        SET purged_utc = ?,
+            file_present = 0
+        WHERE record_id = ?
+        """,
+        (purged_utc, record_id),
+    )
+    connection.commit()
+
+
+def get_purge_candidates(
+    connection: sqlite3.Connection, grace_cutoff_utc: str
+) -> list[CaptureRecord]:
+    """Return archived records whose archive time is older than the grace cutoff."""
+    rows = connection.execute(
+        """
+        SELECT *
+        FROM capture_records
+        WHERE archived = 1
+          AND purged_utc IS NULL
+          AND archived_at_utc IS NOT NULL
+          AND archived_at_utc < ?
+        ORDER BY archived_at_utc ASC
+        """,
+        (grace_cutoff_utc,),
+    ).fetchall()
+    return [CaptureRecord.from_row(dict(row)) for row in rows]
