@@ -8,7 +8,7 @@ import sqlite3
 
 from selfsnap.models import AppConfig
 from selfsnap.paths import AppPaths, resolve_app_paths
-from selfsnap.records import get_retention_candidates, mark_record_archived
+from selfsnap.records import get_purge_candidates, get_retention_candidates, mark_record_archived, mark_record_purged
 
 
 @dataclass(slots=True)
@@ -57,3 +57,47 @@ def apply_retention(
                 )
             )
     return actions
+
+
+@dataclass(slots=True)
+class PurgeAction:
+    record_id: str
+    archived_path: str
+    deleted: bool
+
+
+def apply_purge(
+    connection: sqlite3.Connection,
+    config: AppConfig,
+    now_utc: datetime | None = None,
+) -> list[PurgeAction]:
+    if not config.purge_enabled or config.retention_mode != "keep_days":
+        return []
+    now_utc = now_utc or datetime.now(timezone.utc)
+    grace_cutoff = now_utc - timedelta(days=config.retention_grace_days)
+    actions: list[PurgeAction] = []
+    for record in get_purge_candidates(connection, grace_cutoff.isoformat()):
+        deleted = False
+        if record.image_path:
+            Path(record.image_path).unlink(missing_ok=True)
+            deleted = True
+        mark_record_purged(connection, record.record_id, now_utc.isoformat())
+        actions.append(
+            PurgeAction(
+                record_id=record.record_id,
+                archived_path=record.image_path or "",
+                deleted=deleted,
+            )
+        )
+    return actions
+
+
+def apply_retention_and_purge(
+    connection: sqlite3.Connection,
+    config: AppConfig,
+    now_utc: datetime | None = None,
+    paths: AppPaths | None = None,
+) -> tuple[list[RetentionAction], list[PurgeAction]]:
+    retention_actions = apply_retention(connection, config, now_utc=now_utc, paths=paths)
+    purge_actions = apply_purge(connection, config, now_utc=now_utc)
+    return retention_actions, purge_actions
