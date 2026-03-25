@@ -8,11 +8,17 @@ import sys
 
 from selfsnap.config_store import load_or_create_config
 from selfsnap.db import connect, ensure_database
+from selfsnap.lifecycle_actions import (
+    resolve_reinstall_invocation,
+    resolve_uninstall_invocation,
+    run_lifecycle_script_and_check,
+)
 from selfsnap.logging_setup import setup_logging
 from selfsnap.models import TriggerSource
 from selfsnap.paths import resolve_app_paths
 from selfsnap.records import get_latest_record
 from selfsnap.runtime_probe import probe_runtime_dependencies
+from selfsnap.update_checker import compare_versions, fetch_latest_release_tag
 from selfsnap.version import __version__
 from selfsnap.worker import run_capture_command
 
@@ -38,6 +44,49 @@ def build_parser() -> argparse.ArgumentParser:
 
     sync_parser = subparsers.add_parser("sync-scheduler", help="Sync Task Scheduler tasks from config")
     sync_parser.set_defaults(handler=handle_sync_scheduler)
+
+    reinstall_parser = subparsers.add_parser(
+        "reinstall", help="Reinstall SelfSnap in-place from the current source checkout"
+    )
+    reinstall_parser.add_argument(
+        "--relaunch-tray",
+        action="store_true",
+        default=False,
+        help="Relaunch the tray after reinstall completes",
+    )
+    reinstall_parser.set_defaults(handler=handle_reinstall)
+
+    uninstall_parser = subparsers.add_parser("uninstall", help="Uninstall SelfSnap")
+    uninstall_parser.add_argument(
+        "--remove-user-data",
+        action="store_true",
+        default=False,
+        help="Also remove all user data (config, database, captures, logs)",
+    )
+    uninstall_parser.add_argument(
+        "--yes", "-y",
+        action="store_true",
+        default=False,
+        help="Skip confirmation prompt",
+    )
+    uninstall_parser.set_defaults(handler=handle_uninstall)
+
+    update_parser = subparsers.add_parser(
+        "update", help="Check for a new release and update if one is available"
+    )
+    update_parser.add_argument(
+        "--check-only",
+        action="store_true",
+        default=False,
+        help="Only report whether an update is available; do not install",
+    )
+    update_parser.add_argument(
+        "--relaunch-tray",
+        action="store_true",
+        default=False,
+        help="Relaunch the tray after the update completes",
+    )
+    update_parser.set_defaults(handler=handle_update)
 
     diag_parser = subparsers.add_parser("diag", help="Print runtime diagnostics")
     diag_parser.set_defaults(handler=handle_diag)
@@ -77,6 +126,74 @@ def handle_sync_scheduler(_args: argparse.Namespace) -> int:
     from selfsnap.scheduler.task_scheduler import sync_scheduler_from_config
 
     return sync_scheduler_from_config()
+
+
+def handle_reinstall(args: argparse.Namespace) -> int:
+    paths = resolve_app_paths()
+    print("Reinstalling SelfSnap…")
+    spec = resolve_reinstall_invocation(
+        paths, update_source=False, relaunch_tray=args.relaunch_tray
+    )
+    if run_lifecycle_script_and_check(spec):
+        print("Reinstall completed successfully.")
+        return 0
+    print("Reinstall failed. Check the reinstall.ps1 output for details.", file=sys.stderr)
+    return 1
+
+
+def handle_uninstall(args: argparse.Namespace) -> int:
+    if not args.yes:
+        prompt = (
+            "Remove all SelfSnap user data? [y/N] "
+            if args.remove_user_data
+            else "Uninstall SelfSnap? [y/N] "
+        )
+        answer = input(prompt).strip().lower()
+        if answer not in ("y", "yes"):
+            print("Uninstall cancelled.")
+            return 0
+
+    paths = resolve_app_paths()
+    print("Uninstalling SelfSnap…")
+    spec = resolve_uninstall_invocation(paths, remove_user_data=args.remove_user_data)
+    if run_lifecycle_script_and_check(spec):
+        print("Uninstall completed successfully.")
+        return 0
+    print("Uninstall failed. Check the uninstall.ps1 output for details.", file=sys.stderr)
+    return 1
+
+
+def handle_update(args: argparse.Namespace) -> int:
+    print("Checking for updates…")
+    latest_tag = fetch_latest_release_tag("Daniel-Lomazov/SelfSnap")
+    if latest_tag is None:
+        print(
+            "Could not reach GitHub. Verify your internet connection and try again.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if compare_versions(__version__, latest_tag) >= 0:
+        print(f"Already up to date. Installed: v{__version__}  Latest: {latest_tag}")
+        return 0
+
+    print(f"Update available: v{__version__} → {latest_tag}")
+    if args.check_only:
+        return 0
+
+    print(f"Installing {latest_tag}…")
+    paths = resolve_app_paths()
+    spec = resolve_reinstall_invocation(
+        paths, update_source=True, target_tag=latest_tag, relaunch_tray=args.relaunch_tray
+    )
+    if run_lifecycle_script_and_check(spec):
+        print(f"Updated to {latest_tag} successfully.")
+        return 0
+    print(
+        f"Update to {latest_tag} failed. Check that you have network access and the tag exists.",
+        file=sys.stderr,
+    )
+    return 1
 
 
 def handle_diag(_args: argparse.Namespace) -> int:
