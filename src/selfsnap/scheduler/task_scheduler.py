@@ -17,6 +17,7 @@ from selfsnap.models import AppConfig, OutcomeCode
 from selfsnap.paths import AppPaths, resolve_app_paths
 from selfsnap.recurrence import is_coarse_schedule, next_occurrence
 from selfsnap.runtime_launch import LaunchSpec, resolve_worker_background_invocation
+from selfsnap.scheduler.backends import InMemoryTaskSchedulerBackend, TaskSchedulerBackend
 from selfsnap.worker import EXIT_OK, EXIT_SCHEDULER_FAILURE
 
 
@@ -41,21 +42,40 @@ def sync_scheduler_from_config(paths: AppPaths | None = None, emit_console: bool
         return EXIT_SCHEDULER_FAILURE
 
 
-def sync_tasks(paths: AppPaths, config: AppConfig, logger: logging.Logger) -> None:
-    existing = list_selfsnap_tasks()
+def sync_tasks(
+    paths: AppPaths,
+    config: AppConfig,
+    logger: logging.Logger,
+    backend: TaskSchedulerBackend | None = None,
+) -> None:
+    if backend is None:
+        existing = list_selfsnap_tasks()
+    else:
+        existing = backend.list_tasks()
     desired = build_desired_tasks(paths, config)
 
     for task_name in existing - set(desired):
-        delete_task(task_name, logger)
+        if backend is None:
+            delete_task(task_name, logger)
+        else:
+            backend.delete(task_name, ignore_missing=True)
 
     for task_name, task_spec in desired.items():
-        create_or_replace_task(
-            task_name,
-            task_spec["run_at_local"],
-            task_spec["invocation"],
-            bool(task_spec["wake"]),
-            logger,
-        )
+        if backend is None:
+            create_or_replace_task(
+                task_name,
+                task_spec["run_at_local"],  # type: ignore[arg-type]
+                task_spec["invocation"],  # type: ignore[arg-type]
+                bool(task_spec["wake"]),
+                logger,
+            )
+        else:
+            backend.create_or_replace(
+                task_name,
+                task_spec["run_at_local"],  # type: ignore[arg-type]
+                task_spec["invocation"],  # type: ignore[arg-type]
+                bool(task_spec["wake"]),
+            )
 
 
 def delete_all_selfsnap_tasks(logger: logging.Logger | None = None) -> list[str]:
