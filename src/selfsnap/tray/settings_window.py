@@ -4,6 +4,7 @@ from dataclasses import dataclass, replace
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+from selfsnap.config_store import save_config
 from selfsnap.models import AppConfig, ConfigValidationError, StoragePreset
 from selfsnap.paths import AppPaths
 from selfsnap.tray.schedule_editor import (
@@ -54,22 +55,22 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     root.minsize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
     root.resizable(True, True)
 
-    preset_var = tk.StringVar(value=storage_preset_label(config.storage_preset))
-    capture_root_var = tk.StringVar(value=config.capture_storage_root)
-    archive_root_var = tk.StringVar(value=config.archive_storage_root)
-    retention_mode_var = tk.StringVar(value=retention_mode_label(config.retention_mode))
-    retention_days_var = tk.StringVar(value="" if config.retention_days is None else str(config.retention_days))
-    capture_mode_var = tk.StringVar(value="Per Monitor" if config.capture_mode == "per_monitor" else "Composite")
-    image_format_var = tk.StringVar(value=config.image_format.upper())
-    image_quality_var = tk.StringVar(value=str(config.image_quality))
-    purge_enabled_var = tk.BooleanVar(value=config.purge_enabled)
-    retention_grace_days_var = tk.StringVar(value=str(config.retention_grace_days))
-    start_tray_on_login_var = tk.BooleanVar(value=config.start_tray_on_login)
-    wake_for_scheduled_captures_var = tk.BooleanVar(value=config.wake_for_scheduled_captures)
-    show_last_capture_status_var = tk.BooleanVar(value=config.show_last_capture_status)
-    notify_on_failed_or_missed_var = tk.BooleanVar(value=config.notify_on_failed_or_missed)
-    notify_on_every_capture_var = tk.BooleanVar(value=config.notify_on_every_capture)
-    show_capture_overlay_var = tk.BooleanVar(value=config.show_capture_overlay)
+    preset_var = tk.StringVar(master=root, value=storage_preset_label(config.storage_preset))
+    capture_root_var = tk.StringVar(master=root, value=config.capture_storage_root)
+    archive_root_var = tk.StringVar(master=root, value=config.archive_storage_root)
+    retention_mode_var = tk.StringVar(master=root, value=retention_mode_label(config.retention_mode))
+    retention_days_var = tk.StringVar(master=root, value="" if config.retention_days is None else str(config.retention_days))
+    capture_mode_var = tk.StringVar(master=root, value="Per Monitor" if config.capture_mode == "per_monitor" else "Composite")
+    image_format_var = tk.StringVar(master=root, value=config.image_format.upper())
+    image_quality_var = tk.StringVar(master=root, value=str(config.image_quality))
+    purge_enabled_var = tk.BooleanVar(master=root, value=config.purge_enabled)
+    retention_grace_days_var = tk.StringVar(master=root, value=str(config.retention_grace_days))
+    start_tray_on_login_var = tk.BooleanVar(master=root, value=config.start_tray_on_login)
+    wake_for_scheduled_captures_var = tk.BooleanVar(master=root, value=config.wake_for_scheduled_captures)
+    show_last_capture_status_var = tk.BooleanVar(master=root, value=config.show_last_capture_status)
+    notify_on_failed_or_missed_var = tk.BooleanVar(master=root, value=config.notify_on_failed_or_missed)
+    notify_on_every_capture_var = tk.BooleanVar(master=root, value=config.notify_on_every_capture)
+    show_capture_overlay_var = tk.BooleanVar(master=root, value=config.show_capture_overlay)
     internal_preset_update = {"active": False}
     drafts: list[RecurringScheduleDraft] = [draft_from_schedule(schedule) for schedule in config.schedules]
     selected_indices: list[int] = []
@@ -253,12 +254,12 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     editor_frame.grid(row=0, column=1, sticky="nsew")
     editor_frame.columnconfigure(1, weight=1)
 
-    label_var = tk.StringVar(value=default_draft().label)
-    every_var = tk.StringVar(value="1")
-    unit_var = tk.StringVar(value=default_unit_label())
-    start_date_var = tk.StringVar(value=format_date_text(default_draft().start_date_local))
-    start_time_var = tk.StringVar(value=format_time_text(default_draft().start_time_local))
-    enabled_var = tk.BooleanVar(value=True)
+    label_var = tk.StringVar(master=root, value=default_draft().label)
+    every_var = tk.StringVar(master=root, value="1")
+    unit_var = tk.StringVar(master=root, value=default_unit_label())
+    start_date_var = tk.StringVar(master=root, value=format_date_text(default_draft().start_date_local))
+    start_time_var = tk.StringVar(master=root, value=format_time_text(default_draft().start_time_local))
+    enabled_var = tk.BooleanVar(master=root, value=True)
     widgets_to_toggle: list[tk.Widget] = []
 
     def _new_default_draft() -> RecurringScheduleDraft:
@@ -553,7 +554,16 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     action_row = ttk.Frame(root, padding=(10, 8))
     action_row.grid(row=1, column=0, sticky="ew")
 
-    def _save_and_close() -> None:
+    def _apply_settings() -> None:
+        # Auto-commit any in-progress schedule edit before validating.
+        if len(selected_indices) == 1:
+            try:
+                drafts[selected_indices[0]] = _draft_from_form(
+                    schedule_id=drafts[selected_indices[0]].schedule_id
+                )
+            except ConfigValidationError as exc:
+                messagebox.showerror("Invalid schedule", str(exc), parent=root)
+                return
         try:
             parsed_schedules = [draft_to_schedule(draft) for draft in drafts]
             retention_mode = retention_mode_value(retention_mode_var.get())
@@ -590,16 +600,25 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         except (ConfigValidationError, ValueError) as exc:
             messagebox.showerror("Invalid settings", str(exc), parent=root)
             return
+        try:
+            save_config(paths, updated)
+        except Exception as exc:
+            messagebox.showerror("Save Failed", f"Could not save settings:\n{exc}", parent=root)
+            return
         result.updated_config = updated
         result.window_size = _capture_size()
-        root.destroy()
+        # Refresh the schedule tree so the Enabled column reflects the committed change.
+        _refresh_tree(select=selected_indices[:1] if selected_indices else [])
+        _save_btn.configure(text="✓ Saved")
+        root.after(1500, lambda: _save_btn.configure(text="Save"))
 
     def _cancel() -> None:
         result.window_size = _capture_size()
         root.destroy()
 
-    ttk.Button(action_row, text="Save", command=_save_and_close).pack(side="right")
-    ttk.Button(action_row, text="Cancel", command=_cancel).pack(side="right", padx=(0, 8))
+    _save_btn = ttk.Button(action_row, text="Save", command=_apply_settings)
+    _save_btn.pack(side="right")
+    ttk.Button(action_row, text="Close", command=_cancel).pack(side="right", padx=(0, 8))
 
     preset_combo.bind("<<ComboboxSelected>>", lambda _event: _set_preset_from_label(preset_var.get()))
     _update_path_state()

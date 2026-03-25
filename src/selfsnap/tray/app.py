@@ -262,7 +262,7 @@ def _open_settings(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
     if result.updated_config is None:
         return
     updated = result.updated_config
-    save_config(paths, updated)
+    # Config was already written to disk by the settings dialog; apply side-effects only.
     _sync_startup_shortcut_safe(paths, updated, setup_logging(paths, updated.log_level))
     sync_scheduler_from_config(paths, emit_console=False)
     icon.update_menu()
