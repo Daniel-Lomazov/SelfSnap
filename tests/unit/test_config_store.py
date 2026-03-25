@@ -76,7 +76,7 @@ def test_load_config_migrates_legacy_schedule_shape(temp_paths) -> None:
 
     loaded = load_config(temp_paths)
 
-    assert loaded.schema_version == 2
+    assert loaded.schema_version == 3
     assert loaded.schedules[0].interval_value == 1
     assert loaded.schedules[0].interval_unit == "day"
     assert loaded.schedules[0].start_time_local == "08:15:00"

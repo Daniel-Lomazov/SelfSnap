@@ -176,6 +176,8 @@ def test_capture_now_runs_out_of_process_and_suppresses_ui_updates_with_settings
 
 def test_report_issue_menu_item_is_default_action(temp_paths, monkeypatch) -> None:
     class FakeMenu(list):
+        SEPARATOR = None
+
         def __init__(self, *items):
             super().__init__(items)
 
@@ -200,7 +202,7 @@ def test_report_issue_menu_item_is_default_action(temp_paths, monkeypatch) -> No
     )
 
     report_items = [
-        item for item in items if not callable(item.text) and item.text == "Report Issue"
+        item for item in items if item is not None and not callable(item.text) and item.text == "Report Issue"
     ]
     assert len(report_items) == 1
     assert report_items[0].default is True
@@ -273,6 +275,8 @@ def test_any_dialog_open_is_true_when_either_dialog_is_open() -> None:
 
 def test_tray_menu_contains_restart_reinstall_and_uninstall_before_exit(temp_paths, monkeypatch) -> None:
     class FakeMenu(list):
+        SEPARATOR = None
+
         def __init__(self, *items):
             super().__init__(items)
 
@@ -296,10 +300,10 @@ def test_tray_menu_contains_restart_reinstall_and_uninstall_before_exit(temp_pat
         SimpleNamespace(MenuItem=FakeMenuItem, Menu=FakeMenu), temp_paths, SimpleNamespace(), state
     )
 
-    labels = [item.text for item in items if not callable(item.text)]
+    labels = [item.text for item in items if item is not None and not callable(item.text)]
     assert labels[-4:] == ["Restart", "Reinstall", "Uninstall", "Exit"]
 
-    submenu_by_label = {item.text: item.action for item in items if not callable(item.text)}
+    submenu_by_label = {item.text: item.action for item in items if item is not None and not callable(item.text)}
     assert [item.text for item in submenu_by_label["Restart"]] == ["Restart SelfSnap"]
     assert [item.text for item in submenu_by_label["Reinstall"]] == [
         "From Local Source",

@@ -50,7 +50,7 @@ def test_pytest_config_keeps_temp_output_out_of_repo() -> None:
     pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
     conftest = Path("tests/conftest.py").read_text(encoding="utf-8")
 
-    assert 'addopts = ["-p", "no:cacheprovider"]' in pyproject
+    assert '"-p", "no:cacheprovider"' in pyproject
     assert ".pytest_tmp" in pyproject
     assert ".pytest-work" in pyproject
     assert 'Path(local_appdata) / "SelfSnap" / "pytest" / "tmp"' in conftest
