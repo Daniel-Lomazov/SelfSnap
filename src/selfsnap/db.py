@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS capture_records (
     archived INTEGER NOT NULL DEFAULT 0,
     archived_at_utc TEXT NULL,
     retention_deleted_at_utc TEXT NULL,
+    purged_utc TEXT NULL,
     app_version TEXT NOT NULL,
     created_utc TEXT NOT NULL
 );
@@ -69,6 +70,8 @@ def ensure_database(db_path: Path) -> None:
         connection.execute(CREATE_CAPTURE_RECORDS)
         _ensure_column(connection, "capture_records", "archived", "INTEGER NOT NULL DEFAULT 0")
         _ensure_column(connection, "capture_records", "archived_at_utc", "TEXT NULL")
+        _ensure_column(connection, "capture_records", "retention_deleted_at_utc", "TEXT NULL")
+        _ensure_column(connection, "capture_records", "purged_utc", "TEXT NULL")
         for statement in CREATE_INDEXES:
             connection.execute(statement)
         connection.commit()
