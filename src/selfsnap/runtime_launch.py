@@ -204,23 +204,6 @@ def launch_background(spec: LaunchSpec) -> subprocess.Popen[str]:
     )
 
 
-def launch_lifecycle_script(spec: LaunchSpec) -> subprocess.Popen[str]:
-    """Launch a lifecycle PowerShell script with a hidden window and redirected I/O.
-
-    Use this instead of launch_background when the executable is a console app
-    (e.g. powershell.exe). DETACHED_PROCESS causes console apps to exit immediately
-    when there are no inherited I/O handles.
-    """
-    return subprocess.Popen(
-        spec.command(),
-        cwd=spec.working_directory,
-        creationflags=_script_creation_flags(),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        stdin=subprocess.DEVNULL,
-    )
-
-
 def run_background_command(spec: LaunchSpec) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         spec.command(),

@@ -12,7 +12,6 @@ from selfsnap.config_store import load_or_create_config, save_config
 from selfsnap.db import connect, ensure_database
 from selfsnap.lifecycle_actions import (
     launch_and_confirm,
-    launch_script_and_confirm,
     resolve_reinstall_invocation,
     resolve_restart_invocation,
     resolve_uninstall_invocation,
@@ -299,13 +298,13 @@ def _reinstall_selfsnap(paths: AppPaths, icon, state: TrayRuntimeState, update_s
     if not _ask_confirmation(title, message, warning=False):
         return
 
-    launched = launch_script_and_confirm(
+    succeeded = run_lifecycle_script_and_check(
         resolve_reinstall_invocation(paths, update_source=update_source, relaunch_tray=True)
     )
-    if not launched:
+    if not succeeded:
         _show_error_dialog(
             title,
-            "SelfSnap could not start the reinstall process. The current tray is still running.",
+            "SelfSnap reinstall failed. Check the reinstall.ps1 script output for details.",
         )
         return
     _exit(icon, state.stop_event)
@@ -321,13 +320,13 @@ def _check_for_updates(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
     if not _ask_confirmation(title, message, warning=False):
         return
 
-    launched = launch_script_and_confirm(
+    succeeded = run_lifecycle_script_and_check(
         resolve_reinstall_invocation(paths, update_source=True, relaunch_tray=True)
     )
-    if not launched:
+    if not succeeded:
         _show_error_dialog(
             title,
-            "SelfSnap could not start the update process. The current tray is still running.",
+            "SelfSnap update failed. The repo may have uncommitted changes or git pull failed.",
         )
         return
     _exit(icon, state.stop_event)

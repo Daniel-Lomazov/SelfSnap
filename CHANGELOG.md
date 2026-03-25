@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.9.3 - 2026-03-25
+
+Why: Make lifecycle script launching uniform and robust across all three tray actions.
+
+- **Refactor — uniform lifecycle launch pattern:** All three tray lifecycle actions (Reinstall, Check for Updates, Uninstall) now use the same `run_lifecycle_script_and_check()` path: synchronous execution via `subprocess.run()`, hidden window, I/O to DEVNULL, exit code is the ground truth. The liveness-window approach (`launch_script_and_confirm` / `_wait_for_process_start`) has been removed entirely. It was fundamentally unreliable because any script that completed (success or failure) within the poll window was misread as a launch failure.
+- **Fix — Check for Updates:** Was using the liveness-window approach. If `git pull --ff-only` failed quickly (dirty repo, credential issue, no network), the script exited non-zero in < 3s and the tray showed "tray is still running" instead of the real error. Now runs synchronously; non-zero exit shows an actionable error message.
+- **Improved error messages:** Reinstall and update failure dialogs now describe the actual failure condition rather than falsely blaming a running tray process.
+- **Dead code removed:** `launch_script_and_confirm`, `launch_lifecycle_script`, and `_wait_for_process_start` removed from the codebase.
+
 ## v0.9.2 - 2026-03-25
 
 Why: CI infrastructure fixes discovered after pushing v0.9.1.

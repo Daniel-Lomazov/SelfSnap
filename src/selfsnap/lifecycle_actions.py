@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-import time
 
 from selfsnap.paths import AppPaths
 from selfsnap.runtime_launch import (
     LaunchSpec,
     launch_background,
-    launch_lifecycle_script,
     resolve_background_python_executable,
     resolve_foreground_python_executable,
     resolve_source_repo_root,
@@ -84,27 +82,13 @@ def resolve_uninstall_invocation(paths: AppPaths, *, remove_user_data: bool) -> 
 
 
 def launch_and_confirm(spec: LaunchSpec, *, wait_seconds: float = 2.0) -> bool:
-    process = launch_background(spec)
-    return _wait_for_process_start(process, wait_seconds=wait_seconds)
+    """Launch a background process (pythonw.exe) and verify it stays alive briefly.
 
-
-def launch_script_and_confirm(spec: LaunchSpec, *, wait_seconds: float = 3.0) -> bool:
-    """Like launch_and_confirm but uses launch_lifecycle_script for console-app launchers."""
-    process = launch_lifecycle_script(spec)
-    return _wait_for_process_start(process, wait_seconds=wait_seconds)
-
-
-def run_lifecycle_script_and_check(spec: LaunchSpec) -> bool:
-    """Run a lifecycle script synchronously. Returns True on exit code 0, False otherwise.
-
-    Use for short-lived scripts (e.g. uninstall) where the script completes
-    before the tray should exit.
+    Only use for non-console background processes (e.g. restart). For PowerShell
+    lifecycle scripts use run_lifecycle_script_and_check instead.
     """
-    result = run_lifecycle_script(spec)
-    return result.returncode == 0
-
-
-def _wait_for_process_start(process, *, wait_seconds: float) -> bool:
+    import time
+    process = launch_background(spec)
     poll = getattr(process, "poll", None)
     if poll is None:
         return True
@@ -114,3 +98,17 @@ def _wait_for_process_start(process, *, wait_seconds: float) -> bool:
             return False
         time.sleep(0.2)
     return poll() is None
+
+
+def run_lifecycle_script_and_check(spec: LaunchSpec) -> bool:
+    """Run a PowerShell lifecycle script synchronously and return True on exit code 0.
+
+    This is the single uniform pattern for all lifecycle scripts (reinstall,
+    check-for-updates, uninstall). Running synchronously means:
+    - No liveness-window race conditions (fast success != launch failure)
+    - Exit code is ground truth (scripts use $ErrorActionPreference=Stop)
+    - The tray thread blocks while the script runs, which is acceptable since
+      the tray exits immediately after on success anyway
+    """
+    result = run_lifecycle_script(spec)
+    return result.returncode == 0
