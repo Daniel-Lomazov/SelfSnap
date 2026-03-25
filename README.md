@@ -1,8 +1,8 @@
 # SelfSnap Win11
 
-SelfSnap Win11 is a Windows 11-only, local-first screenshot utility for personal use. It captures a composite image of all connected monitors on recurring schedules, stores the image locally, and records honest metadata about what happened.
+SelfSnap Win11 is a Windows 11-only, local-first screenshot utility for personal use. It captures screenshots of all connected monitors on recurring schedules, stores them locally, and records honest metadata about what happened.
 
-Current version: `0.8.0`. Technical release history lives in `CHANGELOG.md`.
+Current version: `v0.9.0`. Technical release history lives in `CHANGELOG.md`.
 
 SelfSnap is offline by default. The only user-triggered network actions are opening a browser for `Report Issue` and running `Reinstall -> From Source and Update`, which uses `git pull --ff-only`.
 There is no telemetry or silent upload in normal runtime.
@@ -19,15 +19,20 @@ This repository is public for visibility and issue tracking, but the code remain
 
 ## Current release
 
-`v0.8.0` is the first release where scheduling behaves like a full recurring system instead of a single daily-time list.
+`v0.9.0` builds on the stable recurring schedule engine from v0.8.0 with the following additions:
 
-- Schedules now use `Every N seconds/minutes/hours/days/weeks/months/years` with explicit local start date and start time anchors.
-- Existing daily schedules are migrated into the new recurrence model automatically.
-- Settings now has a real schedule editor with `Add`, `Save`, `Cancel`, `Delete`, single-select editing, and multi-select delete-only behavior.
-- Fast schedules such as `seconds` and `minutes` are tray-managed while the tray is running, while `hours`, `days`, `weeks`, `months`, and `years` are backed by Windows Task Scheduler.
-- The runtime and storage layer were tightened to handle recurrence-aware missed-slot recording, same-second file collisions, and concurrent SQLite activity more safely.
+- **True permanent retention** — archived captures are purged after a configurable grace period (default 30 days). DB records get a `purged_utc` timestamp. Disabled by default; opt in via Settings → Storage.
+- **Per-monitor capture mode** — each display can produce a separate dated image instead of a single composite.
+- **Output format & quality** — choose PNG (lossless), JPEG, or WebP; configure quality (1–100) for lossy formats.
+- **Recent Captures window** — thumbnail quick-view of the last 10 captures, openable from the tray menu.
+- **Statistics window** — totals, storage used, success/miss/fail counts, and a 30-day activity bar chart.
+- **Schedule run history** — last 5 capture outcomes per schedule shown in the schedule editor.
+- **Task Scheduler mock layer** — `InMemoryTaskSchedulerBackend` for environment-safe integration tests.
+- **Property-based tests** — Hypothesis strategies covering recurrence edge cases (leap years, DST, large intervals).
+- **Coverage gate** — CI fails if line coverage drops below 80%.
+- **Pre-commit hooks** — `ruff check --fix`, `ruff format`, and `mypy src` run on staged files.
 
-For a product-style summary, see [`docs/releases/v0.8.0.md`](docs/releases/v0.8.0.md). For the full implementation-facing release history, see [`CHANGELOG.md`](CHANGELOG.md).
+For the full implementation-facing release history, see [`CHANGELOG.md`](CHANGELOG.md).
 
 ## v1 scope
 
@@ -48,56 +53,65 @@ SelfSnap stores screenshots locally. Screenshots may contain sensitive informati
 
 ## Quick start
 
-1. Install Python 3.12 on Windows 11. Python 3.11 is also supported.
-2. From the repository root, run the setup script.
-3. Activate the virtual environment:
+> **Important:** Always use the `.venv` created by `setup.ps1`. The Windows Store Python stub
+> (default `python` on many Windows 11 machines) is Python 3.11 and is **not** used by SelfSnap.
+> All scripts auto-detect `.venv\Scripts\python.exe` — no explicit `-PythonExe` flag needed.
+
+### First install (no prior SelfSnap installation)
 
 ```powershell
+# 1. Create the virtual environment (uses uv + Python 3.12 when available)
 powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
+
+# 2. Install the app, wrapper, and startup shortcut
+powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1
+```
+
+`install.ps1` automatically:
+- Uses `.venv\Scripts\python.exe` (Python 3.12 via uv)
+- Creates `%LOCALAPPDATA%\SelfSnap\bin\SelfSnap.cmd` wrapper
+- Adds the bin directory to your user `PATH`
+- Creates a startup shortcut if `start_tray_on_login` is enabled
+
+### Already installed — just reinstall
+
+If SelfSnap is already installed (wrapper on PATH), the fastest path is:
+
+```powershell
+# From any terminal — no need to be in the repo root
+SelfSnap reinstall
+```
+
+Or from within the repo:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\reinstall.ps1
+```
+
+Or from the tray menu: **Reinstall → From Local Source**.
+
+### Running without installing
+
+```powershell
+# Activate the venv first
 .venv\Scripts\Activate.ps1
+
+# Then run directly
+python -m selfsnap tray
+python -m selfsnap capture --trigger manual
 ```
 
-4. Run diagnostics:
+### Start the tray (after install)
 
 ```powershell
-selfsnap doctor
-selfsnap diag
+SelfSnap tray
 ```
 
-5. Start the tray app:
+### Run diagnostics
 
 ```powershell
-selfsnap tray
-```
-
-6. Trigger a manual capture:
-
-```powershell
-selfsnap capture --trigger manual
-```
-
-7. Optional source-based install with wrapper and startup shortcut:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1 -PythonExe python
-```
-
-If your Python environment uses a nonstandard `pythonw.exe`, pass it explicitly:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1 -PythonExe python -PythonwExe "C:\Path\To\pythonw.exe"
-```
-
-If you want a lean runtime environment without development tools, use:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1 -NoDev
-```
-
-If you change Python versions, rebuild the environment instead of reusing the old `.venv`:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
+SelfSnap doctor
+SelfSnap diag
 ```
 
 ## Runtime storage
@@ -221,10 +235,15 @@ Important fields:
 - `app_enabled`: global enable or disable for scheduled capture
 - `first_run_completed`: whether the first-run setup gate has been completed
 - `storage_preset`: `local_pictures`, `onedrive_pictures`, or `custom`
-- `capture_storage_root`: explicit output folder for PNG files
+- `capture_storage_root`: explicit output folder for image files
 - `archive_storage_root`: explicit archive folder for retention moves
 - `retention_mode`: `keep_forever` or `keep_days`
 - `retention_days`: required only when `retention_mode` is `keep_days`
+- `purge_enabled`: when `true`, archived files are permanently deleted after `retention_grace_days` (default `false`)
+- `retention_grace_days`: days after archiving before permanent deletion (default `30`); only active when `purge_enabled` is `true`
+- `capture_mode`: `composite` (single stitched PNG, default) or `per_monitor` (one file per display)
+- `image_format`: `png` (default), `jpeg`, or `webp`
+- `image_quality`: 1–100 quality for JPEG/WebP (default `85`); ignored for PNG
 - `start_tray_on_login`: controls the Startup-folder shortcut
 - `show_last_capture_status`: toggles the passive latest-status line in the tray menu
 - `notify_on_failed_or_missed`: toggles notifications for failed or missed events
@@ -240,16 +259,16 @@ Important fields:
 - The settings window is resizable in both directions, uses tighter spacing, and opens at a stable minimum size instead of auto-remembering transient resize changes.
 - Manual capture and background tray refreshes do not mutate the open settings window state.
 - Tray `Capture Now` runs through a separate background worker so capture-side DPI or monitor handling cannot resize the settings window.
-- The settings window opens at a larger minimum size to avoid clipped controls and text.
 - Storage preset selection updates both capture and archive roots together.
 - Editing either path manually switches the preset to `custom`.
 - `Reset Capture History` permanently removes SelfSnap capture files, archive files, DB history, logs, config, startup shortcut, and scheduled tasks, then relaunches into first run.
 - Reset is not uninstall: installed app files, wrapper scripts, and repo files stay in place.
-- The tray exposes `Restart`, `Reinstall`, and `Uninstall` before `Exit`.
-- `Reinstall -> From Local Source` is offline and preserves user data by default.
-- `Reinstall -> From Source and Update` requires a clean Git checkout and uses `git pull --ff-only` before reinstalling.
-- `Uninstall -> Keep User Data` removes only startup/task/install links.
-- `Uninstall -> Remove All User Data` removes SelfSnap-owned config, DB, logs, captures, archive files, and app temp data, but not the repo checkout or `.venv`.
+- The tray exposes `Settings`, `Reinstall`, `Uninstall`, `Restart`, and `Exit` (in that order at the bottom of the menu).
+- `Restart` is a single button directly above `Exit`.
+- `Reinstall → From Local Source` is offline and preserves user data by default.
+- `Reinstall → From Source and Update` requires a clean Git checkout and uses `git pull --ff-only` before reinstalling.
+- `Uninstall → Keep User Data` removes only startup/task/install links.
+- `Uninstall → Remove All User Data` removes SelfSnap-owned config, DB, logs, captures, archive files, and app temp data, but not the repo checkout or `.venv`.
 - Background tray, startup, and scheduled operations do not open a visible console window.
 
 ## First run and tray behavior
@@ -315,7 +334,6 @@ This optional build is prepared to create:
 ## Known limitations
 
 - v1 is Windows 11 only.
-- v1 does not implement per-monitor output files.
 - Wake-for-scheduled-captures is best-effort and Windows-dependent.
 - Missed scheduled slots are recorded during tray reconciliation; they are not retried automatically.
 - Full shutdown is not capturable and is never inferred from image content.

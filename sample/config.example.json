@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "app_enabled": false,
   "first_run_completed": false,
   "storage_preset": "local_pictures",
@@ -7,6 +7,11 @@
   "archive_storage_root": "%USERPROFILE%\\Pictures\\SelfSnap\\archive",
   "retention_mode": "keep_forever",
   "retention_days": null,
+  "purge_enabled": false,
+  "retention_grace_days": 30,
+  "capture_mode": "composite",
+  "image_format": "png",
+  "image_quality": 85,
   "start_tray_on_login": true,
   "log_level": "INFO",
   "show_last_capture_status": true,
