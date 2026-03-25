@@ -7,7 +7,7 @@ import re
 from typing import Any
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 SCHEDULE_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
 LOCAL_TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d$")
 LEGACY_LOCAL_TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
@@ -64,6 +64,17 @@ class IntervalUnit(StrEnum):
     WEEK = "week"
     MONTH = "month"
     YEAR = "year"
+
+
+class CaptureMode(StrEnum):
+    COMPOSITE = "composite"
+    PER_MONITOR = "per_monitor"
+
+
+class ImageFormat(StrEnum):
+    PNG = "png"
+    JPEG = "jpeg"
+    WEBP = "webp"
 
 
 def normalize_time_string(value: str) -> str:
@@ -158,6 +169,8 @@ class AppConfig:
     archive_storage_root: str = ""
     retention_mode: str = "keep_forever"
     retention_days: int | None = None
+    purge_enabled: bool = False
+    retention_grace_days: int = 30
     start_tray_on_login: bool = True
     log_level: str = "INFO"
     show_last_capture_status: bool = True
@@ -170,6 +183,9 @@ class AppConfig:
     settings_window_width: int = 960
     settings_window_height: int = 760
     slot_match_tolerance_seconds: int = 120
+    capture_mode: str = CaptureMode.COMPOSITE.value
+    image_format: str = ImageFormat.PNG.value
+    image_quality: int = 85
     schedules: list[Schedule] = field(default_factory=list)
 
     def validate(self) -> None:
@@ -202,6 +218,14 @@ class AppConfig:
             raise ConfigValidationError("settings_window_height must be >= 760")
         if self.slot_match_tolerance_seconds < 0:
             raise ConfigValidationError("slot_match_tolerance_seconds must be >= 0")
+        if self.capture_mode not in {item.value for item in CaptureMode}:
+            raise ConfigValidationError("capture_mode must be composite or per_monitor")
+        if self.image_format not in {item.value for item in ImageFormat}:
+            raise ConfigValidationError("image_format must be png, jpeg, or webp")
+        if not 1 <= self.image_quality <= 100:
+            raise ConfigValidationError("image_quality must be between 1 and 100")
+        if self.retention_grace_days < 1:
+            raise ConfigValidationError("retention_grace_days must be >= 1")
         seen_ids: set[str] = set()
         for schedule in self.schedules:
             schedule.validate()
@@ -229,9 +253,9 @@ class AppConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AppConfig":
         raw_schema_version = int(data.get("schema_version", SCHEMA_VERSION))
-        if raw_schema_version not in {1, SCHEMA_VERSION}:
+        if raw_schema_version not in {1, 2, SCHEMA_VERSION}:
             raise ConfigValidationError(
-                f"schema_version must be 1 or {SCHEMA_VERSION}, got {raw_schema_version}"
+                f"schema_version must be 1, 2, or {SCHEMA_VERSION}, got {raw_schema_version}"
             )
 
         config = cls(
@@ -243,6 +267,8 @@ class AppConfig:
             archive_storage_root=str(data.get("archive_storage_root", "")),
             retention_mode=str(data.get("retention_mode", "keep_forever")),
             retention_days=data.get("retention_days"),
+            purge_enabled=bool(data.get("purge_enabled", False)),
+            retention_grace_days=int(data.get("retention_grace_days", 30)),
             start_tray_on_login=bool(data.get("start_tray_on_login", True)),
             log_level=str(data.get("log_level", "INFO")),
             show_last_capture_status=bool(data.get("show_last_capture_status", True)),
@@ -255,6 +281,9 @@ class AppConfig:
             settings_window_width=int(data.get("settings_window_width", 960)),
             settings_window_height=int(data.get("settings_window_height", 760)),
             slot_match_tolerance_seconds=int(data.get("slot_match_tolerance_seconds", 120)),
+            capture_mode=str(data.get("capture_mode", CaptureMode.COMPOSITE.value)),
+            image_format=str(data.get("image_format", ImageFormat.PNG.value)),
+            image_quality=int(data.get("image_quality", 85)),
             schedules=[Schedule.from_dict(item) for item in data.get("schedules", [])],
         )
         config.validate()
@@ -291,6 +320,7 @@ class CaptureRecord:
     retention_deleted_at_utc: str | None
     app_version: str
     created_utc: str
+    purged_utc: str | None = None
 
     def to_db_tuple(self) -> tuple[Any, ...]:
         return (
@@ -314,6 +344,7 @@ class CaptureRecord:
             1 if self.archived else 0,
             self.archived_at_utc,
             self.retention_deleted_at_utc,
+            self.purged_utc,
             self.app_version,
             self.created_utc,
         )
@@ -341,6 +372,7 @@ class CaptureRecord:
             archived=bool(row["archived"]),
             archived_at_utc=row["archived_at_utc"],
             retention_deleted_at_utc=row["retention_deleted_at_utc"],
+            purged_utc=row.get("purged_utc"),
             app_version=row["app_version"],
             created_utc=row["created_utc"],
         )
