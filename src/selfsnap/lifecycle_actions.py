@@ -30,6 +30,7 @@ def resolve_reinstall_invocation(
     paths: AppPaths,
     *,
     update_source: bool,
+    target_tag: str | None = None,
     relaunch_tray: bool = True,
 ) -> LaunchSpec:
     repo_root = Path(resolve_source_repo_root(paths))
@@ -49,6 +50,8 @@ def resolve_reinstall_invocation(
     ]
     if update_source:
         arguments.append("-UpdateSource")
+    if target_tag:
+        arguments += ["-TargetTag", target_tag]
     if relaunch_tray:
         arguments.append("-RelaunchTray")
     return LaunchSpec(

@@ -2,6 +2,7 @@ param(
     [string]$PythonExe = "",
     [string]$PythonwExe = "",
     [switch]$UpdateSource,
+    [string]$TargetTag = "",
     [switch]$RelaunchTray
 )
 
@@ -103,15 +104,25 @@ try {
             throw "Reinstall from source update requires a valid Git checkout with a .git directory."
         }
 
-        $statusOutput = (& git status --porcelain --untracked-files=normal).Trim()
-        Assert-LastExitCode "git status"
-        if ($statusOutput) {
-            throw "Reinstall from source update requires a clean repo. Commit, stash, or discard local changes first."
-        }
-
         $env:GIT_TERMINAL_PROMPT = "0"
-        & git -c credential.interactive=never pull --ff-only
-        Assert-LastExitCode "git pull --ff-only"
+
+        if ($TargetTag) {
+            # Fetch all tags from origin and hard-reset to the requested tag.
+            # This works regardless of local uncommitted changes.
+            & git -c credential.interactive=never fetch origin --tags
+            Assert-LastExitCode "git fetch --tags"
+            & git reset --hard "refs/tags/$TargetTag"
+            Assert-LastExitCode "git reset --hard $TargetTag"
+        } else {
+            # Legacy fast-forward pull (requires a clean working tree).
+            $statusOutput = (& git status --porcelain --untracked-files=normal).Trim()
+            Assert-LastExitCode "git status"
+            if ($statusOutput) {
+                throw "Reinstall from source update requires a clean repo. Commit, stash, or discard local changes first."
+            }
+            & git -c credential.interactive=never pull --ff-only
+            Assert-LastExitCode "git pull --ff-only"
+        }
     }
 
     & powershell -ExecutionPolicy Bypass -File $installScript -PythonExe $pythonFullPath -PythonwExe $pythonwFullPath

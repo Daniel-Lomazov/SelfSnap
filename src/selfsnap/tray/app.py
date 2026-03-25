@@ -311,22 +311,46 @@ def _reinstall_selfsnap(paths: AppPaths, icon, state: TrayRuntimeState, update_s
 
 
 def _check_for_updates(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
+    from selfsnap.update_checker import compare_versions, fetch_latest_release_tag
+    from selfsnap.version import __version__
+
     title = "Check for Updates"
+
+    latest_tag = fetch_latest_release_tag("Daniel-Lomazov/SelfSnap")
+    if latest_tag is None:
+        _show_error_dialog(
+            title,
+            "Could not reach GitHub to check for updates.\n\n"
+            "Verify your internet connection and try again.",
+        )
+        return
+
+    if compare_versions(__version__, latest_tag) >= 0:
+        _show_info_dialog(
+            title,
+            f"SelfSnap is up to date.\n\nInstalled: v{__version__}\nLatest:    {latest_tag}",
+        )
+        return
+
     message = (
-        "SelfSnap will pull the latest fast-forward changes from the current source checkout, "
-        "reinstall itself, preserve your data, and relaunch the tray.\n\n"
-        "This requires a clean Git checkout with no uncommitted changes.\n\nContinue?"
+        f"A new version is available!\n\n"
+        f"  Installed: v{__version__}\n"
+        f"  Latest:    {latest_tag}\n\n"
+        "Update now? SelfSnap will fetch the new version, reinstall, and relaunch."
     )
     if not _ask_confirmation(title, message, warning=False):
         return
 
     succeeded = run_lifecycle_script_and_check(
-        resolve_reinstall_invocation(paths, update_source=True, relaunch_tray=True)
+        resolve_reinstall_invocation(
+            paths, update_source=True, target_tag=latest_tag, relaunch_tray=True
+        )
     )
     if not succeeded:
         _show_error_dialog(
             title,
-            "SelfSnap update failed. The repo may have uncommitted changes or git pull failed.",
+            f"Update to {latest_tag} failed.\n\n"
+            "Check that you have network access and the release tag exists on GitHub.",
         )
         return
     _exit(icon, state.stop_event)
@@ -621,6 +645,16 @@ def _show_error_dialog(title: str, message: str) -> None:
     root.attributes("-topmost", True)
     try:
         messagebox.showerror(title, message, parent=root)
+    finally:
+        root.destroy()
+
+
+def _show_info_dialog(title: str, message: str) -> None:
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    try:
+        messagebox.showinfo(title, message, parent=root)
     finally:
         root.destroy()
 
