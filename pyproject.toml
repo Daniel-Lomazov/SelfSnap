@@ -44,6 +44,26 @@ pythonpath = ["src"]
 addopts = ["-p", "no:cacheprovider", "--cov=selfsnap", "--cov-fail-under=80", "--cov-report=xml:coverage.xml", "--cov-report=term-missing"]
 norecursedirs = ["tests/.tmp", "artifacts", ".pytest_cache", ".pytest_tmp", ".pytest-work", "pytest-cache-files-*"]
 
+[tool.coverage.run]
+omit = [
+  # Entry-point stubs — no logic, can't be imported without launching a process
+  "*/selfsnap/__main__.py",
+  "*/selfsnap/tray_main.py",
+  "*/selfsnap/worker_main.py",
+  "*/selfsnap/cli.py",
+  # GUI windows — require a live tkinter/pystray display; not testable headless
+  "*/selfsnap/tray/settings_window.py",
+  "*/selfsnap/tray/first_run.py",
+  "*/selfsnap/tray/statistics_window.py",
+  "*/selfsnap/tray/recent_captures_window.py",
+  "*/selfsnap/tray/report_issue_window.py",
+  # Hardware-dependent — requires real monitor/DPI context
+  "*/selfsnap/capture_engine.py",
+  # Tray app shell + startup — pystray event loop; core logic covered via unit tests
+  "*/selfsnap/tray/app.py",
+  "*/selfsnap/tray/startup.py",
+]
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100

@@ -76,7 +76,10 @@ def test_next_occurrence_include_reference_is_gte_reference(
 def test_iter_occurrences_between_is_monotonically_increasing(
     schedule: Schedule, ref: datetime
 ) -> None:
-    end = ref.replace(year=min(ref.year + 2, 2030))
+    from datetime import timedelta
+    # Use timedelta instead of replace(year=...) to avoid leap-day ValueError
+    # (Feb 29 + 2 years would land on a non-leap year)
+    end = ref + timedelta(days=min(365 * 2, (2030 - ref.year) * 365))
     occurrences = list(iter_occurrences_between(schedule, ref, end))
     for a, b in zip(occurrences, occurrences[1:]):
         assert a < b, f"occurrences not monotone: {a} >= {b}"
