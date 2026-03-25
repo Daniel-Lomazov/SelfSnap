@@ -12,6 +12,7 @@ from selfsnap.runtime_launch import (
     resolve_foreground_python_executable,
     resolve_source_repo_root,
     resolve_tray_background_invocation,
+    run_lifecycle_script,
 )
 
 
@@ -91,6 +92,16 @@ def launch_script_and_confirm(spec: LaunchSpec, *, wait_seconds: float = 3.0) ->
     """Like launch_and_confirm but uses launch_lifecycle_script for console-app launchers."""
     process = launch_lifecycle_script(spec)
     return _wait_for_process_start(process, wait_seconds=wait_seconds)
+
+
+def run_lifecycle_script_and_check(spec: LaunchSpec) -> bool:
+    """Run a lifecycle script synchronously. Returns True on exit code 0, False otherwise.
+
+    Use for short-lived scripts (e.g. uninstall) where the script completes
+    before the tray should exit.
+    """
+    result = run_lifecycle_script(spec)
+    return result.returncode == 0
 
 
 def _wait_for_process_start(process, *, wait_seconds: float) -> bool:

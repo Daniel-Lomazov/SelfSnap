@@ -228,3 +228,16 @@ def run_background_command(spec: LaunchSpec) -> subprocess.CompletedProcess[str]
         creationflags=_background_creation_flags(),
         check=False,
     )
+
+
+def run_lifecycle_script(spec: LaunchSpec) -> subprocess.CompletedProcess[str]:
+    """Run a lifecycle PowerShell script synchronously and wait for completion."""
+    return subprocess.run(
+        spec.command(),
+        cwd=spec.working_directory,
+        creationflags=_script_creation_flags(),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL,
+        check=False,
+    )

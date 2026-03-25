@@ -16,6 +16,7 @@ from selfsnap.lifecycle_actions import (
     resolve_reinstall_invocation,
     resolve_restart_invocation,
     resolve_uninstall_invocation,
+    run_lifecycle_script_and_check,
 )
 from selfsnap.logging_setup import setup_logging
 from selfsnap.models import AppConfig, CaptureRecord, OutcomeCategory
@@ -353,13 +354,13 @@ def _uninstall_selfsnap(
     if not _ask_confirmation(title, message, warning=remove_user_data):
         return
 
-    launched = launch_script_and_confirm(
+    succeeded = run_lifecycle_script_and_check(
         resolve_uninstall_invocation(paths, remove_user_data=remove_user_data)
     )
-    if not launched:
+    if not succeeded:
         _show_error_dialog(
             title,
-            "SelfSnap could not start the uninstall process. The current tray is still running.",
+            "SelfSnap uninstall failed. The current tray is still running.",
         )
         return
     _exit(icon, state.stop_event)
