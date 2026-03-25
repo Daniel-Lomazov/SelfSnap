@@ -25,3 +25,6 @@ Thumbs.db
 Desktop.ini
 *.log
 pytest*.out
+.github/
+!/github/workflows/
+!.github/ISSUE_TEMPLATE/

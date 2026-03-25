@@ -25,6 +25,8 @@ dev = [
   "pytest-cov>=5.0.0",
   "ruff>=0.4.0",
   "time-machine>=2.14.1",
+  "hypothesis>=6.100.0",
+  "pre-commit>=3.7.0",
 ]
 
 [project.scripts]
@@ -39,7 +41,7 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = ["-p", "no:cacheprovider"]
+addopts = ["-p", "no:cacheprovider", "--cov=selfsnap", "--cov-fail-under=80", "--cov-report=xml:coverage.xml", "--cov-report=term-missing"]
 norecursedirs = ["tests/.tmp", "artifacts", ".pytest_cache", ".pytest_tmp", ".pytest-work", "pytest-cache-files-*"]
 
 [tool.ruff]
