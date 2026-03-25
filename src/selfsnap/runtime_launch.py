@@ -179,12 +179,45 @@ def _background_creation_flags() -> int:
     )
 
 
+def _script_creation_flags() -> int:
+    """Flags for console-app lifecycle scripts (powershell).
+
+    Intentionally omits DETACHED_PROCESS: powershell.exe launched with
+    DETACHED_PROCESS from a windowless pythonw parent gets no I/O handles
+    and exits immediately, causing the tray to falsely report failure.
+    CREATE_NO_WINDOW suppresses the window without fully detaching.
+    """
+    if sys.platform != "win32":
+        return 0
+    return (
+        getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        | getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    )
+
+
 def launch_background(spec: LaunchSpec) -> subprocess.Popen[str]:
     return subprocess.Popen(
         spec.command(),
         cwd=spec.working_directory,
         creationflags=_background_creation_flags(),
         close_fds=False,
+    )
+
+
+def launch_lifecycle_script(spec: LaunchSpec) -> subprocess.Popen[str]:
+    """Launch a lifecycle PowerShell script with a hidden window and redirected I/O.
+
+    Use this instead of launch_background when the executable is a console app
+    (e.g. powershell.exe). DETACHED_PROCESS causes console apps to exit immediately
+    when there are no inherited I/O handles.
+    """
+    return subprocess.Popen(
+        spec.command(),
+        cwd=spec.working_directory,
+        creationflags=_script_creation_flags(),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL,
     )
 
 

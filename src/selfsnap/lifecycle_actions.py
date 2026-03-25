@@ -7,6 +7,7 @@ from selfsnap.paths import AppPaths
 from selfsnap.runtime_launch import (
     LaunchSpec,
     launch_background,
+    launch_lifecycle_script,
     resolve_background_python_executable,
     resolve_foreground_python_executable,
     resolve_source_repo_root,
@@ -35,6 +36,8 @@ def resolve_reinstall_invocation(
     repo_root = Path(resolve_source_repo_root(paths))
     script_path = _require_script(repo_root, ("scripts", "reinstall.ps1"))
     arguments = [
+        "-WindowStyle", "Hidden",
+        "-NonInteractive",
         "-NoProfile",
         "-ExecutionPolicy",
         "Bypass",
@@ -60,6 +63,8 @@ def resolve_uninstall_invocation(paths: AppPaths, *, remove_user_data: bool) -> 
     repo_root = Path(resolve_source_repo_root(paths))
     script_path = _require_script(repo_root, ("scripts", "uninstall.ps1"))
     arguments = [
+        "-WindowStyle", "Hidden",
+        "-NonInteractive",
         "-NoProfile",
         "-ExecutionPolicy",
         "Bypass",
@@ -79,6 +84,12 @@ def resolve_uninstall_invocation(paths: AppPaths, *, remove_user_data: bool) -> 
 
 def launch_and_confirm(spec: LaunchSpec, *, wait_seconds: float = 2.0) -> bool:
     process = launch_background(spec)
+    return _wait_for_process_start(process, wait_seconds=wait_seconds)
+
+
+def launch_script_and_confirm(spec: LaunchSpec, *, wait_seconds: float = 3.0) -> bool:
+    """Like launch_and_confirm but uses launch_lifecycle_script for console-app launchers."""
+    process = launch_lifecycle_script(spec)
     return _wait_for_process_start(process, wait_seconds=wait_seconds)
 
 

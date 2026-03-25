@@ -12,6 +12,7 @@ from selfsnap.config_store import load_or_create_config, save_config
 from selfsnap.db import connect, ensure_database
 from selfsnap.lifecycle_actions import (
     launch_and_confirm,
+    launch_script_and_confirm,
     resolve_reinstall_invocation,
     resolve_restart_invocation,
     resolve_uninstall_invocation,
@@ -161,19 +162,14 @@ def _build_menu_items(pystray, paths: AppPaths, icon, state: TrayRuntimeState) -
             ),
             pystray.MenuItem(
                 "Reinstall",
-                pystray.Menu(
-                    pystray.MenuItem(
-                        "From Local Source",
-                        lambda _icon, _item: _run_async(
-                            _reinstall_selfsnap, paths, icon, state, False
-                        ),
-                    ),
-                    pystray.MenuItem(
-                        "From Source and Update",
-                        lambda _icon, _item: _run_async(
-                            _reinstall_selfsnap, paths, icon, state, True
-                        ),
-                    ),
+                lambda _icon, _item: _run_async(
+                    _reinstall_selfsnap, paths, icon, state, False
+                ),
+            ),
+            pystray.MenuItem(
+                "Check for Updates",
+                lambda _icon, _item: _run_async(
+                    _check_for_updates, paths, icon, state
                 ),
             ),
             pystray.MenuItem(
@@ -295,26 +291,42 @@ def _restart_selfsnap(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
 
 def _reinstall_selfsnap(paths: AppPaths, icon, state: TrayRuntimeState, update_source: bool) -> None:
     title = "Reinstall SelfSnap"
-    if update_source:
-        message = (
-            "SelfSnap will pull the latest fast-forward changes from the current source checkout, "
-            "reinstall itself, preserve your data, and relaunch the tray.\n\nContinue?"
-        )
-    else:
-        message = (
-            "SelfSnap will reinstall itself from the current local source checkout, preserve your "
-            "data, and relaunch the tray.\n\nContinue?"
-        )
+    message = (
+        "SelfSnap will reinstall itself from the current local source checkout, preserve your "
+        "data, and relaunch the tray.\n\nContinue?"
+    )
     if not _ask_confirmation(title, message, warning=False):
         return
 
-    launched = launch_and_confirm(
+    launched = launch_script_and_confirm(
         resolve_reinstall_invocation(paths, update_source=update_source, relaunch_tray=True)
     )
     if not launched:
         _show_error_dialog(
             title,
             "SelfSnap could not start the reinstall process. The current tray is still running.",
+        )
+        return
+    _exit(icon, state.stop_event)
+
+
+def _check_for_updates(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
+    title = "Check for Updates"
+    message = (
+        "SelfSnap will pull the latest fast-forward changes from the current source checkout, "
+        "reinstall itself, preserve your data, and relaunch the tray.\n\n"
+        "This requires a clean Git checkout with no uncommitted changes.\n\nContinue?"
+    )
+    if not _ask_confirmation(title, message, warning=False):
+        return
+
+    launched = launch_script_and_confirm(
+        resolve_reinstall_invocation(paths, update_source=True, relaunch_tray=True)
+    )
+    if not launched:
+        _show_error_dialog(
+            title,
+            "SelfSnap could not start the update process. The current tray is still running.",
         )
         return
     _exit(icon, state.stop_event)
@@ -341,7 +353,7 @@ def _uninstall_selfsnap(
     if not _ask_confirmation(title, message, warning=remove_user_data):
         return
 
-    launched = launch_and_confirm(
+    launched = launch_script_and_confirm(
         resolve_uninstall_invocation(paths, remove_user_data=remove_user_data)
     )
     if not launched:

@@ -39,7 +39,8 @@ def test_resolve_reinstall_invocation_targets_reinstall_script(temp_paths, monke
     spec = resolve_reinstall_invocation(temp_paths, update_source=True, relaunch_tray=True)
 
     assert spec.executable.lower() == "powershell.exe"
-    assert Path(spec.arguments[4]).name == "reinstall.ps1"
+    file_idx = spec.arguments.index("-File")
+    assert Path(spec.arguments[file_idx + 1]).name == "reinstall.ps1"
     assert "-UpdateSource" in spec.arguments
     assert "-RelaunchTray" in spec.arguments
     assert r"C:\Python312\python.exe" in spec.arguments
@@ -62,6 +63,7 @@ def test_resolve_uninstall_invocation_targets_uninstall_script(temp_paths, monke
     spec = resolve_uninstall_invocation(temp_paths, remove_user_data=True)
 
     assert spec.executable.lower() == "powershell.exe"
-    assert Path(spec.arguments[4]).name == "uninstall.ps1"
+    file_idx = spec.arguments.index("-File")
+    assert Path(spec.arguments[file_idx + 1]).name == "uninstall.ps1"
     assert "-RemoveUserData" in spec.arguments
     assert r"C:\Python312\python.exe" in spec.arguments

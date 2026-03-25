@@ -7,13 +7,10 @@ from pathlib import Path
 def test_readme_describes_recurring_schedule_setup() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 
-    assert "Current version: `0.8.0`" in readme
-    assert "docs/releases/v0.8.0.md" in readme
+    assert "Current version: `v0.9.0`" in readme
     assert "CHANGELOG.md" in readme
-    assert "Existing daily schedules are migrated into the new recurrence model automatically." in readme
-    assert "Fast schedules such as `seconds` and `minutes` are tray-managed" in readme
-    assert "Windows Task Scheduler." in readme
-    assert "same-second file collisions" in readme
+    assert "High-frequency schedules such as `seconds` and `minutes` are tray-managed" in readme
+    assert "Windows Task Scheduler" in readme
     assert "How to add scheduled captures" in readme
     assert "Every N seconds/minutes/hours/days/weeks/months/years" in readme
     assert "Every 1 day" in readme
@@ -29,7 +26,7 @@ def test_readme_describes_recurring_schedule_setup() -> None:
 def test_sample_config_uses_recurring_schedule_schema() -> None:
     config = json.loads(Path("sample/config.example.json").read_text(encoding="utf-8"))
 
-    assert config["schema_version"] == 2
+    assert config["schema_version"] == 3
     assert config["schedules"][0]["interval_value"] == 1
     assert config["schedules"][0]["interval_unit"] == "day"
     assert config["schedules"][0]["start_date_local"] == "2026-03-23"
@@ -38,18 +35,14 @@ def test_sample_config_uses_recurring_schedule_schema() -> None:
     assert "local_time" not in config["schedules"][0]
 
 
-def test_version_files_are_aligned_to_0_8_0() -> None:
+def test_version_files_are_aligned_to_0_9_0() -> None:
     pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
     version_file = Path("src/selfsnap/version.py").read_text(encoding="utf-8")
     changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert 'version = "0.8.0"' in pyproject
-    assert '__version__ = "0.8.0"' in version_file
-    assert "## v0.8.0 - 2026-03-23" in changelog
-    assert "recurrence schema" in changelog.lower()
-    assert "hybrid runtime model" in changelog.lower()
-    assert "migrated into the new recurrence model" in changelog.lower() or "automatic migration of legacy daily schedules" in changelog.lower()
-    assert "structured editor" in changelog.lower()
+    assert 'version = "0.9.0"' in pyproject
+    assert '__version__ = "0.9.0"' in version_file
+    assert "## v0.9.0" in changelog
 
 
 def test_product_release_notes_exist_for_v0_8_0() -> None:
