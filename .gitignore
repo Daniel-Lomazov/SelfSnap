@@ -28,3 +28,4 @@ pytest*.out
 .github/
 !/github/workflows/
 !.github/ISSUE_TEMPLATE/
+!.github/copilot-instructions.md
