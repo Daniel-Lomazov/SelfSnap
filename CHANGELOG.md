@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.9.0 - 2026-03-25
+
+Why: Four investment areas advance SelfSnap toward v1.0: true permanent retention, capture quality controls, in-tray observability, and developer experience hardening.
+
+- **True Permanent Retention (E1.1):** `retention.py` gains a second purge pass (`apply_purge`) that permanently deletes archived files after a configurable grace period (default 30 days). `purge_enabled` and `retention_grace_days` added to `AppConfig` (schema v3). `CaptureRecord` gains `purged_utc` timestamp. Settings UI shows grace-period spinner.
+- **Capture Quality Controls (E2.1, E2.2):** `capture_engine.py` supports both composite and per-monitor capture modes. `CaptureImage` returns a list of images. `image_format` (png/jpeg/webp) and `image_quality` (1–100) are configurable via Settings. `worker.py` and test fixtures updated.
+- **History & Observability (E3.1, E3.2, E3.3):** New `recent_captures_window.py` shows a thumbnail quick-view of the last 10 captures with timestamps and trigger tooltips. New `statistics_window.py` shows totals, storage used, outcome counts, and a 30-day Canvas bar chart. Both are accessible from the tray menu. Schedule editor shows per-schedule run history (last 5 outcomes).
+- **Developer Experience (E1.3, E1.4, E4.1, E4.2):** pytest-cov gate at 80% line coverage. `.pre-commit-config.yaml` with ruff + mypy hooks. `hypothesis` property-based tests for recurrence semantics. `TaskSchedulerBackend` protocol with `InMemoryTaskSchedulerBackend` decouples scheduler tests from live Windows Task Scheduler.
+- **Docs:** `.github/copilot-instructions.md` added for Copilot context continuity.
+
 ## v0.8.0 - 2026-03-23
 
 Why: The recurring schedule overhaul replaced the old daily-time model with a broader recurrence system and the runtime needed to execute it safely.
