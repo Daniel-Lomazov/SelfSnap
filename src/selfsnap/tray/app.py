@@ -33,9 +33,11 @@ from selfsnap.runtime_probe import probe_runtime_dependencies
 from selfsnap.scheduler.reconcile import reconcile_missed_slots
 from selfsnap.scheduler.task_scheduler import sync_scheduler_from_config
 from selfsnap.tray.first_run import show_first_run_dialog
+from selfsnap.tray.recent_captures_window import show_recent_captures_window
 from selfsnap.tray.report_issue_window import show_report_issue_dialog
 from selfsnap.tray.settings_window import show_settings_dialog
 from selfsnap.tray.startup import sync_startup_shortcut
+from selfsnap.tray.statistics_window import show_statistics_window
 from selfsnap.worker import EXIT_OK
 
 
@@ -145,6 +147,15 @@ def _build_menu_items(pystray, paths: AppPaths, icon, state: TrayRuntimeState) -
             pystray.MenuItem(
                 "Open Latest Capture", lambda _icon, _item: _open_latest_capture(paths)
             ),
+            pystray.MenuItem(
+                "Recent Captures",
+                lambda _icon, _item: show_recent_captures_window(paths),
+            ),
+            pystray.MenuItem(
+                "Statistics",
+                lambda _icon, _item: show_statistics_window(paths),
+            ),
+            pystray.Menu.SEPARATOR,
             pystray.MenuItem(
                 "Settings", lambda _icon, _item: _run_async(_open_settings, paths, icon, state)
             ),
