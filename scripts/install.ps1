@@ -41,6 +41,7 @@ function Resolve-PythonwPath {
     )
 
     if ($ExplicitPythonw) {
+        $candidate = $null
         $pythonwCommand = Get-Command $ExplicitPythonw -ErrorAction SilentlyContinue
         if ($pythonwCommand -and $pythonwCommand.Source) {
             $candidate = $pythonwCommand.Source
@@ -48,32 +49,35 @@ function Resolve-PythonwPath {
         elseif (Test-Path $ExplicitPythonw) {
             $candidate = (Resolve-Path $ExplicitPythonw).Path
         }
-        else {
+        if (-not $candidate) {
             throw "Explicit pythonw executable '$ExplicitPythonw' was not found. Pass a full path or a command available on PATH."
         }
-
-        $resolved = (& $candidate -c "import sys; print(sys.executable)").Trim()
-        Assert-LastExitCode "pythonw path resolution"
-        if (-not $resolved) {
-            throw "Could not resolve the full pythonw executable path from '$candidate'."
+        if ([System.IO.Path]::GetFileName($candidate).ToLowerInvariant() -ne "pythonw.exe") {
+            throw "The explicit -PythonwExe value must resolve to pythonw.exe, got: $candidate"
         }
-        if ([System.IO.Path]::GetFileName($resolved).ToLowerInvariant() -ne "pythonw.exe") {
-            throw "The explicit -PythonwExe value must resolve to pythonw.exe, got: $resolved"
-        }
-        return $resolved
+        return $candidate
     }
 
+    # Same directory as python.exe (standard layout)
     $candidate = Join-Path (Split-Path -Parent $PythonPath) "pythonw.exe"
     if (Test-Path $candidate) {
         return (Resolve-Path $candidate).Path
     }
 
+    # For .venv, pythonw.exe lives in the base Python install (e.g. uv-managed or system)
+    $basePrefix = (& $PythonPath -c "import sys; print(sys.base_prefix)").Trim()
+    if ($basePrefix) {
+        $candidate = Join-Path $basePrefix "pythonw.exe"
+        if (Test-Path $candidate) {
+            return (Resolve-Path $candidate).Path
+        }
+    }
+
     $pythonwCommand = Get-Command pythonw -ErrorAction SilentlyContinue
-    if ($pythonwCommand -and $pythonwCommand.Source) {
-        $resolved = (& $pythonwCommand.Source -c "import sys; print(sys.executable)").Trim()
-        Assert-LastExitCode "pythonw command resolution"
-        if ($resolved -and [System.IO.Path]::GetFileName($resolved).ToLowerInvariant() -eq "pythonw.exe") {
-            return $resolved
+    if ($pythonwCommand -and $pythonwCommand.Source -and (Test-Path $pythonwCommand.Source)) {
+        $src = $pythonwCommand.Source
+        if ([System.IO.Path]::GetFileName($src).ToLowerInvariant() -eq "pythonw.exe") {
+            return $src
         }
     }
 
@@ -82,7 +86,8 @@ function Resolve-PythonwPath {
 
 function Resolve-PythonPath {
     param(
-        [string]$PythonPreference
+        [string]$PythonPreference,
+        [string]$RepoRoot
     )
 
     if ($PythonPreference) {
@@ -93,6 +98,15 @@ function Resolve-PythonPath {
         Assert-LastExitCode "python path resolution"
         if ($resolved) {
             return $resolved
+        }
+    }
+
+    # Prefer the repo .venv when no explicit preference is given
+    if ($RepoRoot) {
+        $venvPython = Join-Path $RepoRoot ".venv\Scripts\python.exe"
+        if (Test-Path $venvPython) {
+            Write-Host "Using repo .venv Python: $venvPython"
+            return (Resolve-Path $venvPython).Path
         }
     }
 
@@ -125,7 +139,7 @@ $metaPath = Join-Path $binRoot "install-meta.json"
 $startupDir = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Startup"
 $shortcutPath = Join-Path $startupDir "SelfSnap Win11.lnk"
 
-$pythonFullPath = Resolve-PythonPath -PythonPreference $PythonExe
+$pythonFullPath = Resolve-PythonPath -PythonPreference $PythonExe -RepoRoot $repoRoot
 $pythonwPath = Resolve-PythonwPath -PythonPath $pythonFullPath -ExplicitPythonw $PythonwExe
 
 Push-Location $repoRoot
@@ -148,6 +162,15 @@ setlocal
 "$pythonFullPath" -m selfsnap %*
 "@
 Set-Content -Path $wrapperPath -Value $wrapperContent -Encoding Ascii
+
+# Ensure the bin directory is on the user PATH
+$userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
+if ($userPath -notlike "*$binRoot*") {
+    $newPath = if ($userPath) { "$userPath;$binRoot" } else { $binRoot }
+    [Environment]::SetEnvironmentVariable("PATH", $newPath, "User")
+    $env:PATH = "$env:PATH;$binRoot"
+    Write-Host "Added $binRoot to user PATH."
+}
 
 @{
     metadata_version = 1

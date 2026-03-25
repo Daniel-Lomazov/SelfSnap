@@ -20,7 +20,8 @@ function Assert-LastExitCode {
 
 function Resolve-PythonPath {
     param(
-        [string]$PythonPreference
+        [string]$PythonPreference,
+        [string]$RepoRoot
     )
 
     if ($PythonPreference) {
@@ -31,6 +32,15 @@ function Resolve-PythonPath {
         Assert-LastExitCode "python path resolution"
         if ($resolved) {
             return $resolved
+        }
+    }
+
+    # Prefer the repo .venv when no explicit preference is given
+    if ($RepoRoot) {
+        $venvPython = Join-Path $RepoRoot ".venv\Scripts\python.exe"
+        if (Test-Path $venvPython) {
+            Write-Host "Using repo .venv Python: $venvPython"
+            return (Resolve-Path $venvPython).Path
         }
     }
 
@@ -69,12 +79,21 @@ function Resolve-PythonwPath {
         return (Resolve-Path $candidate).Path
     }
 
+    # For .venv, pythonw.exe lives in the base Python install, not the venv Scripts dir
+    $basePrefix = (& $PythonPath -c "import sys; print(sys.base_prefix)").Trim()
+    if ($basePrefix) {
+        $candidate = Join-Path $basePrefix "pythonw.exe"
+        if (Test-Path $candidate) {
+            return (Resolve-Path $candidate).Path
+        }
+    }
+
     throw "pythonw.exe was not found next to the selected Python interpreter. Pass -PythonwExe explicitly if needed."
 }
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $installScript = Join-Path $repoRoot "scripts\install.ps1"
-$pythonFullPath = Resolve-PythonPath -PythonPreference $PythonExe
+$pythonFullPath = Resolve-PythonPath -PythonPreference $PythonExe -RepoRoot $repoRoot
 $pythonwFullPath = Resolve-PythonwPath -PythonPath $pythonFullPath -ExplicitPythonw $PythonwExe
 
 Push-Location $repoRoot
