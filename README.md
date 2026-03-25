@@ -2,7 +2,7 @@
 
 SelfSnap Win11 is a Windows 11-only, local-first screenshot utility for personal use. It captures screenshots of all connected monitors on recurring schedules, stores them locally, and records honest metadata about what happened.
 
-Current version: `v0.9.0`. Technical release history lives in `CHANGELOG.md`.
+Current version: `v0.9.1`. Technical release history lives in `CHANGELOG.md`.
 
 SelfSnap is offline by default. The only user-triggered network actions are opening a browser for `Report Issue` and running `Reinstall -> From Source and Update`, which uses `git pull --ff-only`.
 There is no telemetry or silent upload in normal runtime.

@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.9.1 - 2026-03-25
+
+Why: Post-release operational fixes discovered during first use of v0.9.0 on a live install.
+
+- **Fix — reinstall launch failure:** `powershell.exe` launched with `DETACHED_PROCESS` from a windowless `pythonw.exe` parent received no I/O handles and exited within the 2-second confirmation window, causing the tray to falsely report "tray is still running." Added `launch_lifecycle_script()` (no `DETACHED_PROCESS`, I/O to DEVNULL) and `launch_script_and_confirm()` with a 3-second timeout. Added `-WindowStyle Hidden -NonInteractive` to all PowerShell lifecycle invocations.
+- **Fix — uninstall launch failure:** `uninstall.ps1` completes in under 3 seconds; a successful exit code was misread as a launch failure by `_wait_for_process_start`. Uninstall now runs synchronously via `run_lifecycle_script_and_check()`; exit code 0 = success, non-zero = failure. Tray exits cleanly on success.
+- **Fix — Python path resolution:** `install.ps1` and `reinstall.ps1` now prefer `.venv\Scripts\python.exe` over the Windows Store Python stub. `pythonw.exe` is resolved via `sys.base_prefix` fallback for uv-managed venvs. Bin directory is registered on user PATH automatically.
+- **Tray menu — Restart:** Flattened from a submenu to a single button, moved directly above Exit.
+- **Tray menu — Reinstall / Check for Updates:** Replaced the Reinstall submenu (From Local Source / From Source and Update) with two flat buttons: `Reinstall` (offline, local source) and `Check for Updates` (git pull + reinstall).
+- **Docs:** README and `sample/config.example.json` updated for v0.9.0 features, venv-only setup flow, and new tray menu structure. `schema_version` in example bumped to 3.
+- **Git hygiene:** `.github/agents/` and `.github/skills/` unblocked from `.gitignore` and committed; `.hypothesis/` added to ignore list.
+
 ## v0.9.0 - 2026-03-25
 
 Why: Four investment areas advance SelfSnap toward v1.0: true permanent retention, capture quality controls, in-tray observability, and developer experience hardening.
