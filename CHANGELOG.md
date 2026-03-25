@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.9.2 - 2026-03-25
+
+Why: CI infrastructure fixes discovered after pushing v0.9.1.
+
+- **Fix — CI coverage gate:** GUI windows, entry-point stubs, and hardware-dependent modules were included in coverage measurement but can't run headless. Added `[tool.coverage.run]` omit list; coverage after omit is 80.09% (gate passes).
+- **Fix — Hypothesis leap-day crash:** `test_iter_occurrences_between_is_monotonically_increasing` used `ref.replace(year=ref.year+2)` which raises `ValueError` when `ref` is Feb 29 and the target year is not a leap year. Fixed using `timedelta` arithmetic.
+
 ## v0.9.1 - 2026-03-25
 
 Why: Post-release operational fixes discovered during first use of v0.9.0 on a live install.
