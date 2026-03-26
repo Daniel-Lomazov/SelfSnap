@@ -29,6 +29,5 @@ pytest*.out
 !.github/agents/
 !.github/workflows/
 !.github/ISSUE_TEMPLATE/
-!.github/skills/
 !.github/copilot-instructions.md
 .hypothesis/
