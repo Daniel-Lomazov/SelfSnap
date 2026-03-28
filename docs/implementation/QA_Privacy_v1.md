@@ -4,6 +4,7 @@
 
 - No cloud sync or remote upload
 - No stealth mode
+- v1 does not encrypt captures at rest
 - Tray must remain visible while active
 - Logs must not include image contents or inferred activity
 - User-visible indicators are layered and independently togglable
@@ -20,6 +21,7 @@
 - Screenshots, screenshot contents, logs, DB contents, and local storage paths are never attached automatically to issue reports
 - Issue reporting is browser-mediated only; the app does not create GitHub issues directly
 - Stale ACL-poisoned pytest folders are cleaned with a dedicated elevated script, not by normal app flow
+- First-run and Settings must state plainly that captures are local-only and unencrypted at rest in v1
 
 ## Manual QA focus
 

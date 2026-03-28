@@ -12,6 +12,8 @@ There is no telemetry or silent upload in normal runtime.
 - Pre-`1.0` Windows 11 utility focused on local scheduled screenshot capture
 - Stable for personal-use iteration, with versioned releases and CI validation
 - Source-based install is the primary supported path
+- Working toward a public `1.0` release for privacy-minded Windows power users
+- Current public-release trust boundary and ship gate: `docs/implementation/RELEASE_CRITERIA_1_0.md`
 
 ## License
 
@@ -38,7 +40,8 @@ For the full implementation-facing release history, see [`CHANGELOG.md`](CHANGEL
 - Logged-in desktop session only
 - Manual capture
 - Recurring schedules using a hybrid tray and Windows Task Scheduler model
-- Local PNG output
+- Local image output with configurable `png`, `jpeg`, or `webp` formats
+- Composite capture by default, with optional per-monitor output
 - Local SQLite metadata
 - Rotating text logs
 - Minimal tray control surface
@@ -48,6 +51,7 @@ For the full implementation-facing release history, see [`CHANGELOG.md`](CHANGEL
 ## Privacy warning
 
 SelfSnap stores screenshots locally. Screenshots may contain sensitive information such as messages, credentials, finance pages, or work material. v1 does not encrypt captures at rest. Use only on a machine and storage location you control.
+The first-run and Settings surfaces repeat this warning in-product.
 
 ## Quick start
 
@@ -86,7 +90,7 @@ Or from within the repo:
 powershell -ExecutionPolicy Bypass -File .\scripts\reinstall.ps1
 ```
 
-Or from the tray menu: **Reinstall → From Local Source**.
+Or from the tray menu: **Reinstall**.
 
 ### Running without installing
 

@@ -20,6 +20,17 @@
 - A separate elevated cleanup script removes stale ACL-poisoned pytest folders when needed.
 - GitHub issue intake is handled by repository workflows, not by long-running local services.
 
+## Trust boundary
+
+- SelfSnap is local-first: no telemetry, no cloud sync, and no silent upload during normal runtime.
+- `Report Issue` and `Check for Updates` are user-triggered only.
+- v1 does not encrypt captures at rest; use only on a machine and storage location the user controls.
+
+## Capture contracts
+
+- Capture output supports `png`, `jpeg`, and `webp` image formats.
+- Capture mode supports a composite image by default or one image per monitor in per-monitor mode.
+
 ## Storage contracts
 
 - Config, DB, logs, wrapper, and runtime state: `%LOCALAPPDATA%\SelfSnap\`

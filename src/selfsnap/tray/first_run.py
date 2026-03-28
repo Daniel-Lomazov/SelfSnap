@@ -1,15 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import replace
 import tkinter as tk
+from dataclasses import replace
 from tkinter import filedialog, messagebox, ttk
 
 from selfsnap.models import AppConfig, ConfigValidationError, StoragePreset
 from selfsnap.paths import AppPaths
-from selfsnap.tray.schedule_editor import first_run_schedule_help_text
 from selfsnap.storage import apply_storage_preset, validate_storage_config
-from selfsnap.ui_labels import storage_preset_label, storage_preset_labels, storage_preset_value
-
+from selfsnap.tray.schedule_editor import first_run_schedule_help_text
+from selfsnap.ui_labels import (
+    local_privacy_notice,
+    storage_preset_label,
+    storage_preset_labels,
+    storage_preset_value,
+)
 
 WINDOW_MIN_WIDTH = 960
 WINDOW_MIN_HEIGHT = 760
@@ -27,8 +31,12 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
     root.resizable(True, True)
 
     preset_var = tk.StringVar(value=storage_preset_label(config.storage_preset))
-    capture_root_var = tk.StringVar(value=config.capture_storage_root or str(paths.default_capture_root))
-    archive_root_var = tk.StringVar(value=config.archive_storage_root or str(paths.default_archive_root))
+    capture_root_var = tk.StringVar(
+        value=config.capture_storage_root or str(paths.default_capture_root)
+    )
+    archive_root_var = tk.StringVar(
+        value=config.archive_storage_root or str(paths.default_archive_root)
+    )
     enable_schedules_var = tk.BooleanVar(value=config.app_enabled)
     show_last_capture_status_var = tk.BooleanVar(value=config.show_last_capture_status)
     notify_on_failed_or_missed_var = tk.BooleanVar(value=config.notify_on_failed_or_missed)
@@ -55,7 +63,9 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
 
     def _capture_size() -> tuple[int, int]:
         root.update_idletasks()
-        return max(root.winfo_width(), WINDOW_MIN_WIDTH), max(root.winfo_height(), WINDOW_MIN_HEIGHT)
+        return max(root.winfo_width(), WINDOW_MIN_WIDTH), max(
+            root.winfo_height(), WINDOW_MIN_HEIGHT
+        )
 
     intro_label = ttk.Label(
         content,
@@ -68,8 +78,16 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
     intro_label.grid(row=0, column=0, sticky="ew", pady=(0, 8))
     _bind_wrap(intro_label)
 
+    privacy_label = ttk.Label(
+        content,
+        text=local_privacy_notice(),
+        justify="left",
+    )
+    privacy_label.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+    _bind_wrap(privacy_label)
+
     storage_frame = ttk.LabelFrame(content, text="Storage", padding=10)
-    storage_frame.grid(row=1, column=0, sticky="ew")
+    storage_frame.grid(row=2, column=0, sticky="ew")
     storage_frame.columnconfigure(1, weight=1)
 
     def _apply_preset_from_label(selected_label: str) -> None:
@@ -109,7 +127,9 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
     )
     preset_combo.grid(row=0, column=1, sticky="ew", pady=(0, 6))
 
-    ttk.Label(storage_frame, text="Capture Storage Root").grid(row=1, column=0, sticky="w", pady=(0, 6))
+    ttk.Label(storage_frame, text="Capture Storage Root").grid(
+        row=1, column=0, sticky="w", pady=(0, 6)
+    )
     capture_entry = ttk.Entry(storage_frame, textvariable=capture_root_var)
     capture_entry.grid(row=1, column=1, sticky="ew", pady=(0, 6))
     capture_browse = ttk.Button(
@@ -119,7 +139,9 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
     )
     capture_browse.grid(row=1, column=2, sticky="w", padx=(6, 0), pady=(0, 6))
 
-    ttk.Label(storage_frame, text="Archive Storage Root").grid(row=2, column=0, sticky="w", pady=(0, 6))
+    ttk.Label(storage_frame, text="Archive Storage Root").grid(
+        row=2, column=0, sticky="w", pady=(0, 6)
+    )
     archive_entry = ttk.Entry(storage_frame, textvariable=archive_root_var)
     archive_entry.grid(row=2, column=1, sticky="ew", pady=(0, 6))
     archive_browse = ttk.Button(
@@ -130,7 +152,7 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
     archive_browse.grid(row=2, column=2, sticky="w", padx=(6, 0), pady=(0, 6))
 
     visibility_frame = ttk.LabelFrame(content, text="Visibility", padding=10)
-    visibility_frame.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+    visibility_frame.grid(row=3, column=0, sticky="ew", pady=(8, 0))
     ttk.Checkbutton(
         visibility_frame,
         text="Start tray on login after setup",
@@ -161,14 +183,14 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
         content,
         text="Enable scheduled capture after setup",
         variable=enable_schedules_var,
-    ).grid(row=3, column=0, sticky="w", pady=(8, 0))
+    ).grid(row=4, column=0, sticky="w", pady=(8, 0))
 
     schedules_help = ttk.Label(
         content,
         text=first_run_schedule_help_text(),
         justify="left",
     )
-    schedules_help.grid(row=4, column=0, sticky="ew", pady=(6, 0))
+    schedules_help.grid(row=5, column=0, sticky="ew", pady=(6, 0))
     _bind_wrap(schedules_help)
 
     result: dict[str, AppConfig | None] = {"value": None}
@@ -202,7 +224,7 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
         root.destroy()
 
     button_row = ttk.Frame(content)
-    button_row.grid(row=5, column=0, sticky="ew", pady=(10, 0))
+    button_row.grid(row=6, column=0, sticky="ew", pady=(10, 0))
     ttk.Button(button_row, text="Finish Setup", command=_save_and_close).pack(side="right")
     ttk.Button(button_row, text="Cancel", command=root.destroy).pack(side="right", padx=(0, 8))
 

@@ -16,6 +16,8 @@ Team-authored implementation and validation documents for the working v1 codebas
 
 - `implementation/PRD_v1.md`
 - `implementation/SRS_Architecture_v1.md`
+- `implementation/RELEASE_CRITERIA_1_0.md`
+- `implementation/BENCHMARK_1_0_BASELINE.md`
 - `implementation/QA_Privacy_v1.md`
 - `implementation/ISSUE_REPORTING.md`
 - `implementation/VALIDATION_CHECKLIST.md`

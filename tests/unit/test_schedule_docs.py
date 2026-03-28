@@ -9,6 +9,7 @@ def test_readme_describes_recurring_schedule_setup() -> None:
 
     assert "Current version: `v0.9.4`" in readme
     assert "CHANGELOG.md" in readme
+    assert "RELEASE_CRITERIA_1_0.md" in readme
     assert "High-frequency schedules such as `seconds` and `minutes` are tray-managed" in readme
     assert "Windows Task Scheduler" in readme
     assert "How to add scheduled captures" in readme
@@ -69,4 +70,31 @@ def test_release_workflow_prefers_release_notes_doc() -> None:
     assert "docs/releases/${tag}.md" in workflow
     assert "fs.existsSync(releaseNotesPath)" in workflow
     assert 'fs.readFileSync(releaseNotesPath, "utf8")' in workflow
-    assert 'changelog.slice(start' in workflow
+    assert "changelog.slice(start" in workflow
+
+
+def test_release_criteria_doc_describes_public_1_0_contract() -> None:
+    criteria = Path("docs/implementation/RELEASE_CRITERIA_1_0.md").read_text(encoding="utf-8")
+    docs_index = Path("docs/README.md").read_text(encoding="utf-8")
+
+    assert "public release" in criteria
+    assert "No telemetry" in criteria
+    assert "No cloud sync" in criteria
+    assert "does not encrypt captures at rest" in criteria
+    assert "Go / no-go gate" in criteria
+    assert "RELEASE_CRITERIA_1_0.md" in docs_index
+
+
+def test_baseline_benchmark_doc_tracks_current_1_0_starting_point() -> None:
+    benchmark = Path("docs/implementation/BENCHMARK_1_0_BASELINE.md").read_text(
+        encoding="utf-8"
+    )
+    docs_index = Path("docs/README.md").read_text(encoding="utf-8")
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    assert "v0.9.4" in benchmark
+    assert "Windows 11-only" in benchmark
+    assert "source-based install" in benchmark
+    assert "Scheduler correctness at DST and timezone boundaries" in benchmark
+    assert "BENCHMARK_1_0_BASELINE.md" in docs_index
+    assert "Or from the tray menu: **Reinstall**." in readme

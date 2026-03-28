@@ -5,6 +5,7 @@
 - Install dependencies or run the source-based install script.
 - Run `selfsnap diag` and confirm config, DB, log, Pictures capture, and Pictures archive paths are created.
 - Start `selfsnap tray` and confirm a tray icon appears.
+- Confirm the first-run dialog states that captures stay local, the runtime is offline by default, and v1 does not encrypt captures at rest.
 - Open Settings, then use the tray default action or menu `Report Issue` and confirm the report dialog still opens without affecting Settings geometry.
 - Complete the first-run setup dialog and confirm scheduled capture stays OFF unless explicitly enabled there.
 - If the tray settings window has been opened and reused, confirm a manual capture does not change its size or reopen it smaller.
@@ -22,6 +23,7 @@
 - Confirm the settings window can be resized in both directions and content widens without cropping.
 - Confirm a manual capture does not resize an open settings window and that reopening returns to the stable minimum size.
 - Confirm reinstall keeps user data and settings by default.
+- Confirm the Settings window repeats the local-only / not-encrypted-at-rest warning.
 - Confirm `Report Issue` never attaches screenshots, logs, or local file paths automatically.
 - Confirm `Report Issue` opens only a browser page and does not submit anything silently from the app.
 - If one tray launch shows both a parent `.venv` `pythonw.exe` and a child `uv`-backed `pythonw.exe` in Task Manager, do not treat that alone as a failure. Only treat it as a bug if duplicate tray icons, duplicate notifications, or duplicate Settings windows appear.
@@ -29,7 +31,8 @@
 ## Manual capture
 
 - Use tray `Capture Now` or run `selfsnap capture --trigger manual`.
-- Confirm a PNG is written under the configured capture root.
+- Confirm image file(s) are written under the configured capture root using the selected image format.
+- If capture mode is `per_monitor`, confirm one file per display is written.
 - Confirm the SQLite database contains a `capture_saved` record.
 - Confirm the log file records the run without leaking content details.
 
@@ -39,7 +42,7 @@
 - Save Settings and confirm scheduler sync succeeds immediately, or that a persistent failed-sync warning appears.
 - Confirm `schtasks /Query` shows `SelfSnap.Capture.<schedule_id>`.
 - Wait for the schedule or temporarily set a near-future time.
-- Confirm the scheduled capture creates a PNG and metadata row.
+- Confirm the scheduled capture creates image file(s) in the selected format and a metadata row.
 
 ## Failure and status handling
 
@@ -50,7 +53,7 @@
 
 ## Output verification
 
-- Confirm filenames follow `cap_YYYY-MM-DD_HH-MM-SS_trigger_schedule.png`.
+- Confirm filenames use the `cap_YYYY-MM-DD_HH-MM-SS_...` prefix and the configured file extension.
 - Confirm the latest record can be opened from the tray.
 - Confirm the capture folder opens from the tray.
 - Confirm `Report Issue` opens a GitHub issue page in the browser.
@@ -66,8 +69,8 @@
 ## Packaging and install
 
 - Run `scripts/install.ps1`.
-- Use tray `Reinstall -> From Local Source` and confirm the app reinstalls, closes, relaunches, and preserves user data.
-- Use tray `Reinstall -> From Source and Update` only on a clean repo and confirm it refuses dirty or non-fast-forward states safely.
+- Use tray `Reinstall` and confirm the app reinstalls, closes, relaunches, and preserves user data.
+- Use tray `Check for Updates` on both an up-to-date checkout and a newer tagged release, and confirm it only mutates the local checkout when a newer release exists.
 - If `pythonw.exe` is nonstandard, confirm `scripts/install.ps1 -PythonwExe ...` resolves it correctly.
 - Confirm `%LOCALAPPDATA%\SelfSnap\bin\SelfSnap.cmd` exists.
 - Confirm the Startup-folder shortcut points to a windowless tray launch, not the CLI wrapper.

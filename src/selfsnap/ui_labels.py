@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from selfsnap.models import ConfigValidationError, StoragePreset
 
-
 _STORAGE_PRESET_LABELS = {
     StoragePreset.LOCAL_PICTURES.value: "Local Pictures",
     StoragePreset.ONEDRIVE_PICTURES.value: "OneDrive Pictures",
@@ -13,6 +12,13 @@ _RETENTION_MODE_LABELS = {
     "keep_forever": "Keep Forever",
     "keep_days": "Archive After N Days",
 }
+
+
+def local_privacy_notice() -> str:
+    return (
+        "SelfSnap stores captures locally, stays offline by default, and does not encrypt "
+        "screenshots at rest in v1. Use only on a machine and storage location you control."
+    )
 
 
 def storage_preset_labels() -> list[str]:

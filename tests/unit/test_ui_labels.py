@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from selfsnap.ui_labels import (
+    local_privacy_notice,
     retention_mode_label,
     retention_mode_value,
     storage_preset_label,
@@ -24,3 +25,11 @@ def test_retention_mode_labels_round_trip() -> None:
 
     assert retention_mode_value("Keep Forever") == "keep_forever"
     assert retention_mode_value("Archive After N Days") == "keep_days"
+
+
+def test_local_privacy_notice_matches_public_trust_boundary() -> None:
+    notice = local_privacy_notice()
+
+    assert "stores captures locally" in notice
+    assert "offline by default" in notice
+    assert "does not encrypt screenshots at rest in v1" in notice

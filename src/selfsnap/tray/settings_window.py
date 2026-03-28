@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
 import tkinter as tk
+from dataclasses import dataclass, replace
 from tkinter import filedialog, messagebox, ttk
 
 from selfsnap.config_store import save_config
 from selfsnap.models import AppConfig, ConfigValidationError, StoragePreset
 from selfsnap.paths import AppPaths
+from selfsnap.storage import apply_storage_preset, validate_storage_config
 from selfsnap.tray.schedule_editor import (
     RecurringScheduleDraft,
-    default_unit_label,
     default_draft,
+    default_unit_label,
     draft_from_form,
     draft_from_schedule,
     draft_to_schedule,
@@ -18,12 +19,12 @@ from selfsnap.tray.schedule_editor import (
     format_time_text,
     schedule_help_text,
     selection_state,
-    unit_labels,
     unit_label,
+    unit_labels,
     unit_phrase,
 )
-from selfsnap.storage import apply_storage_preset, validate_storage_config
 from selfsnap.ui_labels import (
+    local_privacy_notice,
     retention_mode_label,
     retention_mode_labels,
     retention_mode_value,
@@ -31,7 +32,6 @@ from selfsnap.ui_labels import (
     storage_preset_labels,
     storage_preset_value,
 )
-
 
 WINDOW_MIN_WIDTH = 960
 WINDOW_MIN_HEIGHT = 760
@@ -58,21 +58,33 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     preset_var = tk.StringVar(master=root, value=storage_preset_label(config.storage_preset))
     capture_root_var = tk.StringVar(master=root, value=config.capture_storage_root)
     archive_root_var = tk.StringVar(master=root, value=config.archive_storage_root)
-    retention_mode_var = tk.StringVar(master=root, value=retention_mode_label(config.retention_mode))
-    retention_days_var = tk.StringVar(master=root, value="" if config.retention_days is None else str(config.retention_days))
-    capture_mode_var = tk.StringVar(master=root, value="Per Monitor" if config.capture_mode == "per_monitor" else "Composite")
+    retention_mode_var = tk.StringVar(
+        master=root, value=retention_mode_label(config.retention_mode)
+    )
+    retention_days_var = tk.StringVar(
+        master=root, value="" if config.retention_days is None else str(config.retention_days)
+    )
+    capture_mode_var = tk.StringVar(
+        master=root, value="Per Monitor" if config.capture_mode == "per_monitor" else "Composite"
+    )
     image_format_var = tk.StringVar(master=root, value=config.image_format.upper())
     image_quality_var = tk.StringVar(master=root, value=str(config.image_quality))
     purge_enabled_var = tk.BooleanVar(master=root, value=config.purge_enabled)
     retention_grace_days_var = tk.StringVar(master=root, value=str(config.retention_grace_days))
     start_tray_on_login_var = tk.BooleanVar(master=root, value=config.start_tray_on_login)
-    wake_for_scheduled_captures_var = tk.BooleanVar(master=root, value=config.wake_for_scheduled_captures)
+    wake_for_scheduled_captures_var = tk.BooleanVar(
+        master=root, value=config.wake_for_scheduled_captures
+    )
     show_last_capture_status_var = tk.BooleanVar(master=root, value=config.show_last_capture_status)
-    notify_on_failed_or_missed_var = tk.BooleanVar(master=root, value=config.notify_on_failed_or_missed)
+    notify_on_failed_or_missed_var = tk.BooleanVar(
+        master=root, value=config.notify_on_failed_or_missed
+    )
     notify_on_every_capture_var = tk.BooleanVar(master=root, value=config.notify_on_every_capture)
     show_capture_overlay_var = tk.BooleanVar(master=root, value=config.show_capture_overlay)
     internal_preset_update = {"active": False}
-    drafts: list[RecurringScheduleDraft] = [draft_from_schedule(schedule) for schedule in config.schedules]
+    drafts: list[RecurringScheduleDraft] = [
+        draft_from_schedule(schedule) for schedule in config.schedules
+    ]
     selected_indices: list[int] = []
 
     root.columnconfigure(0, weight=1)
@@ -136,6 +148,11 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     archive_root_var.trace_add("write", _mark_custom)
 
     row = 0
+    trust_label = ttk.Label(content, text=local_privacy_notice(), justify="left")
+    trust_label.grid(row=row, column=0, sticky="ew", pady=(0, 8))
+    _bind_wrap(trust_label)
+    row += 1
+
     storage_frame = ttk.LabelFrame(content, text="Storage", padding=10)
     storage_frame.grid(row=row, column=0, sticky="ew")
     storage_frame.columnconfigure(1, weight=1)
@@ -151,7 +168,9 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     )
     preset_combo.grid(row=0, column=1, sticky="ew", pady=(0, 6))
 
-    ttk.Label(storage_frame, text="Capture Storage Root").grid(row=1, column=0, sticky="w", pady=(0, 6))
+    ttk.Label(storage_frame, text="Capture Storage Root").grid(
+        row=1, column=0, sticky="w", pady=(0, 6)
+    )
     capture_entry = ttk.Entry(storage_frame, textvariable=capture_root_var)
     capture_entry.grid(row=1, column=1, sticky="ew", pady=(0, 6))
     capture_browse = ttk.Button(
@@ -161,7 +180,9 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     )
     capture_browse.grid(row=1, column=2, sticky="w", padx=(6, 0), pady=(0, 6))
 
-    ttk.Label(storage_frame, text="Archive Storage Root").grid(row=2, column=0, sticky="w", pady=(0, 6))
+    ttk.Label(storage_frame, text="Archive Storage Root").grid(
+        row=2, column=0, sticky="w", pady=(0, 6)
+    )
     archive_entry = ttk.Entry(storage_frame, textvariable=archive_root_var)
     archive_entry.grid(row=2, column=1, sticky="ew", pady=(0, 6))
     archive_browse = ttk.Button(
@@ -179,8 +200,12 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         width=18,
         state="readonly",
     ).grid(row=3, column=1, sticky="ew")
-    ttk.Label(storage_frame, text="Archive After Days").grid(row=3, column=2, sticky="w", padx=(10, 0))
-    ttk.Entry(storage_frame, textvariable=retention_days_var, width=8).grid(row=3, column=3, sticky="w")
+    ttk.Label(storage_frame, text="Archive After Days").grid(
+        row=3, column=2, sticky="w", padx=(10, 0)
+    )
+    ttk.Entry(storage_frame, textvariable=retention_days_var, width=8).grid(
+        row=3, column=3, sticky="w"
+    )
 
     ttk.Label(storage_frame, text="Capture Mode").grid(row=5, column=0, sticky="w", pady=(4, 0))
     ttk.Combobox(
@@ -199,16 +224,24 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         state="readonly",
         width=12,
     ).grid(row=6, column=1, sticky="ew", pady=(4, 0))
-    ttk.Label(storage_frame, text="Quality (JPEG/WebP)").grid(row=6, column=2, sticky="w", padx=(10, 0), pady=(4, 0))
-    ttk.Entry(storage_frame, textvariable=image_quality_var, width=8).grid(row=6, column=3, sticky="w", pady=(4, 0))
+    ttk.Label(storage_frame, text="Quality (JPEG/WebP)").grid(
+        row=6, column=2, sticky="w", padx=(10, 0), pady=(4, 0)
+    )
+    ttk.Entry(storage_frame, textvariable=image_quality_var, width=8).grid(
+        row=6, column=3, sticky="w", pady=(4, 0)
+    )
 
     ttk.Checkbutton(
         storage_frame,
         text="Permanently delete after grace period",
         variable=purge_enabled_var,
     ).grid(row=4, column=0, columnspan=2, sticky="w", pady=(4, 0))
-    ttk.Label(storage_frame, text="Grace Days").grid(row=4, column=2, sticky="w", padx=(10, 0), pady=(4, 0))
-    ttk.Entry(storage_frame, textvariable=retention_grace_days_var, width=8).grid(row=4, column=3, sticky="w", pady=(4, 0))
+    ttk.Label(storage_frame, text="Grace Days").grid(
+        row=4, column=2, sticky="w", padx=(10, 0), pady=(4, 0)
+    )
+    ttk.Entry(storage_frame, textvariable=retention_grace_days_var, width=8).grid(
+        row=4, column=3, sticky="w", pady=(4, 0)
+    )
 
     schedules_frame = ttk.LabelFrame(content, text="Schedules", padding=10)
     schedules_frame.grid(row=row, column=0, sticky="ew", pady=(8, 0))
@@ -257,8 +290,12 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     label_var = tk.StringVar(master=root, value=default_draft().label)
     every_var = tk.StringVar(master=root, value="1")
     unit_var = tk.StringVar(master=root, value=default_unit_label())
-    start_date_var = tk.StringVar(master=root, value=format_date_text(default_draft().start_date_local))
-    start_time_var = tk.StringVar(master=root, value=format_time_text(default_draft().start_time_local))
+    start_date_var = tk.StringVar(
+        master=root, value=format_date_text(default_draft().start_date_local)
+    )
+    start_time_var = tk.StringVar(
+        master=root, value=format_time_text(default_draft().start_time_local)
+    )
     enabled_var = tk.BooleanVar(master=root, value=True)
     widgets_to_toggle: list[tk.Widget] = []
 
@@ -313,14 +350,22 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     def _refresh_tree(select: list[int] | None = None) -> None:
         schedule_tree.delete(*schedule_tree.get_children())
         for index, draft in enumerate(drafts):
+            recurrence_text = (
+                f"Every {draft.interval_value} "
+                f"{unit_phrase(draft.interval_value, draft.interval_unit)}"
+            )
+            start_text = (
+                f"{format_date_text(draft.start_date_local)} "
+                f"{format_time_text(draft.start_time_local)}"
+            )
             schedule_tree.insert(
                 "",
                 "end",
                 iid=str(index),
                 values=(
                     draft.label,
-                    f"Every {draft.interval_value} {unit_phrase(draft.interval_value, draft.interval_unit)}",
-                    f"{format_date_text(draft.start_date_local)} {format_time_text(draft.start_time_local)}",
+                    recurrence_text,
+                    start_text,
                     "Yes" if draft.enabled else "No",
                 ),
             )
@@ -339,6 +384,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         try:
             from selfsnap.db import connect
             from selfsnap.records import get_by_schedule
+
             with connect(paths.db_path) as conn:
                 records = get_by_schedule(conn, schedule_id, limit=5)
             for r in records:
@@ -522,11 +568,16 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     maintenance_message.grid(row=0, column=0, sticky="ew", pady=(0, 6))
     _bind_wrap(maintenance_message)
 
-    result = SettingsDialogResult(updated_config=None, window_size=(config.settings_window_width, config.settings_window_height))
+    result = SettingsDialogResult(
+        updated_config=None,
+        window_size=(config.settings_window_width, config.settings_window_height),
+    )
 
     def _capture_size() -> tuple[int, int]:
         root.update_idletasks()
-        return max(root.winfo_width(), WINDOW_MIN_WIDTH), max(root.winfo_height(), WINDOW_MIN_HEIGHT)
+        return max(root.winfo_width(), WINDOW_MIN_WIDTH), max(
+            root.winfo_height(), WINDOW_MIN_HEIGHT
+        )
 
     def _request_reset() -> None:
         confirmed = messagebox.askyesno(
@@ -578,10 +629,16 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
                 retention_mode=retention_mode,
                 retention_days=retention_days,
                 purge_enabled=purge_enabled_var.get(),
-                retention_grace_days=int(retention_grace_days_var.get()) if retention_grace_days_var.get().strip().isdigit() else config.retention_grace_days,
-                capture_mode="per_monitor" if capture_mode_var.get() == "Per Monitor" else "composite",
+                retention_grace_days=int(retention_grace_days_var.get())
+                if retention_grace_days_var.get().strip().isdigit()
+                else config.retention_grace_days,
+                capture_mode="per_monitor"
+                if capture_mode_var.get() == "Per Monitor"
+                else "composite",
                 image_format=image_format_var.get().lower(),
-                image_quality=int(image_quality_var.get()) if image_quality_var.get().strip().isdigit() else config.image_quality,
+                image_quality=int(image_quality_var.get())
+                if image_quality_var.get().strip().isdigit()
+                else config.image_quality,
                 start_tray_on_login=start_tray_on_login_var.get(),
                 wake_for_scheduled_captures=wake_for_scheduled_captures_var.get(),
                 show_last_capture_status=show_last_capture_status_var.get(),
@@ -620,7 +677,9 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     _save_btn.pack(side="right")
     ttk.Button(action_row, text="Close", command=_cancel).pack(side="right", padx=(0, 8))
 
-    preset_combo.bind("<<ComboboxSelected>>", lambda _event: _set_preset_from_label(preset_var.get()))
+    preset_combo.bind(
+        "<<ComboboxSelected>>", lambda _event: _set_preset_from_label(preset_var.get())
+    )
     _update_path_state()
     root.protocol("WM_DELETE_WINDOW", _cancel)
     root.mainloop()
