@@ -57,6 +57,7 @@ The first-run and Settings surfaces repeat this warning in-product.
 
 - No encryption at rest for capture files in v1.
 - Wake-from-sleep capture is best effort, not guaranteed.
+- No guarantee of scheduled capture during full shutdown or logged-out desktop states.
 - Logged-in desktop session is required for capture.
 - Windows 11 only.
 - Source-based install is the supported distribution path.

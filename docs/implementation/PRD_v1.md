@@ -2,7 +2,7 @@
 
 ## Goal
 
-Deliver a Windows 11 personal utility that captures desktop screenshots on recurring schedules and stores them locally with honest metadata.
+Deliver a Windows 11 local-first utility for privacy-minded power users that captures desktop screenshots on recurring schedules and stores them locally with honest metadata.
 
 ## Must-have behavior
 
@@ -14,7 +14,7 @@ Deliver a Windows 11 personal utility that captures desktop screenshots on recur
 - Output is local only.
 - Capture output supports composite mode by default and optional per-monitor output.
 - Image output supports `png`, `jpeg`, and `webp`, with quality control for `jpeg` and `webp`.
-- Tray UI exposes capture now, enable or disable, open folder, open latest, and settings.
+- Tray UI exposes capture now, enable or disable, open folder, open latest, settings, report issue, check for updates, reinstall, uninstall, restart, and exit.
 - Layered visibility controls are supported:
   - latest status in tray menu
   - failed or missed notifications
