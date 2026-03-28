@@ -80,3 +80,32 @@
 - Use tray `Uninstall -> Remove All User Data` only on disposable test data and confirm the repo checkout and `.venv` remain untouched.
 - If the editable package lives in a non-default interpreter, confirm `scripts/uninstall.ps1 -PythonExe ...` still removes it cleanly.
 - If stale pytest folders exist, run `scripts/cleanup_pytest_artifacts.ps1 -ListOnly` first, then `scripts/cleanup_pytest_artifacts.ps1`, then `scripts/cleanup_pytest_artifacts.ps1 -RepairAcl` if ownership repair is needed, and confirm they are removed.
+
+## Execution evidence - 2026-03-29 (Phase C, terminal-driven)
+
+Environment snapshot:
+- Date: 2026-03-29
+- Host: Windows 11 (user workstation)
+- Python: 3.12.11 (`.venv\Scripts\python.exe`)
+- App version from `selfsnap diag`: `0.9.4`
+
+Completed checks (evidence captured):
+- `selfsnap doctor` returned `ok: true` with successful imports for `pystray`, `PIL`, and `mss`.
+- `selfsnap diag` confirmed resolved paths, scheduler sync state `ok`, and a latest `capture_saved` record with `file_present: true`.
+- Manual capture command completed successfully:
+  - `selfsnap capture --trigger manual`
+  - File created: `C:\Users\lomaz\Pictures\SelfSnap\captures\2026\03\29\cap_2026-03-29_01-14-43_manual_manual.png`
+- Full automated functional gate also passed during Phase C prep:
+  - `pytest -q` -> `134 passed`
+  - Coverage gate met (`80.46%`)
+
+Observed notes:
+- `schtasks /Query` did not show `SelfSnap.Capture.*` tasks during this run. Current config includes a `minute` schedule (`sched_65361833e7aa`), which is tray-managed high-frequency behavior and does not require Task Scheduler task registration.
+
+Pending manual checks (requires interactive tray/UI and/or disposable environment):
+- Confirm tray icon visibility, first-run dialog wording, and Settings warning text in UI.
+- Confirm `Report Issue` flow from tray and Settings geometry non-regression.
+- Confirm scheduled capture registration for at least one coarse schedule (`hours` or above) and verify `schtasks /Query` contains `SelfSnap.Capture.<schedule_id>`.
+- Execute failure-path checks for invalid capture root and forced scheduler sync failure while confirming manual capture remains available.
+- Run lifecycle flow checks on disposable test data: tray `Reinstall`, `Check for Updates` against newer tag, tray `Uninstall -> Remove All User Data` behavior.
+- Run logoff/logon startup check and confirm tray relaunch plus scheduled functionality after sign-in.
