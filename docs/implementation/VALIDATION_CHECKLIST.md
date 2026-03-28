@@ -117,3 +117,10 @@ Pending manual checks (requires interactive tray/UI and/or disposable environmen
 - Execute failure-path checks for invalid capture root and forced scheduler sync failure while confirming manual capture remains available.
 - Run lifecycle flow checks on disposable test data: tray `Reinstall`, `Check for Updates` against newer tag, tray `Uninstall -> Remove All User Data` behavior.
 - Run logoff/logon startup check and confirm tray relaunch plus scheduled functionality after sign-in.
+
+## Post-release confirmation - 2026-03-29 (v1.0.0)
+
+- `selfsnap diag` now reports `app_version: "1.0.0"` in the latest record.
+- `selfsnap diag` reports `scheduler_sync_state: "ok"`.
+- Current scheduled task inventory includes at least one coarse task (`SelfSnap.Capture.afternoon`) in `Ready` state.
+- Runtime dependency probe remains healthy (`ok: true`).

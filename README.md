@@ -21,16 +21,12 @@ This repository is public for visibility and issue tracking, but the code remain
 
 ## Current release
 
-`v0.9.4` builds on v0.9.3 with settings reliability fixes, a proper update-check flow, and CLI lifecycle commands.
+`v1.0.0` is the first public trust-grade baseline release.
 
-- **Settings: schedule changes now persist.** Editing a schedule's fields (including Enabled) and clicking Save now always commits the form state. Previously, the main Save button ignored in-progress edits unless the inline schedule "Save" button had been clicked first.
-- **Settings: blank dropdowns fixed.** On the second and subsequent opens, all comboboxes (Storage Preset, Capture Mode, Image Format, Retention Mode) now render correctly. Root cause was Tkinter `StringVar`/`BooleanVar` missing `master=root`, causing them to bind to a stale Tk instance after the first window was destroyed.
-- **Settings: window stays open after Save.** Save now writes to disk and briefly shows `✓ Saved` on the button. The window stays open for further edits. A `Close` button closes the window when done.
-- **Check for Updates: GitHub Releases API.** The tray menu item now queries `api.github.com` for the latest release tag and compares it against the installed version. No git interaction happens if you are already up to date. When a newer release is found it uses `git fetch --tags && git reset --hard` — works on a dirty repo, no credential prompt.
-- **CLI lifecycle commands.** Three new subcommands:
-  - `selfsnap reinstall [--relaunch-tray]`
-  - `selfsnap uninstall [--remove-user-data] [--yes]`
-  - `selfsnap update [--check-only] [--relaunch-tray]`
+- **Stable 1.0 contract and scope lock.** Public contract, release gate, known limitations, and implementation baseline are explicitly documented.
+- **Trust boundary is aligned across docs and runtime.** First-run, Settings, and README consistently state local-only behavior, offline-by-default operation, and no encryption at rest in v1.
+- **Scheduler reliability hardening.** DST-sensitive scheduler test behavior was stabilized and coarse schedule registration fallback now uses a Task Scheduler-compatible XML encoding.
+- **Supportability baseline for public users.** Troubleshooting guidance, diagnostics path (`selfsnap doctor`/`selfsnap diag`), and browser-mediated issue reporting flow are in place.
 
 For the full implementation-facing release history, see [`CHANGELOG.md`](CHANGELOG.md).
 
