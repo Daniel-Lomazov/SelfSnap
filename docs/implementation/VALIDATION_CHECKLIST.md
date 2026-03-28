@@ -95,12 +95,20 @@ Completed checks (evidence captured):
 - Manual capture command completed successfully:
   - `selfsnap capture --trigger manual`
   - File created: `C:\Users\lomaz\Pictures\SelfSnap\captures\2026\03\29\cap_2026-03-29_01-14-43_manual_manual.png`
+- Coarse schedule registration validated with Task Scheduler:
+  - Injected temporary `hour` schedule: `phasec_hour01`
+  - Ran `selfsnap sync-scheduler`
+  - Confirmed `schtasks /Query /TN SelfSnap.Capture.phasec_hour01 /FO LIST /V` returned task details including:
+    - `TaskName: \SelfSnap.Capture.phasec_hour01`
+    - `Status: Ready`
+    - `Task To Run: ...pythonw.exe -m selfsnap capture --trigger scheduled --schedule-id phasec_hour01 ...`
+  - Restored original config and re-synced to clean up temporary coarse schedule state.
 - Full automated functional gate also passed during Phase C prep:
   - `pytest -q` -> `134 passed`
   - Coverage gate met (`80.46%`)
 
 Observed notes:
-- `schtasks /Query` did not show `SelfSnap.Capture.*` tasks during this run. Current config includes a `minute` schedule (`sched_65361833e7aa`), which is tray-managed high-frequency behavior and does not require Task Scheduler task registration.
+- `schtasks /Query` did not show `SelfSnap.Capture.*` tasks for the normal minute schedule (`sched_65361833e7aa`), which is expected because minute-level schedules are tray-managed high-frequency behavior.
 
 Pending manual checks (requires interactive tray/UI and/or disposable environment):
 - Confirm tray icon visibility, first-run dialog wording, and Settings warning text in UI.

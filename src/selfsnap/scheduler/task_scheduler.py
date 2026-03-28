@@ -220,8 +220,13 @@ def _register_task_with_xml(
     wake_for_run: bool,
 ) -> subprocess.CompletedProcess[str]:
     task_xml = _build_task_xml(task_name, run_at_local, invocation, wake_for_run)
-    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".xml", encoding="utf-8") as handle:
-        handle.write(task_xml)
+    # schtasks expects UTF-16 task XML reliably on Windows in fallback mode.
+    task_xml_utf16 = (
+        task_xml.replace("encoding='utf-8'", "encoding='UTF-16'")
+        .replace('encoding="utf-8"', 'encoding="UTF-16"')
+    )
+    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".xml", encoding="utf-16") as handle:
+        handle.write(task_xml_utf16)
         xml_path = Path(handle.name)
     try:
         result = _run_schtasks(["/Create", "/TN", task_name, "/XML", str(xml_path), "/F"])
