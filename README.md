@@ -9,10 +9,10 @@ There is no telemetry or silent upload in normal runtime.
 
 ## Project status
 
-- Pre-`1.0` Windows 11 utility focused on local scheduled screenshot capture
+- Public `v1.0.0` Windows 11 utility focused on local scheduled screenshot capture
 - Stable for personal-use iteration, with versioned releases and CI validation
 - Source-based install is the primary supported path
-- Working toward a public `1.0` release for privacy-minded Windows power users
+- Public release posture is focused on privacy-minded Windows power users
 - Current public-release trust boundary and ship gate: `docs/implementation/RELEASE_CRITERIA_1_0.md`
 
 ## License

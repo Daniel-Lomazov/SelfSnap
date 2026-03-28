@@ -5,6 +5,10 @@
 This file records the baseline state of SelfSnap at the start of the `1.0` push.
 It is a comparison point for later iterations, not a release note.
 
+## Post-release note
+
+SelfSnap `v1.0.0` is now published. This document intentionally preserves the pre-release baseline snapshot (`v0.9.4`) so that release progress can be compared against the original starting point.
+
 ## Baseline snapshot
 
 - Current repo version: `v0.9.4`
