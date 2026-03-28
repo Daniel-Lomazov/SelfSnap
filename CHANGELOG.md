@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.0.0 - 2026-03-29
+
+Why: First public trust-grade release baseline for privacy-minded Windows 11 power users, with explicit contract, validated scheduler behavior, and release-ready operational evidence.
+
+- **Feat - 1.0 contract freeze and release gate.** Added implementation-facing 1.0 artifacts: release criteria, baseline benchmark, planning decisions, gap register, known limitations register, and scope lock. This establishes a stable public contract and explicit go/no-go gate.
+- **Feat - trust boundary in-product messaging.** Added a shared privacy notice (`local_privacy_notice`) and surfaced it in first-run and Settings. The warning is now consistent across runtime and documentation: local-only operation, offline-by-default, no encryption at rest in v1.
+- **Fix - scheduler DST-sensitive test assertion.** Updated scheduler sync test expectations to assert scheduled wall-clock local time rather than current-offset timezone identity, stabilizing behavior across offset transitions.
+- **Fix - Task Scheduler XML fallback registration.** Updated XML fallback path to emit UTF-16 task XML for Windows `schtasks` compatibility, resolving malformed XML fallback failures and restoring coarse schedule registration evidence.
+- **Docs - supportability and limitations clarity.** Added README troubleshooting and known-limitations sections, including OneDrive preset recovery guidance and wake/sleep behavior caveats.
+- **Validation - Phase C evidence recorded.** Captured terminal-driven validation evidence (doctor, diag, manual capture, coarse schedule task registration) and documented remaining interactive manual checks in the validation checklist.
+
 ## v0.9.4 - 2026-03-25
 
 Why: GitHub-native update check, three CLI lifecycle commands, and three settings window bugs that prevented schedule changes from taking effect.
