@@ -26,9 +26,10 @@ Desktop.ini
 *.log
 pytest*.out
 .github/*
-!.github/agents/
 !.github/workflows/
 !.github/ISSUE_TEMPLATE/
-!.github/skills/
 !.github/copilot-instructions.md
+
+# Personal / local-only — session data and local tools
+docs/session-history.txt
 .hypothesis/
