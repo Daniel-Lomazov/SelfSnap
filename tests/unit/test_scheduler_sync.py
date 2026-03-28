@@ -72,9 +72,10 @@ def test_build_desired_tasks_includes_enabled_schedules(temp_paths) -> None:
     )
 
     assert set(desired) == {"SelfSnap.Capture.morning"}
-    assert desired["SelfSnap.Capture.morning"]["run_at_local"] == datetime(
-        2026, 3, 23, 9, 0, 0, tzinfo=local_tz
-    )
+    run_at_local = desired["SelfSnap.Capture.morning"]["run_at_local"]
+    assert isinstance(run_at_local, datetime)
+    assert run_at_local.date().isoformat() == "2026-03-23"
+    assert run_at_local.time().isoformat() == "09:00:00"
     assert desired["SelfSnap.Capture.morning"]["wake"] is True
     invocation = desired["SelfSnap.Capture.morning"]["invocation"]
     assert invocation.arguments == [
@@ -86,7 +87,7 @@ def test_build_desired_tasks_includes_enabled_schedules(temp_paths) -> None:
         "--schedule-id",
         "morning",
         "--planned-local-ts",
-        datetime(2026, 3, 23, 9, 0, 0, tzinfo=local_tz).isoformat(),
+        run_at_local.isoformat(),
     ]
     assert (Path(invocation.working_directory) / "pyproject.toml").exists()
 

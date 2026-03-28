@@ -53,6 +53,16 @@ For the full implementation-facing release history, see [`CHANGELOG.md`](CHANGEL
 SelfSnap stores screenshots locally. Screenshots may contain sensitive information such as messages, credentials, finance pages, or work material. v1 does not encrypt captures at rest. Use only on a machine and storage location you control.
 The first-run and Settings surfaces repeat this warning in-product.
 
+## Known 1.0 limitations
+
+- No encryption at rest for capture files in v1.
+- Wake-from-sleep capture is best effort, not guaranteed.
+- Logged-in desktop session is required for capture.
+- Windows 11 only.
+- Source-based install is the supported distribution path.
+- No cloud sync or telemetry.
+- No full history browser or search UI.
+
 ## Quick start
 
 > **Important:** Always use the `.venv` created by `setup.ps1`. The Windows Store Python stub
@@ -149,6 +159,33 @@ If the storage preset is `onedrive_pictures`, image storage switches to:
 | `Custom Folder` | `custom` | user-defined | user-defined |
 
 If `%OneDrive%` is not set, SelfSnap resolves the OneDrive preset through `%USERPROFILE%\OneDrive`. The OneDrive preset is only accepted when the resolved base path already exists and is writable.
+
+If a previously valid OneDrive root becomes unavailable (for example OneDrive is paused, moved, or disconnected), capture writes can fail. Recovery path: switch to `Local Pictures` in `Settings`, save, and re-run `selfsnap diag` to verify paths.
+
+## Troubleshooting
+
+### Start with diagnostics
+
+```powershell
+SelfSnap doctor
+SelfSnap diag
+```
+
+- Use `doctor` to confirm runtime dependencies and launch assumptions.
+- Use `diag` to capture safe state details such as version, paths, scheduler sync status, and latest capture outcome.
+
+### Common recovery actions
+
+- Scheduler seems stuck or disabled unexpectedly: run `selfsnap sync-scheduler`, then check `scheduler_sync_ok` in `selfsnap diag`.
+- Captures missing after sleep/wake: this can be expected for some sleep windows; confirm missed/failed status in tray surfaces and keep machine awake for critical capture intervals.
+- OneDrive preset failing: switch storage preset to `Local Pictures`, save, and retry manual capture.
+- Startup issues after updates: run `SelfSnap reinstall` from the repository checkout.
+
+### Reporting issues safely
+
+- Use tray `Report Issue` so the browser opens a prefilled issue template.
+- Include your short description plus `selfsnap diag` output summary.
+- SelfSnap never auto-attaches screenshots, logs, local file paths, or database content.
 
 ## Docs layout
 
