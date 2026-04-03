@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import subprocess
 import tkinter as tk
@@ -154,7 +154,7 @@ def _format_local_timestamp(utc_text: str) -> str:
     except ValueError:
         return utc_text[:19].replace("T", " ")
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=datetime.now().astimezone().tzinfo)
+        parsed = parsed.replace(tzinfo=timezone.utc)
     local_dt = parsed.astimezone()
     return local_dt.strftime("%Y-%m-%d %H:%M:%S")
 

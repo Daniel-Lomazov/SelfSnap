@@ -441,6 +441,8 @@ def _format_local_timestamp(utc_text: str) -> str:
         parsed = datetime.fromisoformat(text)
     except ValueError:
         return utc_text[:19].replace("T", " ")
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
     return parsed.astimezone().strftime("%Y-%m-%d %H:%M:%S")
 
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import tkinter as tk
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import datetime, timezone
 from tkinter import filedialog, messagebox, ttk
 
 from selfsnap.config_store import save_config
@@ -358,6 +358,8 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             parsed = datetime.fromisoformat(text)
         except ValueError:
             return utc_text[:19].replace("T", " ")
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
         return parsed.astimezone().strftime("%Y-%m-%d %H:%M:%S")
 
     def _refresh_tree(select: list[int] | None = None) -> None:
