@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+from selfsnap.models import ConfigValidationError
 from selfsnap.ui_labels import (
     local_privacy_notice,
     retention_mode_label,
@@ -33,3 +36,38 @@ def test_local_privacy_notice_matches_public_trust_boundary() -> None:
     assert "stores captures locally" in notice
     assert "offline by default" in notice
     assert "does not encrypt screenshots at rest in v1" in notice
+
+
+def test_storage_preset_labels_returns_list() -> None:
+    from selfsnap.ui_labels import storage_preset_labels
+    labels = storage_preset_labels()
+    assert "Local Pictures" in labels
+    assert "OneDrive Pictures" in labels
+    assert "Custom Folder" in labels
+
+
+def test_retention_mode_labels_returns_list() -> None:
+    from selfsnap.ui_labels import retention_mode_labels
+    labels = retention_mode_labels()
+    assert "Keep Forever" in labels
+    assert "Archive After N Days" in labels
+
+
+def test_storage_preset_label_invalid_raises() -> None:
+    with pytest.raises(ConfigValidationError, match="Unsupported storage preset"):
+        storage_preset_label("dropbox")
+
+
+def test_storage_preset_value_invalid_raises() -> None:
+    with pytest.raises(ConfigValidationError, match="Unsupported storage preset label"):
+        storage_preset_value("Dropbox")
+
+
+def test_retention_mode_label_invalid_raises() -> None:
+    with pytest.raises(ConfigValidationError, match="Unsupported retention mode"):
+        retention_mode_label("delete_all")
+
+
+def test_retention_mode_value_invalid_raises() -> None:
+    with pytest.raises(ConfigValidationError, match="Unsupported retention mode label"):
+        retention_mode_value("Delete All")

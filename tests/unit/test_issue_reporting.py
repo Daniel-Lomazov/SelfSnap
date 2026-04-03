@@ -127,3 +127,131 @@ def test_submit_issue_report_ignores_token_environment_variables(temp_paths, mon
     assert result.ok is True
     assert result.method == "browser"
     assert len(opened) == 1
+
+
+# ---------------------------------------------------------------------------
+# build_issue_title — edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_build_issue_title_raises_for_empty_description() -> None:
+    import pytest
+    with pytest.raises(ValueError, match="empty"):
+        build_issue_title("")
+
+
+def test_build_issue_title_raises_for_whitespace_only() -> None:
+    import pytest
+    with pytest.raises(ValueError, match="empty"):
+        build_issue_title("   ")
+
+
+def test_build_issue_title_truncates_long_sentence() -> None:
+    long = "A" * 80  # well over 72 chars, no period
+    title = build_issue_title(long)
+    assert title.endswith("...")
+    assert len(title) <= 12 + 72
+
+
+def test_build_issue_title_splits_on_period() -> None:
+    title = build_issue_title("First sentence. Second sentence follows.")
+    assert title == "App report: First sentence"
+
+
+# ---------------------------------------------------------------------------
+# build_issue_body — edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_build_issue_body_raises_for_empty_description(temp_paths) -> None:
+    import pytest
+    with pytest.raises(ValueError, match="empty"):
+        build_issue_body(temp_paths, "")
+
+
+def test_build_issue_body_excludes_diagnostics_when_flag_false(temp_paths) -> None:
+    body = build_issue_body(temp_paths, "Something broke.", include_diagnostics=False)
+    assert "## Safe diagnostics" in body
+    assert "selfsnap diag" in body
+    assert "Storage preset:" not in body
+
+
+# ---------------------------------------------------------------------------
+# _open_issue_in_browser — failure path
+# ---------------------------------------------------------------------------
+
+
+def test_submit_issue_report_returns_failure_when_browser_cannot_open(
+    temp_paths, monkeypatch
+) -> None:
+    monkeypatch.setattr("selfsnap.issue_reporting.webbrowser.open", lambda url: False)
+    # Prevent os.startfile fallback from actually being called on Windows
+    monkeypatch.setattr("selfsnap.issue_reporting.os.name", "posix")
+
+    result = submit_issue_report(
+        temp_paths, "Something went wrong.", include_diagnostics=False
+    )
+
+    assert result.ok is False
+    assert result.method == "browser"
+    assert "Could not open" in result.message
+
+
+def test_submit_issue_report_handles_webbrowser_exception(temp_paths, monkeypatch) -> None:
+    """Lines 146-147: except Exception: opened = False when webbrowser.open raises."""
+    def broken_open(url: str) -> bool:
+        raise OSError("no browser")
+
+    monkeypatch.setattr("selfsnap.issue_reporting.webbrowser.open", broken_open)
+    monkeypatch.setattr("selfsnap.issue_reporting.os.name", "posix")
+
+    result = submit_issue_report(
+        temp_paths, "App crashed on startup.", include_diagnostics=False
+    )
+
+    assert result.ok is False
+
+
+def test_submit_issue_report_falls_back_to_startfile_on_nt(temp_paths, monkeypatch) -> None:
+    """Lines 149-151: os.startfile succeeds when webbrowser fails on nt."""
+    startfile_urls: list[str] = []
+
+    monkeypatch.setattr("selfsnap.issue_reporting.webbrowser.open", lambda url: False)
+    monkeypatch.setattr("selfsnap.issue_reporting.os.name", "nt")
+    monkeypatch.setattr(
+        "selfsnap.issue_reporting.os.startfile",
+        lambda url: startfile_urls.append(url),
+    )
+
+    result = submit_issue_report(
+        temp_paths, "App crashed on startup.", include_diagnostics=False
+    )
+
+    assert result.ok is True
+    assert len(startfile_urls) == 1
+
+
+def test_submit_issue_report_fails_when_startfile_raises(temp_paths, monkeypatch) -> None:
+    """Lines 152-153: OSError from os.startfile → opened remains False."""
+    def raise_oserror(url: str) -> None:
+        raise OSError("startfile failed")
+
+    monkeypatch.setattr("selfsnap.issue_reporting.webbrowser.open", lambda url: False)
+    monkeypatch.setattr("selfsnap.issue_reporting.os.name", "nt")
+    monkeypatch.setattr("selfsnap.issue_reporting.os.startfile", raise_oserror)
+
+    result = submit_issue_report(
+        temp_paths, "Tray icon disappeared.", include_diagnostics=False
+    )
+
+    assert result.ok is False
+
+
+def test_collect_diagnostics_reports_packaged_install_mode(temp_paths, monkeypatch) -> None:
+    """Line 113: sys.frozen=True → install_mode becomes 'packaged'."""
+    import sys
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+
+    diagnostics = collect_safe_issue_diagnostics(temp_paths)
+
+    assert diagnostics["Install mode"] == "packaged"

@@ -5,9 +5,15 @@ from pathlib import Path
 
 from selfsnap.config_store import load_or_create_config, save_config
 from selfsnap.db import connect, ensure_database
-from selfsnap.models import Schedule, TriggerSource
+from selfsnap.models import CaptureBackendError, Schedule, TriggerSource
 from selfsnap.records import get_latest_record
-from selfsnap.worker import EXIT_OK, EXIT_SCHEDULER_FAILURE, run_capture_command
+from selfsnap.worker import (
+    EXIT_CONFIG_FAILURE,
+    EXIT_OK,
+    EXIT_OPERATIONAL_FAILURE,
+    EXIT_SCHEDULER_FAILURE,
+    run_capture_command,
+)
 
 
 @dataclass
@@ -191,3 +197,140 @@ def test_composite_capture_honors_image_format_and_quality(temp_paths, monkeypat
     assert result.record.image_path is not None
     assert Path(result.record.image_path).suffix == ".jpeg"
     assert saved_calls == [("JPEG", 77)]
+
+
+# ---------------------------------------------------------------------------
+# Scheduled capture — skip conditions
+# ---------------------------------------------------------------------------
+
+def _scheduled_config(temp_paths, *, first_run: bool = True, app_enabled: bool = True):
+    config = load_or_create_config(temp_paths)
+    config.first_run_completed = first_run
+    config.app_enabled = app_enabled
+    config.schedules = [
+        Schedule(
+            schedule_id="morning",
+            label="Morning",
+            interval_value=1,
+            interval_unit="day",
+            start_date_local="2026-01-01",
+            start_time_local="09:00:00",
+        )
+    ]
+    save_config(temp_paths, config)
+    return config
+
+
+def test_scheduled_capture_skipped_when_first_run_incomplete(temp_paths, monkeypatch) -> None:
+    _scheduled_config(temp_paths, first_run=False, app_enabled=True)
+    ensure_database(temp_paths.db_path)
+    monkeypatch.setattr("selfsnap.worker.capture_composite", lambda: (_ for _ in ()).throw(RuntimeError("should not be called")))
+
+    result = run_capture_command(
+        TriggerSource.SCHEDULED,
+        schedule_id="morning",
+        planned_local_ts="2026-04-03T09:00:00+02:00",
+        paths=temp_paths,
+    )
+
+    assert result.exit_code == EXIT_OK
+    assert result.record is not None
+    assert result.record.outcome_code == "scheduled_disabled"
+    assert result.record.outcome_category == "skipped"
+    assert "first-run" in (result.record.error_message or "")
+
+
+def test_scheduled_capture_skipped_when_app_disabled(temp_paths, monkeypatch) -> None:
+    _scheduled_config(temp_paths, first_run=True, app_enabled=False)
+    ensure_database(temp_paths.db_path)
+
+    result = run_capture_command(
+        TriggerSource.SCHEDULED,
+        schedule_id="morning",
+        planned_local_ts="2026-04-03T09:00:00+02:00",
+        paths=temp_paths,
+    )
+
+    assert result.exit_code == EXIT_OK
+    assert result.record is not None
+    assert result.record.outcome_code == "scheduled_disabled"
+    assert "app_enabled" in (result.record.error_message or "")
+
+
+def test_scheduled_capture_skipped_when_schedule_is_disabled(temp_paths, monkeypatch) -> None:
+    config = _scheduled_config(temp_paths, first_run=True, app_enabled=True)
+    config.schedules[0].enabled = False
+    save_config(temp_paths, config)
+    ensure_database(temp_paths.db_path)
+
+    result = run_capture_command(
+        TriggerSource.SCHEDULED,
+        schedule_id="morning",
+        planned_local_ts="2026-04-03T09:00:00+02:00",
+        paths=temp_paths,
+    )
+
+    assert result.exit_code == EXIT_OK
+    assert result.record is not None
+    assert result.record.outcome_code == "scheduled_disabled"
+    assert "schedule is disabled" in (result.record.error_message or "")
+
+
+def test_scheduled_capture_fails_for_unknown_schedule_id(temp_paths) -> None:
+    config = load_or_create_config(temp_paths)
+    config.first_run_completed = True
+    config.app_enabled = True
+    save_config(temp_paths, config)
+    ensure_database(temp_paths.db_path)
+
+    result = run_capture_command(
+        TriggerSource.SCHEDULED,
+        schedule_id="no_such_schedule",
+        planned_local_ts="2026-04-03T09:00:00+02:00",
+        paths=temp_paths,
+    )
+
+    assert result.exit_code == EXIT_CONFIG_FAILURE
+    assert result.record is None
+
+
+# ---------------------------------------------------------------------------
+# Capture backend error path
+# ---------------------------------------------------------------------------
+
+def test_capture_backend_error_records_failure(temp_paths, monkeypatch) -> None:
+    config = load_or_create_config(temp_paths)
+    config.first_run_completed = True
+    config.app_enabled = True
+    save_config(temp_paths, config)
+    ensure_database(temp_paths.db_path)
+
+    monkeypatch.setattr(
+        "selfsnap.worker.capture_composite",
+        lambda: (_ for _ in ()).throw(CaptureBackendError("mss not available")),
+    )
+
+    result = run_capture_command(TriggerSource.MANUAL, paths=temp_paths)
+
+    assert result.exit_code == EXIT_OPERATIONAL_FAILURE
+    assert result.record is not None
+    assert result.record.outcome_code == "capture_backend_error"
+    assert result.record.outcome_category == "failed"
+    assert "mss not available" in result.message
+
+
+# ---------------------------------------------------------------------------
+# Config validation failure path
+# ---------------------------------------------------------------------------
+
+def test_config_validation_failure_returns_config_exit_code(temp_paths, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "selfsnap.worker.load_or_create_config",
+        lambda _: (_ for _ in ()).throw(__import__("selfsnap.models", fromlist=["ConfigValidationError"]).ConfigValidationError("bad config")),
+    )
+    ensure_database(temp_paths.db_path)
+
+    result = run_capture_command(TriggerSource.MANUAL, paths=temp_paths)
+
+    assert result.exit_code == EXIT_CONFIG_FAILURE
+    assert result.record is None
