@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import tkinter as tk
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
 from tkinter import filedialog, messagebox, ttk
 
 from selfsnap.config_store import save_config
-from selfsnap.models import AppConfig, ConfigValidationError, StoragePreset
+from selfsnap.db import connect, ensure_database
+from selfsnap.models import AppConfig, CaptureRecord, ConfigValidationError, StoragePreset
 from selfsnap.paths import AppPaths
+from selfsnap.records import get_latest_record
+from selfsnap.runtime_launch import launch_background, resolve_manual_capture_background_invocation
 from selfsnap.storage import apply_storage_preset, validate_storage_config
 from selfsnap.tray.schedule_editor import (
     RecurringScheduleDraft,
@@ -27,12 +29,28 @@ from selfsnap.tray.schedule_editor import (
     unit_labels,
     unit_phrase,
 )
+from selfsnap.ui.diagnostics import (
+    DiagnosticSummary,
+    format_local_timestamp,
+    last_activity_summary,
+    notification_summary,
+    operational_summary,
+    retention_summary,
+    scheduler_sync_summary,
+    storage_summary,
+)
 from selfsnap.ui.fluent import (
+    ACCENT_BG,
     ACCENT_COLOR,
     BORDER_COLOR,
     CARD_BG,
+    DANGER_BG,
     DANGER_FG,
+    INFO_BG,
+    INFO_FG,
     TEXT_MUTED,
+    TEXT_SECONDARY,
+    WARNING_BG,
     WARNING_FG,
     WINDOW_BG,
     apply_fluent_window,
@@ -53,10 +71,14 @@ from selfsnap.ui_labels import (
     capture_mode_label,
     capture_mode_labels,
     capture_mode_value,
+    image_format_label,
+    image_format_labels,
+    image_format_value,
     local_privacy_notice,
     retention_mode_label,
     retention_mode_labels,
     retention_mode_value,
+    retention_policy_label,
     storage_preset_label,
     storage_preset_labels,
     storage_preset_value,
@@ -86,6 +108,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     root.resizable(True, True)
     apply_fluent_window(root)
 
+    app_enabled_var = tk.BooleanVar(master=root, value=config.app_enabled)
     preset_var = tk.StringVar(master=root, value=storage_preset_label(config.storage_preset))
     capture_root_var = tk.StringVar(master=root, value=config.capture_storage_root)
     archive_root_var = tk.StringVar(master=root, value=config.archive_storage_root)
@@ -96,7 +119,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         master=root, value="" if config.retention_days is None else str(config.retention_days)
     )
     capture_mode_var = tk.StringVar(master=root, value=capture_mode_label(config.capture_mode))
-    image_format_var = tk.StringVar(master=root, value=config.image_format.upper())
+    image_format_var = tk.StringVar(master=root, value=image_format_label(config.image_format))
     image_quality_var = tk.StringVar(master=root, value=str(config.image_quality))
     purge_enabled_var = tk.BooleanVar(master=root, value=config.purge_enabled)
     retention_grace_days_var = tk.StringVar(master=root, value=str(config.retention_grace_days))
@@ -110,6 +133,8 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     )
     notify_on_every_capture_var = tk.BooleanVar(master=root, value=config.notify_on_every_capture)
     show_capture_overlay_var = tk.BooleanVar(master=root, value=config.show_capture_overlay)
+    capture_feedback_var = tk.StringVar(master=root, value="")
+    general_details_var = tk.StringVar(master=root, value="")
     internal_preset_update = {"active": False}
     drafts: list[RecurringScheduleDraft] = [
         draft_from_schedule(schedule) for schedule in config.schedules
@@ -117,36 +142,39 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     selected_indices: list[int] = []
     history_refresh_job: str | None = None
 
+    def _load_latest_record() -> CaptureRecord | None:
+        if not paths.db_path.exists():
+            return None
+        try:
+            ensure_database(paths.db_path)
+            with connect(paths.db_path) as connection:
+                return get_latest_record(connection)
+        except Exception:
+            return None
+
+    latest_record = _load_latest_record()
+    latest_capture_var = tk.StringVar(master=root, value=_latest_capture_summary(latest_record))
+
     root.columnconfigure(0, weight=1)
     root.rowconfigure(0, weight=1)
 
-    page = create_scrollable_page(root)
-    page.container.grid(row=0, column=0, sticky="nsew", padx=18, pady=(18, 0))
-    content = page.content
-    content.columnconfigure(0, weight=1)
+    shell = tk.Frame(root, bg=WINDOW_BG)
+    shell.grid(row=0, column=0, sticky="nsew", padx=18, pady=(18, 0))
+    shell.columnconfigure(0, weight=1)
+    shell.rowconfigure(3, weight=1)
 
-    def _field_label(
-        parent: tk.Misc,
-        text: str,
-        *,
-        foreground: str = TEXT_MUTED,
-    ) -> tk.Label:
+    def _field_label(parent: tk.Misc, text: str) -> tk.Label:
         return tk.Label(
             parent,
             text=text,
             bg=str(parent.cget("bg")),
-            fg=foreground,
+            fg=TEXT_MUTED,
             font=("Segoe UI Semibold", 9),
             anchor="w",
             justify="left",
         )
 
-    def _helper_label(
-        parent: tk.Misc,
-        text: str,
-        *,
-        foreground: str = TEXT_MUTED,
-    ) -> tk.Label:
+    def _helper_label(parent: tk.Misc, text: str, *, foreground: str = TEXT_MUTED) -> tk.Label:
         return tk.Label(
             parent,
             text=text,
@@ -156,6 +184,120 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             anchor="w",
             justify="left",
         )
+
+    def _badge_palette(tone: str) -> tuple[str, str]:
+        if tone == "accent":
+            return ACCENT_BG, ACCENT_COLOR
+        if tone == "info":
+            return INFO_BG, INFO_FG
+        if tone == "warning":
+            return WARNING_BG, WARNING_FG
+        if tone == "danger":
+            return DANGER_BG, DANGER_FG
+        return "#edf2f7", TEXT_SECONDARY
+
+    def _set_badge(label: tk.Label | None, text: str, tone: str) -> None:
+        if label is None:
+            return
+        bg, fg = _badge_palette(tone)
+        label.configure(text=text, bg=bg, fg=fg)
+
+    def _safe_int(value: str, fallback: int | None) -> int | None:
+        text = value.strip()
+        if not text:
+            return fallback
+        try:
+            return int(text)
+        except ValueError:
+            return fallback
+
+    def _selected_storage_preset() -> str:
+        try:
+            return storage_preset_value(preset_var.get().strip())
+        except ConfigValidationError:
+            return config.storage_preset
+
+    def _selected_retention_mode() -> str:
+        try:
+            return retention_mode_value(retention_mode_var.get())
+        except ConfigValidationError:
+            return config.retention_mode
+
+    def _selected_capture_mode() -> str:
+        try:
+            return capture_mode_value(capture_mode_var.get())
+        except ConfigValidationError:
+            return config.capture_mode
+
+    def _selected_image_format() -> str:
+        try:
+            return image_format_value(image_format_var.get())
+        except ConfigValidationError:
+            return config.image_format
+
+    def _preview_config() -> AppConfig:
+        retention_mode = _selected_retention_mode()
+        retention_days = None
+        if retention_mode == "keep_days":
+            retention_days = _safe_int(retention_days_var.get(), config.retention_days or 1)
+        return replace(
+            config,
+            app_enabled=app_enabled_var.get() if config.first_run_completed else config.app_enabled,
+            storage_preset=_selected_storage_preset(),
+            capture_storage_root=capture_root_var.get().strip(),
+            archive_storage_root=archive_root_var.get().strip(),
+            retention_mode=retention_mode,
+            retention_days=retention_days,
+            purge_enabled=purge_enabled_var.get(),
+            retention_grace_days=_safe_int(
+                retention_grace_days_var.get(), config.retention_grace_days
+            )
+            or config.retention_grace_days,
+            capture_mode=_selected_capture_mode(),
+            image_format=_selected_image_format(),
+            image_quality=_safe_int(image_quality_var.get(), config.image_quality)
+            or config.image_quality,
+            start_tray_on_login=start_tray_on_login_var.get(),
+            wake_for_scheduled_captures=wake_for_scheduled_captures_var.get(),
+            show_last_capture_status=show_last_capture_status_var.get(),
+            notify_on_failed_or_missed=notify_on_failed_or_missed_var.get(),
+            notify_on_every_capture=notify_on_every_capture_var.get(),
+            show_capture_overlay=show_capture_overlay_var.get(),
+        )
+
+    def _capture_settings_summary(preview: AppConfig) -> str:
+        try:
+            retention_text = retention_policy_label(
+                preview.retention_mode,
+                preview.retention_days,
+                preview.purge_enabled,
+                preview.retention_grace_days,
+            )
+        except ConfigValidationError:
+            retention_text = "Retention pending validation"
+        format_text = image_format_label(preview.image_format)
+        if preview.image_format in {"jpeg", "webp"}:
+            format_text = f"{format_text} {preview.image_quality}%"
+        return " • ".join(
+            [
+                retention_text,
+                capture_mode_label(preview.capture_mode),
+                format_text,
+            ]
+        )
+
+    def _general_status_details(preview: AppConfig) -> str:
+        if not preview.first_run_completed:
+            state_message = "Finish first-run setup before scheduled captures can be enabled."
+        elif preview.scheduler_sync_failed():
+            state_message = scheduler_status_detail(preview) or (
+                "Scheduled captures are enabled, but Windows Task Scheduler needs attention."
+            )
+        elif preview.app_enabled:
+            state_message = "SelfSnap is ready for scheduled background capture."
+        else:
+            state_message = "Scheduled captures are paused. Capture Now still works."
+        return f"{state_message}\n{schedules_summary_text(drafts)}"
 
     def _set_preset_from_label(selected_label: str) -> None:
         internal_preset_update["active"] = True
@@ -168,6 +310,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         finally:
             internal_preset_update["active"] = False
         _update_path_state()
+        _refresh_dynamic_content()
 
     def _mark_custom(*_args) -> None:
         if internal_preset_update["active"]:
@@ -181,29 +324,49 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         capture_browse.configure(state="normal")
         archive_browse.configure(state="normal")
 
-    capture_root_var.trace_add("write", _mark_custom)
-    archive_root_var.trace_add("write", _mark_custom)
+    def _refresh_latest_capture_status() -> None:
+        nonlocal latest_record
+        latest_record = _load_latest_record()
+        latest_capture_var.set(_latest_capture_summary(latest_record))
+        _refresh_dynamic_content()
 
-    row = 0
+    def _capture_now_from_settings() -> None:
+        try:
+            launch_background(resolve_manual_capture_background_invocation(paths))
+        except Exception as exc:
+            messagebox.showerror(
+                "Capture Failed",
+                f"Could not start a manual capture:\n{exc}",
+                parent=root,
+            )
+            return
+        capture_feedback_var.set("Capture launched in the background.")
+        root.after(2500, _refresh_latest_capture_status)
+        root.after(5000, lambda: capture_feedback_var.set(""))
+
+    def _capture_size() -> tuple[int, int]:
+        root.update_idletasks()
+        return max(root.winfo_width(), WINDOW_MIN_WIDTH), max(
+            root.winfo_height(), WINDOW_MIN_HEIGHT
+        )
 
     header_text, header_tone = settings_header_status(config)
     header = create_page_header(
-        content,
-        eyebrow="Windows 11 inspired",
+        shell,
+        eyebrow="Merged UX direction",
         title="SelfSnap Settings",
         subtitle=(
-            "A clean, local-first control surface for storage, recurring captures, "
-            "notifications, and maintenance."
+            "Compact, tabbed controls with Fluent styling, full recurring schedule editing, "
+            "and a dedicated diagnostics surface."
         ),
         badge_text=header_text,
         badge_tone=header_tone,
     )
-    header.frame.grid(row=row, column=0, sticky="ew")
-    bind_dynamic_wrap(content, root, header.subtitle_label, padding=72)
-    row += 1
+    header.frame.grid(row=0, column=0, sticky="ew")
+    bind_dynamic_wrap(shell, root, header.subtitle_label, padding=72)
 
     trust_label = tk.Label(
-        content,
+        shell,
         text=local_privacy_notice(),
         bg=WINDOW_BG,
         fg=TEXT_MUTED,
@@ -211,34 +374,126 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         justify="left",
         anchor="w",
     )
-    trust_label.grid(row=row, column=0, sticky="ew", pady=(10, 0))
-    bind_dynamic_wrap(content, root, trust_label, padding=64)
-    row += 1
+    trust_label.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+    bind_dynamic_wrap(shell, root, trust_label, padding=64)
 
-    scheduler_notice = scheduler_status_detail(config)
-    if scheduler_notice is not None:
-        scheduler_label = tk.Label(
-            content,
-            text=scheduler_notice,
-            bg=WINDOW_BG,
-            fg=WARNING_FG,
-            font=("Segoe UI Semibold", 9),
-            justify="left",
-            anchor="w",
-        )
-        scheduler_label.grid(row=row, column=0, sticky="ew", pady=(8, 0))
-        bind_dynamic_wrap(content, root, scheduler_label, padding=64, minimum=280)
-        row += 1
+    scheduler_notice_label = tk.Label(
+        shell,
+        bg=WINDOW_BG,
+        fg=WARNING_FG,
+        font=("Segoe UI Semibold", 9),
+        justify="left",
+        anchor="w",
+    )
+    scheduler_notice_label.grid(row=2, column=0, sticky="ew", pady=(8, 0))
 
-    overview = tk.Frame(content, bg=WINDOW_BG)
-    overview.grid(row=row, column=0, sticky="ew", pady=(16, 0))
-    overview.columnconfigure(0, weight=6)
-    overview.columnconfigure(1, weight=5)
-    row += 1
+    notebook = ttk.Notebook(shell)
+    notebook.grid(row=3, column=0, sticky="nsew", pady=(16, 0))
 
-    storage_card = create_card(
-        overview,
-        title="Storage",
+    def _make_tab(title: str) -> tk.Frame:
+        page = create_scrollable_page(notebook)
+        notebook.add(page.container, text=title)
+        page.content.columnconfigure(0, weight=1)
+        return page.content
+
+    general_tab = _make_tab("General")
+    storage_tab = _make_tab("Storage")
+    schedules_tab = _make_tab("Schedules")
+    diagnostics_tab = _make_tab("Diagnostics")
+    maintenance_tab = _make_tab("Maintenance")
+
+    general_grid = tk.Frame(general_tab, bg=WINDOW_BG)
+    general_grid.grid(row=0, column=0, sticky="ew")
+    general_grid.columnconfigure(0, weight=7)
+    general_grid.columnconfigure(1, weight=5)
+
+    general_status_card = create_card(
+        general_grid,
+        title="Quick Actions",
+        summary=latest_capture_var.get(),
+        badge_text=header_text,
+        tone=header_tone,
+    )
+    general_status_card.frame.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+    bind_dynamic_wrap(general_status_card.frame, root, general_status_card.summary_label, padding=48)
+
+    general_details_label = _helper_label(general_status_card.body, general_details_var.get())
+    general_details_label.configure(textvariable=general_details_var)
+    general_details_label.grid(row=0, column=0, columnspan=2, sticky="ew")
+    bind_dynamic_wrap(general_status_card.body, root, general_details_label, padding=42, minimum=280)
+
+    general_toggle = ttk.Checkbutton(
+        general_status_card.body,
+        text="Scheduled captures enabled",
+        variable=app_enabled_var,
+    )
+    general_toggle.grid(row=1, column=0, sticky="w", pady=(12, 0))
+    if not config.first_run_completed:
+        general_toggle.state(["disabled"])
+
+    ttk.Button(
+        general_status_card.body,
+        text="Capture Now",
+        command=_capture_now_from_settings,
+        style="Wide.TButton",
+    ).grid(row=1, column=1, sticky="e", pady=(12, 0))
+
+    feedback_label = _helper_label(general_status_card.body, "")
+    feedback_label.configure(textvariable=capture_feedback_var)
+    feedback_label.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+    bind_dynamic_wrap(general_status_card.body, root, feedback_label, padding=42, minimum=220)
+
+    experience_card = create_card(
+        general_grid,
+        title="Experience",
+        summary=visibility_summary_text(
+            start_tray_on_login=config.start_tray_on_login,
+            wake_for_scheduled_captures=config.wake_for_scheduled_captures,
+            show_last_capture_status=config.show_last_capture_status,
+            notify_on_failed_or_missed=config.notify_on_failed_or_missed,
+            notify_on_every_capture=config.notify_on_every_capture,
+            show_capture_overlay=config.show_capture_overlay,
+        ),
+        badge_text="General",
+        tone="info",
+    )
+    experience_card.frame.grid(row=0, column=1, sticky="nsew")
+    bind_dynamic_wrap(experience_card.frame, root, experience_card.summary_label, padding=48)
+
+    ttk.Checkbutton(
+        experience_card.body,
+        text="Start tray on login",
+        variable=start_tray_on_login_var,
+    ).grid(row=0, column=0, sticky="w")
+    ttk.Checkbutton(
+        experience_card.body,
+        text="Wake for scheduled captures when supported",
+        variable=wake_for_scheduled_captures_var,
+    ).grid(row=1, column=0, sticky="w", pady=(4, 0))
+    ttk.Checkbutton(
+        experience_card.body,
+        text="Show latest capture status in tray menu",
+        variable=show_last_capture_status_var,
+    ).grid(row=2, column=0, sticky="w", pady=(4, 0))
+    ttk.Checkbutton(
+        experience_card.body,
+        text="Notify on failed or missed captures",
+        variable=notify_on_failed_or_missed_var,
+    ).grid(row=3, column=0, sticky="w", pady=(4, 0))
+    ttk.Checkbutton(
+        experience_card.body,
+        text="Notify on every scheduled and manual capture",
+        variable=notify_on_every_capture_var,
+    ).grid(row=4, column=0, sticky="w", pady=(4, 0))
+    ttk.Checkbutton(
+        experience_card.body,
+        text="Show brief on-screen overlay after capture",
+        variable=show_capture_overlay_var,
+    ).grid(row=5, column=0, sticky="w", pady=(4, 0))
+
+    storage_overview_card = create_card(
+        general_tab,
+        title="Storage Overview",
         summary=storage_summary_text(
             storage_preset=config.storage_preset,
             retention_mode=config.retention_mode,
@@ -249,40 +504,37 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             purge_enabled=config.purge_enabled,
             retention_grace_days=config.retention_grace_days,
         ),
-        badge_text="Local-first",
+        badge_text="Storage",
         tone="accent",
     )
-    storage_card.frame.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
-    bind_dynamic_wrap(storage_card.frame, root, storage_card.summary_label, padding=48, minimum=220)
-
-    visibility_card = create_card(
-        overview,
-        title="Experience",
-        summary=visibility_summary_text(
-            start_tray_on_login=config.start_tray_on_login,
-            wake_for_scheduled_captures=config.wake_for_scheduled_captures,
-            show_last_capture_status=config.show_last_capture_status,
-            notify_on_failed_or_missed=config.notify_on_failed_or_missed,
-            notify_on_every_capture=config.notify_on_every_capture,
-            show_capture_overlay=config.show_capture_overlay,
-        ),
-        badge_text="Tray surface",
-        tone="info",
+    storage_overview_card.frame.grid(row=1, column=0, sticky="ew", pady=(12, 0))
+    bind_dynamic_wrap(storage_overview_card.frame, root, storage_overview_card.summary_label, padding=48)
+    overview_helper = _helper_label(
+        storage_overview_card.body,
+        "Use the Storage tab to change destinations, retention, capture format, and purge policy.",
     )
-    visibility_card.frame.grid(row=0, column=1, sticky="nsew")
-    bind_dynamic_wrap(
-        visibility_card.frame,
-        root,
-        visibility_card.summary_label,
-        padding=48,
-        minimum=220,
+    overview_helper.grid(row=0, column=0, sticky="ew")
+    bind_dynamic_wrap(storage_overview_card.body, root, overview_helper, padding=42, minimum=280)
+
+    storage_grid = tk.Frame(storage_tab, bg=WINDOW_BG)
+    storage_grid.grid(row=0, column=0, sticky="ew")
+    storage_grid.columnconfigure(0, weight=1)
+    storage_grid.columnconfigure(1, weight=1)
+
+    destinations_card = create_card(
+        storage_grid,
+        title="Destinations",
+        summary="Preset-controlled roots for capture and archive output.",
+        badge_text="Locations",
+        tone="accent",
     )
+    destinations_card.frame.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+    bind_dynamic_wrap(destinations_card.frame, root, destinations_card.summary_label, padding=48)
+    destinations_card.body.columnconfigure(0, weight=1)
 
-    storage_card.body.columnconfigure(0, weight=1)
-
-    _field_label(storage_card.body, "Storage preset").grid(row=0, column=0, sticky="ew")
+    _field_label(destinations_card.body, "Storage preset").grid(row=0, column=0, sticky="ew")
     preset_combo = ttk.Combobox(
-        storage_card.body,
+        destinations_card.body,
         textvariable=preset_var,
         state="readonly",
         values=storage_preset_labels(),
@@ -290,8 +542,8 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     )
     preset_combo.grid(row=1, column=0, sticky="ew", pady=(4, 12))
 
-    _field_label(storage_card.body, "Capture storage root").grid(row=2, column=0, sticky="ew")
-    capture_row = tk.Frame(storage_card.body, bg=CARD_BG)
+    _field_label(destinations_card.body, "Capture storage root").grid(row=2, column=0, sticky="ew")
+    capture_row = tk.Frame(destinations_card.body, bg=CARD_BG)
     capture_row.grid(row=3, column=0, sticky="ew", pady=(4, 12))
     capture_row.columnconfigure(0, weight=1)
     capture_entry = ttk.Entry(capture_row, textvariable=capture_root_var)
@@ -304,9 +556,9 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     )
     capture_browse.grid(row=0, column=1, sticky="e", padx=(8, 0))
 
-    _field_label(storage_card.body, "Archive storage root").grid(row=4, column=0, sticky="ew")
-    archive_row = tk.Frame(storage_card.body, bg=CARD_BG)
-    archive_row.grid(row=5, column=0, sticky="ew", pady=(4, 12))
+    _field_label(destinations_card.body, "Archive storage root").grid(row=4, column=0, sticky="ew")
+    archive_row = tk.Frame(destinations_card.body, bg=CARD_BG)
+    archive_row.grid(row=5, column=0, sticky="ew", pady=(4, 0))
     archive_row.columnconfigure(0, weight=1)
     archive_entry = ttk.Entry(archive_row, textvariable=archive_root_var)
     archive_entry.grid(row=0, column=0, sticky="ew")
@@ -318,142 +570,97 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     )
     archive_browse.grid(row=0, column=1, sticky="e", padx=(8, 0))
 
-    retention_row = tk.Frame(storage_card.body, bg=CARD_BG)
-    retention_row.grid(row=6, column=0, sticky="ew", pady=(0, 12))
-    retention_row.columnconfigure(0, weight=1)
-    retention_row.columnconfigure(1, weight=1)
-    _field_label(retention_row, "Retention policy").grid(row=0, column=0, sticky="ew")
-    _field_label(retention_row, "Archive after days").grid(
+    capture_settings_card = create_card(
+        storage_grid,
+        title="Capture Output",
+        summary="Retention, purge timing, image format, and monitor mode.",
+        badge_text="Output",
+        tone="info",
+    )
+    capture_settings_card.frame.grid(row=0, column=1, sticky="nsew")
+    bind_dynamic_wrap(capture_settings_card.frame, root, capture_settings_card.summary_label, padding=48)
+
+    settings_row = tk.Frame(capture_settings_card.body, bg=CARD_BG)
+    settings_row.grid(row=0, column=0, sticky="ew")
+    settings_row.columnconfigure(0, weight=1)
+    settings_row.columnconfigure(1, weight=1)
+
+    _field_label(settings_row, "Retention policy").grid(row=0, column=0, sticky="ew")
+    _field_label(settings_row, "Archive after days").grid(
         row=0,
         column=1,
         sticky="ew",
         padx=(10, 0),
     )
     ttk.Combobox(
-        retention_row,
+        settings_row,
         textvariable=retention_mode_var,
         values=retention_mode_labels(),
         state="readonly",
-    ).grid(row=1, column=0, sticky="ew", pady=(4, 0))
-    ttk.Entry(retention_row, textvariable=retention_days_var, width=10).grid(
+    ).grid(row=1, column=0, sticky="ew", pady=(4, 12))
+    ttk.Entry(settings_row, textvariable=retention_days_var, width=10).grid(
         row=1,
         column=1,
         sticky="ew",
         padx=(10, 0),
-        pady=(4, 0),
+        pady=(4, 12),
     )
 
-    capture_options_row = tk.Frame(storage_card.body, bg=CARD_BG)
-    capture_options_row.grid(row=7, column=0, sticky="ew", pady=(0, 12))
-    capture_options_row.columnconfigure(0, weight=1)
-    capture_options_row.columnconfigure(1, weight=1)
-    capture_options_row.columnconfigure(2, weight=1)
-    _field_label(capture_options_row, "Capture mode").grid(row=0, column=0, sticky="ew")
-    _field_label(capture_options_row, "Image format").grid(
-        row=0,
+    _field_label(settings_row, "Capture mode").grid(row=2, column=0, sticky="ew")
+    _field_label(settings_row, "Image format").grid(
+        row=2,
         column=1,
         sticky="ew",
         padx=(10, 0),
     )
-    _field_label(capture_options_row, "Quality").grid(
-        row=0,
-        column=2,
-        sticky="ew",
-        padx=(10, 0),
-    )
     ttk.Combobox(
-        capture_options_row,
+        settings_row,
         textvariable=capture_mode_var,
         values=capture_mode_labels(),
         state="readonly",
-    ).grid(row=1, column=0, sticky="ew", pady=(4, 0))
+    ).grid(row=3, column=0, sticky="ew", pady=(4, 12))
     ttk.Combobox(
-        capture_options_row,
+        settings_row,
         textvariable=image_format_var,
-        values=["PNG", "JPEG", "WEBP"],
+        values=image_format_labels(),
         state="readonly",
-    ).grid(row=1, column=1, sticky="ew", padx=(10, 0), pady=(4, 0))
-    ttk.Entry(capture_options_row, textvariable=image_quality_var, width=10).grid(
+    ).grid(row=3, column=1, sticky="ew", padx=(10, 0), pady=(4, 12))
+
+    quality_row = tk.Frame(capture_settings_card.body, bg=CARD_BG)
+    quality_row.grid(row=1, column=0, sticky="ew")
+    quality_row.columnconfigure(0, weight=1)
+    quality_row.columnconfigure(1, weight=1)
+    _field_label(quality_row, "Quality (JPEG/WebP)").grid(row=0, column=0, sticky="ew")
+    _field_label(quality_row, "Grace days").grid(row=0, column=1, sticky="ew", padx=(10, 0))
+    ttk.Entry(quality_row, textvariable=image_quality_var, width=10).grid(
         row=1,
-        column=2,
+        column=0,
+        sticky="ew",
+        pady=(4, 0),
+    )
+    ttk.Entry(quality_row, textvariable=retention_grace_days_var, width=10).grid(
+        row=1,
+        column=1,
         sticky="ew",
         padx=(10, 0),
         pady=(4, 0),
     )
 
-    purge_row = tk.Frame(storage_card.body, bg=CARD_BG)
-    purge_row.grid(row=8, column=0, sticky="ew")
-    purge_row.columnconfigure(0, weight=1)
     ttk.Checkbutton(
-        purge_row,
+        capture_settings_card.body,
         text="Permanently delete after grace period",
         variable=purge_enabled_var,
-    ).grid(row=0, column=0, sticky="w")
-    grace_group = tk.Frame(purge_row, bg=CARD_BG)
-    grace_group.grid(row=0, column=1, sticky="e")
-    _field_label(grace_group, "Grace days").grid(row=0, column=0, sticky="w")
-    ttk.Entry(grace_group, textvariable=retention_grace_days_var, width=10).grid(
-        row=1,
-        column=0,
-        sticky="e",
-        pady=(4, 0),
-    )
-
-    visibility_card.body.columnconfigure(0, weight=1)
-    _field_label(visibility_card.body, "Tray and launch").grid(row=0, column=0, sticky="ew")
-    ttk.Checkbutton(
-        visibility_card.body,
-        text="Start tray on login",
-        variable=start_tray_on_login_var,
-    ).grid(row=1, column=0, sticky="w", pady=(6, 0))
-    ttk.Checkbutton(
-        visibility_card.body,
-        text="Wake for scheduled captures when supported",
-        variable=wake_for_scheduled_captures_var,
-    ).grid(row=2, column=0, sticky="w", pady=(4, 0))
-    ttk.Checkbutton(
-        visibility_card.body,
-        text="Show latest capture status in tray menu",
-        variable=show_last_capture_status_var,
-    ).grid(row=3, column=0, sticky="w", pady=(4, 0))
-    tk.Frame(visibility_card.body, bg=BORDER_COLOR, height=1).grid(
-        row=4,
-        column=0,
-        sticky="ew",
-        pady=(14, 14),
-    )
-    _field_label(visibility_card.body, "Notifications and overlay").grid(
-        row=5,
-        column=0,
-        sticky="ew",
-    )
-    ttk.Checkbutton(
-        visibility_card.body,
-        text="Notify on failed or missed captures",
-        variable=notify_on_failed_or_missed_var,
-    ).grid(row=6, column=0, sticky="w", pady=(6, 0))
-    ttk.Checkbutton(
-        visibility_card.body,
-        text="Notify on every scheduled and manual capture",
-        variable=notify_on_every_capture_var,
-    ).grid(row=7, column=0, sticky="w", pady=(4, 0))
-    ttk.Checkbutton(
-        visibility_card.body,
-        text="Show brief on-screen overlay after capture",
-        variable=show_capture_overlay_var,
-    ).grid(row=8, column=0, sticky="w", pady=(4, 0))
+    ).grid(row=2, column=0, sticky="w", pady=(12, 0))
 
     schedules_card = create_card(
-        content,
-        title="Schedules",
+        schedules_tab,
+        title="Recurring Schedules",
         summary=schedules_summary_text(drafts),
         badge_text="Recurring capture",
         tone="accent",
     )
-    schedules_card.frame.grid(row=row, column=0, sticky="ew", pady=(16, 0))
+    schedules_card.frame.grid(row=0, column=0, sticky="ew")
     bind_dynamic_wrap(schedules_card.frame, root, schedules_card.summary_label, padding=48)
-    row += 1
-
     schedules_card.body.columnconfigure(0, weight=1)
 
     schedule_help_label = tk.Label(
@@ -537,7 +744,10 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     def _new_default_draft() -> RecurringScheduleDraft:
         return default_draft()
 
-    def _draft_from_form(schedule_id: str | None = None, enabled: bool = True) -> RecurringScheduleDraft:
+    def _draft_from_schedule_form(
+        schedule_id: str | None = None,
+        enabled: bool = True,
+    ) -> RecurringScheduleDraft:
         return draft_from_form(
             label=label_var.get(),
             interval_value=every_var.get(),
@@ -561,17 +771,10 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         start_date_var.set(format_date_text(draft.start_date_local))
         start_time_var.set(format_time_text(draft.start_time_local))
 
-    def _selected_mode() -> None:
-        state = selection_state(len(selected_indices))
-        _set_editor_state(state)
-        editor_panel.summary_label.configure(text=editor_selection_summary(len(selected_indices)))
-
     def _set_editor_state(state) -> None:
         for widget in widgets_to_toggle:
             try:
-                if isinstance(widget, ttk.Checkbutton):
-                    widget.state(["!disabled"] if state.fields_enabled else ["disabled"])
-                elif isinstance(widget, ttk.Combobox):
+                if isinstance(widget, ttk.Combobox):
                     widget.state(["readonly"] if state.fields_enabled else ["disabled"])
                 else:
                     widget.configure(state="normal" if state.fields_enabled else "disabled")
@@ -584,20 +787,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
 
     def _refresh_schedule_summary() -> None:
         schedules_card.summary_label.configure(text=schedules_summary_text(drafts))
-
-    def _format_local_timestamp(utc_text: str) -> str:
-        if not utc_text:
-            return "(unknown time)"
-        text = utc_text.strip()
-        if text.endswith("Z"):
-            text = text[:-1] + "+00:00"
-        try:
-            parsed = datetime.fromisoformat(text)
-        except ValueError:
-            return utc_text[:19].replace("T", " ")
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
-        return parsed.astimezone().strftime("%Y-%m-%d %H:%M:%S")
+        general_details_var.set(_general_status_details(_preview_config()))
 
     def _refresh_tree(select: list[int] | None = None) -> None:
         schedule_tree.delete(*schedule_tree.get_children())
@@ -635,17 +825,19 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             history_list.configure(state="disabled")
             return
         try:
-            from selfsnap.db import connect
             from selfsnap.records import get_by_schedule
 
             with connect(paths.db_path) as conn:
                 records = get_by_schedule(conn, schedule_id, limit=5)
-            for r in records:
-                ts = _format_local_timestamp(r.started_utc or r.created_utc or "")
-                icon = {"success": "✓", "failed": "✗", "missed": "–", "skipped": "○"}.get(
-                    r.outcome_category, "?"
-                )
-                history_list.insert("end", f"{icon}  {ts}  {r.outcome_code}")
+            for record in records:
+                ts = format_local_timestamp(record.started_utc or record.created_utc or "")
+                icon = {
+                    "success": "✓",
+                    "failed": "✗",
+                    "missed": "–",
+                    "skipped": "○",
+                }.get(record.outcome_category, "?")
+                history_list.insert("end", f"{icon}  {ts}  {record.outcome_code}")
         except Exception:
             history_list.insert("end", "(history unavailable)")
         finally:
@@ -683,11 +875,13 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         else:
             _load_draft_to_form(drafts[selected_indices[0]])
             _clear_history()
-        _selected_mode()
+        state = selection_state(len(selected_indices))
+        _set_editor_state(state)
+        editor_panel.summary_label.configure(text=editor_selection_summary(len(selected_indices)))
 
     def _add_schedule() -> None:
         try:
-            draft = _draft_from_form(enabled=True)
+            draft = _draft_from_schedule_form(enabled=True)
         except ConfigValidationError as exc:
             messagebox.showerror("Invalid schedule", str(exc), parent=root)
             return
@@ -700,7 +894,10 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             return
         index = selected_indices[0]
         try:
-            drafts[index] = _draft_from_form(schedule_id=drafts[index].schedule_id, enabled=drafts[index].enabled)
+            drafts[index] = _draft_from_schedule_form(
+                schedule_id=drafts[index].schedule_id,
+                enabled=drafts[index].enabled,
+            )
         except ConfigValidationError as exc:
             messagebox.showerror("Invalid schedule", str(exc), parent=root)
             return
@@ -829,20 +1026,60 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     schedule_tree.bind("<<TreeviewSelect>>", _update_selection_from_tree)
     _refresh_tree([])
     _load_draft_to_form(_new_default_draft())
-    _selected_mode()
+    _set_editor_state(selection_state(0))
+    editor_panel.summary_label.configure(text=editor_selection_summary(0))
     history_refresh_job = root.after(HISTORY_REFRESH_INTERVAL_MS, _poll_history)
 
+    diagnostics_grid = tk.Frame(diagnostics_tab, bg=WINDOW_BG)
+    diagnostics_grid.grid(row=0, column=0, sticky="ew")
+    diagnostics_grid.columnconfigure(0, weight=1)
+    diagnostics_grid.columnconfigure(1, weight=1)
+
+    diagnostic_cards: dict[str, tuple[object, tk.Label]] = {}
+
+    def _make_diagnostic_card(
+        key: str,
+        title: str,
+        row_index: int,
+        column_index: int,
+    ) -> None:
+        card = create_card(
+            diagnostics_grid,
+            title=title,
+            summary="Loading…",
+            badge_text="Info",
+            tone="info",
+        )
+        card.frame.grid(
+            row=row_index,
+            column=column_index,
+            sticky="nsew",
+            padx=(0, 8) if column_index == 0 else (0, 0),
+            pady=(0, 8),
+        )
+        bind_dynamic_wrap(card.frame, root, card.summary_label, padding=48, minimum=220)
+        detail_label = _helper_label(card.body, "")
+        detail_label.grid(row=0, column=0, sticky="ew")
+        bind_dynamic_wrap(card.body, root, detail_label, padding=42, minimum=220)
+        diagnostic_cards[key] = (card, detail_label)
+
+    _make_diagnostic_card("scheduler", "Scheduler Sync", 0, 0)
+    _make_diagnostic_card("activity", "Last Activity", 0, 1)
+    _make_diagnostic_card("storage", "Storage", 1, 0)
+    _make_diagnostic_card("retention", "Retention", 1, 1)
+    _make_diagnostic_card("notifications", "Notifications", 2, 0)
+    _make_diagnostic_card("operations", "Operational Context", 2, 1)
+
     maintenance_card = create_card(
-        content,
+        maintenance_tab,
         title="Maintenance",
         summary=maintenance_summary_text(),
         badge_text="Danger zone",
         tone="danger",
     )
-    maintenance_card.frame.grid(row=row, column=0, sticky="ew", pady=(16, 0))
-    maintenance_card.body.columnconfigure(0, weight=1)
+    maintenance_card.frame.grid(row=0, column=0, sticky="ew")
     bind_dynamic_wrap(maintenance_card.frame, root, maintenance_card.summary_label, padding=48)
-    row += 1
+    maintenance_card.body.columnconfigure(0, weight=1)
 
     maintenance_message = _helper_label(
         maintenance_card.body,
@@ -855,16 +1092,17 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     maintenance_message.grid(row=0, column=0, sticky="ew")
     bind_dynamic_wrap(maintenance_card.body, root, maintenance_message, padding=42, minimum=280)
 
+    tray_actions_note = _helper_label(
+        maintenance_card.body,
+        "Reinstall, update checks, restart, and uninstall remain available from the tray menu.",
+    )
+    tray_actions_note.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+    bind_dynamic_wrap(maintenance_card.body, root, tray_actions_note, padding=42, minimum=280)
+
     result = SettingsDialogResult(
         updated_config=None,
         window_size=(config.settings_window_width, config.settings_window_height),
     )
-
-    def _capture_size() -> tuple[int, int]:
-        root.update_idletasks()
-        return max(root.winfo_width(), WINDOW_MIN_WIDTH), max(
-            root.winfo_height(), WINDOW_MIN_HEIGHT
-        )
 
     def _request_reset() -> None:
         confirmed = messagebox.askyesno(
@@ -889,79 +1127,75 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         text="Reset Capture History",
         command=_request_reset,
         style="Wide.TButton",
-    ).grid(row=1, column=0, sticky="w", pady=(12, 0))
+    ).grid(row=2, column=0, sticky="w", pady=(12, 0))
 
-    def _update_storage_summary(*_args) -> None:
-        try:
-            storage_preset = storage_preset_value(preset_var.get())
-        except ConfigValidationError:
-            storage_preset = config.storage_preset
-        try:
-            retention_mode = retention_mode_value(retention_mode_var.get())
-        except ConfigValidationError:
-            retention_mode = config.retention_mode
-        try:
-            capture_mode = capture_mode_value(capture_mode_var.get())
-        except ConfigValidationError:
-            capture_mode = config.capture_mode
-        storage_card.summary_label.configure(
-            text=storage_summary_text(
-                storage_preset=storage_preset,
-                retention_mode=retention_mode,
-                retention_days=retention_days_var.get(),
-                capture_mode=capture_mode,
-                image_format=image_format_var.get(),
-                image_quality=image_quality_var.get(),
-                purge_enabled=purge_enabled_var.get(),
-                retention_grace_days=retention_grace_days_var.get(),
-            )
-        )
+    def _set_diagnostic_card(key: str, summary: DiagnosticSummary) -> None:
+        card, detail_label = diagnostic_cards[key]
+        tone_map = {"good": "accent", "warn": "warning", "neutral": "info"}
+        badge_text = {"good": "Healthy", "warn": "Attention", "neutral": "Info"}[summary.tone]
+        card.summary_label.configure(text=summary.headline)
+        detail_label.configure(text=summary.detail)
+        _set_badge(card.badge_label, badge_text, tone_map[summary.tone])
 
-    def _update_visibility_summary(*_args) -> None:
-        visibility_card.summary_label.configure(
+    def _refresh_dynamic_content(*_args) -> None:
+        preview = _preview_config()
+        status_text, status_tone = settings_header_status(preview)
+        _set_badge(header.badge_label, status_text, status_tone)
+        _set_badge(general_status_card.badge_label, status_text, status_tone)
+        general_status_card.summary_label.configure(text=latest_capture_var.get())
+        general_details_var.set(_general_status_details(preview))
+        experience_card.summary_label.configure(
             text=visibility_summary_text(
-                start_tray_on_login=start_tray_on_login_var.get(),
-                wake_for_scheduled_captures=wake_for_scheduled_captures_var.get(),
-                show_last_capture_status=show_last_capture_status_var.get(),
-                notify_on_failed_or_missed=notify_on_failed_or_missed_var.get(),
-                notify_on_every_capture=notify_on_every_capture_var.get(),
-                show_capture_overlay=show_capture_overlay_var.get(),
+                start_tray_on_login=preview.start_tray_on_login,
+                wake_for_scheduled_captures=preview.wake_for_scheduled_captures,
+                show_last_capture_status=preview.show_last_capture_status,
+                notify_on_failed_or_missed=preview.notify_on_failed_or_missed,
+                notify_on_every_capture=preview.notify_on_every_capture,
+                show_capture_overlay=preview.show_capture_overlay,
             )
         )
-
-    for variable in (
-        preset_var,
-        retention_mode_var,
-        retention_days_var,
-        capture_mode_var,
-        image_format_var,
-        image_quality_var,
-        purge_enabled_var,
-        retention_grace_days_var,
-    ):
-        variable.trace_add("write", _update_storage_summary)
-
-    for variable in (
-        start_tray_on_login_var,
-        wake_for_scheduled_captures_var,
-        show_last_capture_status_var,
-        notify_on_failed_or_missed_var,
-        notify_on_every_capture_var,
-        show_capture_overlay_var,
-    ):
-        variable.trace_add("write", _update_visibility_summary)
-
-    _update_storage_summary()
-    _update_visibility_summary()
+        storage_overview_card.summary_label.configure(
+            text=storage_summary_text(
+                storage_preset=preview.storage_preset,
+                retention_mode=preview.retention_mode,
+                retention_days=preview.retention_days,
+                capture_mode=preview.capture_mode,
+                image_format=preview.image_format,
+                image_quality=preview.image_quality,
+                purge_enabled=preview.purge_enabled,
+                retention_grace_days=preview.retention_grace_days,
+            )
+        )
+        destinations_card.summary_label.configure(
+            text=f"{storage_preset_label(preview.storage_preset)} preset • Capture and archive destinations"
+        )
+        capture_settings_card.summary_label.configure(text=_capture_settings_summary(preview))
+        scheduler_notice_label.configure(text=scheduler_status_detail(preview) or "")
+        _set_diagnostic_card("scheduler", scheduler_sync_summary(preview))
+        _set_diagnostic_card("activity", last_activity_summary(latest_record))
+        for key, builder in (
+            ("storage", lambda: storage_summary(preview, paths)),
+            ("retention", lambda: retention_summary(preview)),
+            ("notifications", lambda: notification_summary(preview)),
+            ("operations", lambda: operational_summary(preview, paths)),
+        ):
+            try:
+                summary = builder()
+            except (ConfigValidationError, ValueError) as exc:
+                summary = DiagnosticSummary(
+                    headline="Pending validation",
+                    detail=str(exc),
+                    tone="warn",
+                )
+            _set_diagnostic_card(key, summary)
 
     action_row = tk.Frame(root, bg=WINDOW_BG, padx=18, pady=14)
     action_row.grid(row=1, column=0, sticky="ew")
 
     def _apply_settings() -> None:
-        # Auto-commit any in-progress schedule edit before validating.
         if len(selected_indices) == 1:
             try:
-                drafts[selected_indices[0]] = _draft_from_form(
+                drafts[selected_indices[0]] = _draft_from_schedule_form(
                     schedule_id=drafts[selected_indices[0]].schedule_id,
                     enabled=drafts[selected_indices[0]].enabled,
                 )
@@ -976,6 +1210,9 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
                 retention_days = int(retention_days_var.get())
             updated = replace(
                 config,
+                app_enabled=app_enabled_var.get()
+                if config.first_run_completed
+                else config.app_enabled,
                 storage_preset=storage_preset_value(preset_var.get().strip()),
                 capture_storage_root=capture_root_var.get().strip(),
                 archive_storage_root=archive_root_var.get().strip(),
@@ -986,7 +1223,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
                 if retention_grace_days_var.get().strip().isdigit()
                 else config.retention_grace_days,
                 capture_mode=capture_mode_value(capture_mode_var.get()),
-                image_format=image_format_var.get().lower(),
+                image_format=image_format_value(image_format_var.get()),
                 image_quality=int(image_quality_var.get())
                 if image_quality_var.get().strip().isdigit()
                 else config.image_quality,
@@ -1015,7 +1252,6 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             return
         result.updated_config = updated
         result.window_size = _capture_size()
-        # Refresh the schedule tree so the Enabled column reflects the committed change.
         _refresh_tree(select=selected_indices[:1] if selected_indices else [])
         _save_btn.configure(text="Saved")
         root.after(1500, lambda: _save_btn.configure(text="Save"))
@@ -1032,10 +1268,34 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         padx=(0, 8),
     )
 
+    for variable in (
+        app_enabled_var,
+        preset_var,
+        capture_root_var,
+        archive_root_var,
+        retention_mode_var,
+        retention_days_var,
+        capture_mode_var,
+        image_format_var,
+        image_quality_var,
+        purge_enabled_var,
+        retention_grace_days_var,
+        start_tray_on_login_var,
+        wake_for_scheduled_captures_var,
+        show_last_capture_status_var,
+        notify_on_failed_or_missed_var,
+        notify_on_every_capture_var,
+        show_capture_overlay_var,
+    ):
+        variable.trace_add("write", _refresh_dynamic_content)
+
     preset_combo.bind(
         "<<ComboboxSelected>>", lambda _event: _set_preset_from_label(preset_var.get())
     )
+    capture_root_var.trace_add("write", _mark_custom)
+    archive_root_var.trace_add("write", _mark_custom)
     _update_path_state()
+    _refresh_dynamic_content()
     root.protocol("WM_DELETE_WINDOW", _cancel)
     root.mainloop()
     return result
@@ -1045,3 +1305,10 @@ def _browse_directory(parent: tk.Tk, target: tk.StringVar) -> None:
     chosen = filedialog.askdirectory(parent=parent, initialdir=target.get() or None)
     if chosen:
         target.set(chosen)
+
+
+def _latest_capture_summary(record: CaptureRecord | None) -> str:
+    if record is None:
+        return "Latest capture: none yet"
+    timestamp_utc = record.started_utc or record.created_utc or ""
+    return f"Latest capture: {record.outcome_code} at {format_local_timestamp(timestamp_utc)}"

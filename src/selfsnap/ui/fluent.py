@@ -50,12 +50,19 @@ def apply_fluent_window(root: tk.Misc) -> None:
     root.option_add("*Font", "Segoe UI 10")
     root.option_add("*TCombobox*Listbox.font", "Segoe UI 10")
     style = ttk.Style(root)
+    style.configure("TNotebook", background=WINDOW_BG, borderwidth=0)
+    style.configure("TNotebook.Tab", padding=(14, 8), font=("Segoe UI Semibold", 10))
     style.configure("TButton", padding=(10, 6))
     style.configure("Small.TButton", padding=(8, 4))
     style.configure("Wide.TButton", padding=(14, 8))
     style.configure("TCombobox", padding=4)
     style.configure("TCheckbutton", padding=2)
     try:
+        style.map(
+            "TNotebook.Tab",
+            background=[("selected", CARD_BG), ("!selected", WINDOW_BG)],
+            foreground=[("selected", TEXT_PRIMARY), ("!selected", TEXT_SECONDARY)],
+        )
         style.configure("Treeview", rowheight=30, font=("Segoe UI", 10))
         style.configure("Treeview.Heading", font=("Segoe UI Semibold", 10))
         style.map(

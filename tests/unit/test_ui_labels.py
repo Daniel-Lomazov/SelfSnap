@@ -6,9 +6,15 @@ from selfsnap.models import ConfigValidationError
 from selfsnap.ui_labels import (
     capture_mode_label,
     capture_mode_value,
+    image_format_label,
+    image_format_value,
     local_privacy_notice,
+    notification_mode_label,
+    on_off_label,
     retention_mode_label,
+    retention_policy_label,
     retention_mode_value,
+    scheduler_sync_state_label,
     storage_preset_label,
     storage_preset_value,
 )
@@ -38,6 +44,26 @@ def test_capture_mode_labels_round_trip() -> None:
 
     assert capture_mode_value("Composite") == "composite"
     assert capture_mode_value("Per Monitor") == "per_monitor"
+
+
+def test_image_format_labels_round_trip() -> None:
+    assert image_format_label("png") == "PNG"
+    assert image_format_label("jpeg") == "JPEG"
+    assert image_format_label("webp") == "WEBP"
+
+    assert image_format_value("PNG") == "png"
+    assert image_format_value("JPEG") == "jpeg"
+    assert image_format_value("WEBP") == "webp"
+
+
+def test_diagnostic_labels_render_human_friendly_text() -> None:
+    assert scheduler_sync_state_label("ok") == "Healthy"
+    assert scheduler_sync_state_label("failed") == "Needs Attention"
+    assert notification_mode_label(True, False) == "Failures and misses only"
+    assert on_off_label(True) == "On"
+    assert retention_policy_label("keep_days", 14, True, 7) == (
+        "Archive after 14 days, purge 7 grace days later"
+    )
 
 
 def test_local_privacy_notice_matches_public_trust_boundary() -> None:
@@ -91,3 +117,13 @@ def test_capture_mode_label_invalid_raises() -> None:
 def test_capture_mode_value_invalid_raises() -> None:
     with pytest.raises(ConfigValidationError, match="Unsupported capture mode label"):
         capture_mode_value("Windowed")
+
+
+def test_image_format_label_invalid_raises() -> None:
+    with pytest.raises(ConfigValidationError, match="Unsupported image format"):
+        image_format_label("bmp")
+
+
+def test_image_format_value_invalid_raises() -> None:
+    with pytest.raises(ConfigValidationError, match="Unsupported image format label"):
+        image_format_value("Bitmap")
