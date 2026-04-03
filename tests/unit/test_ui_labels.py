@@ -4,6 +4,8 @@ import pytest
 
 from selfsnap.models import ConfigValidationError
 from selfsnap.ui_labels import (
+    capture_mode_label,
+    capture_mode_value,
     local_privacy_notice,
     retention_mode_label,
     retention_mode_value,
@@ -28,6 +30,14 @@ def test_retention_mode_labels_round_trip() -> None:
 
     assert retention_mode_value("Keep Forever") == "keep_forever"
     assert retention_mode_value("Archive After N Days") == "keep_days"
+
+
+def test_capture_mode_labels_round_trip() -> None:
+    assert capture_mode_label("composite") == "Composite"
+    assert capture_mode_label("per_monitor") == "Per Monitor"
+
+    assert capture_mode_value("Composite") == "composite"
+    assert capture_mode_value("Per Monitor") == "per_monitor"
 
 
 def test_local_privacy_notice_matches_public_trust_boundary() -> None:
@@ -71,3 +81,13 @@ def test_retention_mode_label_invalid_raises() -> None:
 def test_retention_mode_value_invalid_raises() -> None:
     with pytest.raises(ConfigValidationError, match="Unsupported retention mode label"):
         retention_mode_value("Delete All")
+
+
+def test_capture_mode_label_invalid_raises() -> None:
+    with pytest.raises(ConfigValidationError, match="Unsupported capture mode"):
+        capture_mode_label("windowed")
+
+
+def test_capture_mode_value_invalid_raises() -> None:
+    with pytest.raises(ConfigValidationError, match="Unsupported capture mode label"):
+        capture_mode_value("Windowed")
