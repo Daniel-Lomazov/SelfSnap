@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tkinter as tk
 from dataclasses import dataclass, replace
+from datetime import datetime
 from tkinter import filedialog, messagebox, ttk
 
 from selfsnap.config_store import save_config
@@ -35,6 +36,7 @@ from selfsnap.ui_labels import (
 
 WINDOW_MIN_WIDTH = 960
 WINDOW_MIN_HEIGHT = 760
+HISTORY_REFRESH_INTERVAL_MS = 5000
 
 
 @dataclass(slots=True)
@@ -86,6 +88,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         draft_from_schedule(schedule) for schedule in config.schedules
     ]
     selected_indices: list[int] = []
+    history_refresh_job: str | None = None
 
     root.columnconfigure(0, weight=1)
     root.rowconfigure(0, weight=1)
@@ -345,6 +348,18 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         cancel_schedule_button.state(["!disabled"] if state.cancel_enabled else ["disabled"])
         list_delete_btn.state(["!disabled"] if state.delete_enabled else ["disabled"])
 
+    def _format_local_timestamp(utc_text: str) -> str:
+        if not utc_text:
+            return "(unknown time)"
+        text = utc_text.strip()
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        try:
+            parsed = datetime.fromisoformat(text)
+        except ValueError:
+            return utc_text[:19].replace("T", " ")
+        return parsed.astimezone().strftime("%Y-%m-%d %H:%M:%S")
+
     def _refresh_tree(select: list[int] | None = None) -> None:
         schedule_tree.delete(*schedule_tree.get_children())
         for index, draft in enumerate(drafts):
@@ -386,7 +401,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             with connect(paths.db_path) as conn:
                 records = get_by_schedule(conn, schedule_id, limit=5)
             for r in records:
-                ts = (r.started_utc or r.created_utc or "")[:19].replace("T", " ")
+                ts = _format_local_timestamp(r.started_utc or r.created_utc or "")
                 icon = {"success": "✓", "failed": "✗", "missed": "–", "skipped": "○"}.get(
                     r.outcome_category, "?"
                 )
@@ -400,6 +415,21 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         history_list.configure(state="normal")
         history_list.delete(0, "end")
         history_list.configure(state="disabled")
+
+    def _cancel_history_poll() -> None:
+        nonlocal history_refresh_job
+        if history_refresh_job is not None:
+            try:
+                root.after_cancel(history_refresh_job)
+            except tk.TclError:
+                pass
+            history_refresh_job = None
+
+    def _poll_history() -> None:
+        nonlocal history_refresh_job
+        if len(selected_indices) == 1:
+            _refresh_history(drafts[selected_indices[0]].schedule_id)
+        history_refresh_job = root.after(HISTORY_REFRESH_INTERVAL_MS, _poll_history)
 
     def _update_selection_from_tree(_event=None) -> None:
         nonlocal selected_indices
@@ -529,6 +559,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     _refresh_tree([])
     _load_draft_to_form(_new_default_draft())
     _selected_mode()
+    history_refresh_job = root.after(HISTORY_REFRESH_INTERVAL_MS, _poll_history)
 
     visibility_frame = ttk.LabelFrame(content, text="Visibility", padding=10)
     visibility_frame.grid(row=row, column=0, sticky="ew", pady=(8, 0))
@@ -607,6 +638,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         )
         if not confirmed:
             return
+        _cancel_history_poll()
         result.window_size = _capture_size()
         result.requested_reset = True
         root.destroy()
@@ -686,6 +718,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         root.after(1500, lambda: _save_btn.configure(text="Save"))
 
     def _cancel() -> None:
+        _cancel_history_poll()
         result.window_size = _capture_size()
         root.destroy()
 
