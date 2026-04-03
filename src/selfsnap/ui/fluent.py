@@ -47,8 +47,8 @@ class SectionBlock:
 
 def apply_fluent_window(root: tk.Misc) -> None:
     root.configure(bg=WINDOW_BG)
-    root.option_add("*Font", "Segoe UI 10")
-    root.option_add("*TCombobox*Listbox.font", "Segoe UI 10")
+    root.option_add("*Font", ("Segoe UI", 10))
+    root.option_add("*TCombobox*Listbox.font", ("Segoe UI", 10))
     style = ttk.Style(root)
     style.configure("TButton", padding=(10, 6))
     style.configure("Small.TButton", padding=(8, 4))
