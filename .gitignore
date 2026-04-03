@@ -33,3 +33,5 @@ pytest*.out
 # Personal / local-only — session data and local tools
 docs/session-history.txt
 .hypothesis/
+
+cov_annotate/

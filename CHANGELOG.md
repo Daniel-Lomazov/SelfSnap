@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.0.2 - 2026-04-04
+
+Why: Expanded unit test coverage from 87% to 89% (+39 tests, +2.25 pp) by targeting previously untested branches, new modules, and dead-code confirmation.
+
+- **Test — new `test_db.py`.** Covers `ManagedConnection` commit/rollback semantics, `_ensure_column` add-and-idempotent, and `ensure_database` idempotency/index creation. Achieves 100% on `db.py`.
+- **Test — new `test_paths.py`.** Covers `resolve_app_paths` env-var fallbacks, `capture_file_path` naming, `archive_file_path` collision suffix, and `preferred_onedrive_root`. Achieves 100% on `paths.py`.
+- **Test — extended `test_reconcile.py`.** Added early-exit branch coverage (first-run incomplete, app disabled, scheduler sync failed), console emit flag, non-coarse schedule skip, and the already-existing-slot deduplication path (`has_record_for_slot → continue`). Achieves 100% on `reconcile.py`.
+- **Test — extended `test_issue_reporting.py`.** Added all `_open_issue_in_browser` branches: `webbrowser.open` success, exception-suppressed failure, `os.startfile` fallback (NT), `OSError` from `startfile`. Added `build_issue_title` empty/whitespace/truncation/period-split, `build_issue_body` empty-raises and diagnostics-excluded path, and `sys.frozen` packaged-mode diagnostic. Achieves 100% on `issue_reporting.py`.
+- **Test — extended `test_runtime_probe.py`.** Added missing-module and broken-native-dependency probe outcomes plus `to_dict` key assertion. Achieves 100% on `runtime_probe.py`.
+- **Test — extended `test_models.py`.** Added `Schedule.validate()` error paths: invalid schedule ID pattern, empty label, and zero interval value.
+- **Test — extended `test_records.py`.** Added `get_latest_record` with-record and empty-DB paths; `mark_record_archived` update assertion.
+- **Test — extended `test_config_store.py`.** Added `validate_config_file` corrupt-JSON and invalid-schema raises; `load_or_create_config` with existing config; `save_config` no-temp-files left-behind; `load_config` missing-file default return.
+- **Test — extended `test_storage.py`.** Fixed split test that had `monkeypatch` missing from signature; isolated into two correctly-scoped functions.
+- **Dead code confirmed.** Three unreachable lines documented and accepted: `models.py:118` (`time.fromisoformat` inside `except ValueError` — pre-validated by regex), `records.py:174` (`return {}` in `summary_stats` — SQLite `COUNT(*)` always returns a row), `storage.py:68,79` (`_nearest_existing_parent` returning `None` — drive root always exists on Windows).
+
 ## v1.0.1 - 2026-04-03
 
 Why: UI crash fixes for the Recent Captures and Statistics windows, both of which were broken when opened after any other dialog had closed.
