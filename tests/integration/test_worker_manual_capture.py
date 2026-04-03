@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from selfsnap.config_store import load_or_create_config, save_config
 from selfsnap.db import connect, ensure_database
@@ -13,8 +14,8 @@ from selfsnap.worker import EXIT_OK, EXIT_SCHEDULER_FAILURE, run_capture_command
 class FakeImage:
     payload: bytes = b"fake-png"
 
-    def save(self, destination, format: str = "PNG") -> None:  # noqa: A002
-        destination.write_bytes(self.payload)
+    def save(self, destination, format: str = "PNG", **kwargs) -> None:  # noqa: A002
+        Path(destination).write_bytes(self.payload)
 
 
 @dataclass
@@ -40,7 +41,7 @@ def test_manual_capture_writes_file_and_db_row(temp_paths, monkeypatch) -> None:
     save_config(temp_paths, config)
     ensure_database(temp_paths.db_path)
 
-    monkeypatch.setattr("selfsnap.worker.capture_virtual_desktop", lambda: FakeCapture([FakeImage()]))
+    monkeypatch.setattr("selfsnap.worker.capture_composite", lambda: FakeCapture([FakeImage()]))
 
     result = run_capture_command(TriggerSource.MANUAL, paths=temp_paths)
 
@@ -64,7 +65,7 @@ def test_manual_capture_is_allowed_when_scheduler_sync_failed(temp_paths, monkey
     save_config(temp_paths, config)
     ensure_database(temp_paths.db_path)
 
-    monkeypatch.setattr("selfsnap.worker.capture_virtual_desktop", lambda: FakeCapture([FakeImage()]))
+    monkeypatch.setattr("selfsnap.worker.capture_composite", lambda: FakeCapture([FakeImage()]))
 
     result = run_capture_command(TriggerSource.MANUAL, paths=temp_paths)
 
@@ -122,7 +123,7 @@ def test_high_frequency_scheduled_capture_is_not_blocked_by_scheduler_sync_faile
     ]
     save_config(temp_paths, config)
     ensure_database(temp_paths.db_path)
-    monkeypatch.setattr("selfsnap.worker.capture_virtual_desktop", lambda: FakeCapture([FakeImage()]))
+    monkeypatch.setattr("selfsnap.worker.capture_composite", lambda: FakeCapture([FakeImage()]))
 
     result = run_capture_command(
         TriggerSource.SCHEDULED,
@@ -134,3 +135,56 @@ def test_high_frequency_scheduled_capture_is_not_blocked_by_scheduler_sync_faile
     assert result.exit_code == EXIT_OK
     assert result.record is not None
     assert result.record.outcome_code == "capture_saved"
+
+
+def test_per_monitor_capture_writes_multiple_monitor_files(temp_paths, monkeypatch) -> None:
+    config = load_or_create_config(temp_paths)
+    config.capture_mode = "per_monitor"
+    save_config(temp_paths, config)
+    ensure_database(temp_paths.db_path)
+
+    monkeypatch.setattr(
+        "selfsnap.worker.capture_per_monitor",
+        lambda: FakeCapture([FakeImage(b"m1"), FakeImage(b"m2")], monitor_count=2),
+    )
+
+    result = run_capture_command(TriggerSource.MANUAL, paths=temp_paths)
+
+    assert result.exit_code == EXIT_OK
+    assert result.record is not None
+    assert result.record.image_path is not None
+    first_path = Path(result.record.image_path)
+    second_path = first_path.with_name(first_path.stem.replace("_m1", "_m2") + first_path.suffix)
+    assert first_path.exists()
+    assert second_path.exists()
+    assert first_path.suffix == ".png"
+    assert second_path.suffix == ".png"
+
+
+def test_composite_capture_honors_image_format_and_quality(temp_paths, monkeypatch) -> None:
+    config = load_or_create_config(temp_paths)
+    config.capture_mode = "composite"
+    config.image_format = "jpeg"
+    config.image_quality = 77
+    save_config(temp_paths, config)
+    ensure_database(temp_paths.db_path)
+
+    saved_calls: list[tuple[str, int | None]] = []
+
+    class RecordingImage(FakeImage):
+        def save(self, destination, format: str = "PNG", **kwargs) -> None:  # noqa: A002
+            saved_calls.append((format, kwargs.get("quality")))
+            Path(destination).write_bytes(self.payload)
+
+    monkeypatch.setattr(
+        "selfsnap.worker.capture_composite",
+        lambda: FakeCapture([RecordingImage(b"jpeg-bytes")], monitor_count=1),
+    )
+
+    result = run_capture_command(TriggerSource.MANUAL, paths=temp_paths)
+
+    assert result.exit_code == EXIT_OK
+    assert result.record is not None
+    assert result.record.image_path is not None
+    assert Path(result.record.image_path).suffix == ".jpeg"
+    assert saved_calls == [("JPEG", 77)]

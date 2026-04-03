@@ -8,7 +8,11 @@ from pathlib import Path
 import traceback
 from uuid import uuid4
 
-from selfsnap.capture_engine import capture_virtual_desktop
+from selfsnap.capture_engine import (
+    capture_composite,
+    capture_per_monitor,
+    save_capture_images,
+)
 from selfsnap.config_store import load_or_create_config
 from selfsnap.db import connect, ensure_database
 from selfsnap.models import (
@@ -137,9 +141,10 @@ def run_capture_command(
         record_id = str(uuid4())
         destination: Path | None = None
         try:
-            capture = capture_virtual_desktop()
+            use_per_monitor = config.capture_mode == "per_monitor"
+            capture = capture_per_monitor() if use_per_monitor else capture_composite()
             capture_root = paths.resolve_capture_root(config)
-            destination = _reserve_capture_destination(
+            base_destination = _reserve_capture_destination(
                 paths=paths,
                 capture_root=capture_root,
                 when_local=now_local,
@@ -147,9 +152,16 @@ def run_capture_command(
                 schedule_id=schedule_id,
                 record_id=record_id,
             )
-            capture.images[0].save(destination, format="PNG")
-            file_bytes = destination.stat().st_size
-            image_hash = _hash_file(destination)
+            written_paths = save_capture_images(
+                capture,
+                base_destination,
+                image_format=config.image_format,
+                image_quality=config.image_quality,
+                per_monitor=use_per_monitor,
+            )
+            primary_path = written_paths[0]
+            file_bytes = sum(path.stat().st_size for path in written_paths)
+            image_hash = _hash_file(primary_path)
             finished_utc = datetime.now(timezone.utc)
             record = CaptureRecord(
                 record_id=record_id,
@@ -160,7 +172,7 @@ def run_capture_command(
                 finished_utc=finished_utc.isoformat(),
                 outcome_category=OutcomeCategory.SUCCESS.value,
                 outcome_code=OutcomeCode.CAPTURE_SAVED.value,
-                image_path=str(destination),
+                image_path=str(primary_path),
                 file_present=True,
                 image_sha256=image_hash,
                 monitor_count=capture.monitor_count,
@@ -178,7 +190,13 @@ def run_capture_command(
             insert_capture_record(connection, record)
             apply_retention(connection, config, paths=paths)
             _resync_coarse_scheduler_if_needed(paths, should_resync_coarse_schedule, logger)
-            return WorkerCommandResult(EXIT_OK, record, f"Capture saved to {destination}")
+            if len(written_paths) == 1:
+                return WorkerCommandResult(EXIT_OK, record, f"Capture saved to {primary_path}")
+            return WorkerCommandResult(
+                EXIT_OK,
+                record,
+                f"Captured {len(written_paths)} monitor images under {primary_path.parent}",
+            )
         except CaptureBackendError as exc:
             record = _build_failure_record(
                 trigger_source=trigger_source,

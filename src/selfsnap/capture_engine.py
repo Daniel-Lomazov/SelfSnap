@@ -95,7 +95,7 @@ def save_capture_images(
     if not per_monitor or len(capture.images) == 1:
         out_path = base_path.with_suffix(ext)
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        capture.images[0].save(str(out_path), format=fmt, **save_kwargs)
+        capture.images[0].save(out_path, format=fmt, **save_kwargs)
         paths_written.append(out_path)
     else:
         stem = base_path.stem
@@ -103,7 +103,7 @@ def save_capture_images(
         parent.mkdir(parents=True, exist_ok=True)
         for idx, image in enumerate(capture.images, start=1):
             out_path = parent / f"{stem}_m{idx}{ext}"
-            image.save(str(out_path), format=fmt, **save_kwargs)
+            image.save(out_path, format=fmt, **save_kwargs)
             paths_written.append(out_path)
 
     return paths_written
