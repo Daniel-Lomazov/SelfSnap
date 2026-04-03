@@ -211,6 +211,40 @@ def test_settings_menu_item_is_default_action(temp_paths, monkeypatch) -> None:
     assert settings_items[0].default is True
 
 
+def test_menu_includes_notification_and_retention_diagnostics(temp_paths, monkeypatch) -> None:
+    class FakeMenu(list):
+        SEPARATOR = None
+
+        def __init__(self, *items):
+            super().__init__(items)
+
+    class FakeMenuItem:
+        def __init__(self, text, action, enabled=True, default=False):
+            self.text = text
+            self.action = action
+            self.enabled = enabled
+            self.default = default
+
+    monkeypatch.setattr(
+        "selfsnap.tray.app.load_or_create_config",
+        lambda _paths: AppConfig(
+            capture_storage_root=str(temp_paths.default_capture_root),
+            archive_storage_root=str(temp_paths.default_archive_root),
+        ),
+    )
+
+    items = _build_menu_items(
+        SimpleNamespace(MenuItem=FakeMenuItem, Menu=FakeMenu),
+        temp_paths,
+        SimpleNamespace(),
+        _state(),
+    )
+
+    labels = [item.text for item in items if item is not None and not callable(item.text)]
+    assert any(label.startswith("Notifications:") for label in labels)
+    assert any(label.startswith("Retention:") for label in labels)
+
+
 def test_format_local_timestamp_treats_naive_as_utc() -> None:
     naive = "2026-04-03T14:03:00"
     explicit_utc = "2026-04-03T14:03:00+00:00"

@@ -4,11 +4,19 @@ import pytest
 
 from selfsnap.models import ConfigValidationError
 from selfsnap.ui_labels import (
+    capture_mode_label,
+    enabled_disabled_label,
+    image_format_label,
     local_privacy_notice,
+    notification_mode_label,
+    on_off_label,
     retention_mode_label,
+    retention_policy_label,
     retention_mode_value,
+    scheduler_sync_state_label,
     storage_preset_label,
     storage_preset_value,
+    yes_no_label,
 )
 
 
@@ -71,3 +79,40 @@ def test_retention_mode_label_invalid_raises() -> None:
 def test_retention_mode_value_invalid_raises() -> None:
     with pytest.raises(ConfigValidationError, match="Unsupported retention mode label"):
         retention_mode_value("Delete All")
+
+
+def test_status_and_format_labels_cover_diagnostics_views() -> None:
+    assert scheduler_sync_state_label("ok") == "Healthy"
+    assert scheduler_sync_state_label("failed") == "Needs Attention"
+    assert capture_mode_label("composite") == "Composite"
+    assert capture_mode_label("per_monitor") == "Per Monitor"
+    assert image_format_label("png") == "PNG"
+    assert image_format_label("jpeg") == "JPEG"
+    assert image_format_label("webp") == "WEBP"
+
+
+def test_notification_retention_and_boolean_labels_are_human_readable() -> None:
+    assert notification_mode_label(True, False) == "Failures and misses only"
+    assert notification_mode_label(True, True) == "Failures, misses, and all successful captures"
+    assert notification_mode_label(False, True) == "All successful captures only"
+    assert notification_mode_label(False, False) == "No tray notifications"
+    assert retention_policy_label("keep_forever", None, False, 30) == "Keep forever"
+    assert retention_policy_label("keep_days", 14, False, 30) == "Archive after 14 days"
+    assert (
+        retention_policy_label("keep_days", 14, True, 7)
+        == "Archive after 14 days, purge 7 grace days later"
+    )
+    assert enabled_disabled_label(True) == "Enabled"
+    assert enabled_disabled_label(False) == "Disabled"
+    assert on_off_label(True) == "On"
+    assert on_off_label(False) == "Off"
+    assert yes_no_label(True) == "Yes"
+    assert yes_no_label(False) == "No"
+
+
+def test_scheduler_sync_state_and_retention_policy_invalid_values_raise() -> None:
+    with pytest.raises(ConfigValidationError, match="Unsupported scheduler sync state"):
+        scheduler_sync_state_label("stale")
+
+    with pytest.raises(ConfigValidationError, match="retention_days must be >= 1"):
+        retention_policy_label("keep_days", 0, False, 30)

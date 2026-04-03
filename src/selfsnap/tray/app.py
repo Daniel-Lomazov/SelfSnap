@@ -33,6 +33,14 @@ from selfsnap.runtime_launch import (
 from selfsnap.runtime_probe import probe_runtime_dependencies
 from selfsnap.scheduler.reconcile import reconcile_missed_slots
 from selfsnap.scheduler.task_scheduler import sync_scheduler_from_config
+from selfsnap.tray.diagnostics import (
+    format_local_timestamp,
+    notification_summary,
+    retention_summary,
+    tray_state_label,
+    tray_title,
+    tray_warning_label,
+)
 from selfsnap.tray.first_run import show_first_run_dialog
 from selfsnap.tray.recent_captures_window import show_recent_captures_window
 from selfsnap.tray.report_issue_window import show_report_issue_dialog
@@ -129,6 +137,8 @@ def _build_menu_items(pystray, paths: AppPaths, icon, state: TrayRuntimeState) -
     items.append(pystray.MenuItem(lambda _item: _state_label(config), None, enabled=False))
     if config.show_last_capture_status:
         items.append(pystray.MenuItem(lambda _item: _latest_label(paths), None, enabled=False))
+    items.append(pystray.MenuItem(_notifications_label(config), None, enabled=False))
+    items.append(pystray.MenuItem(_retention_label(config), None, enabled=False))
     items.extend(
         [
             pystray.MenuItem(
@@ -409,19 +419,11 @@ def _open_latest_capture(paths: AppPaths) -> None:
 
 
 def _state_label(config: AppConfig) -> str:
-    if not config.first_run_completed:
-        return "State: setup required"
-    if not config.app_enabled:
-        return "State: disabled"
-    if config.scheduler_sync_failed():
-        return "State: enabled, scheduler sync failed"
-    return "State: enabled"
+    return tray_state_label(config)
 
 
 def _scheduler_warning_label(config: AppConfig) -> str | None:
-    if not config.scheduler_sync_failed():
-        return None
-    return "Warning: scheduler sync failed - open Settings"
+    return tray_warning_label(config)
 
 
 def _latest_label(paths: AppPaths) -> str:
@@ -436,16 +438,15 @@ def _latest_label(paths: AppPaths) -> str:
 
 
 def _format_local_timestamp(utc_text: str) -> str:
-    text = utc_text.strip()
-    if text.endswith("Z"):
-        text = text[:-1] + "+00:00"
-    try:
-        parsed = datetime.fromisoformat(text)
-    except ValueError:
-        return utc_text[:19].replace("T", " ")
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=UTC)
-    return parsed.astimezone().strftime("%Y-%m-%d %H:%M:%S")
+    return format_local_timestamp(utc_text)
+
+
+def _notifications_label(config: AppConfig) -> str:
+    return f"Notifications: {notification_summary(config).headline}"
+
+
+def _retention_label(config: AppConfig) -> str:
+    return f"Retention: {retention_summary(config).headline}"
 
 
 def _toggle_enabled_label(config: AppConfig) -> str:
@@ -454,11 +455,7 @@ def _toggle_enabled_label(config: AppConfig) -> str:
 
 def _icon_title(paths: AppPaths) -> str:
     config = load_or_create_config(paths)
-    if config.scheduler_sync_failed():
-        return "SelfSnap Win11 - scheduler sync failed"
-    if not config.first_run_completed:
-        return "SelfSnap Win11 - setup required"
-    return "SelfSnap Win11"
+    return tray_title(config)
 
 
 def _exit(icon, stop_event: threading.Event) -> None:

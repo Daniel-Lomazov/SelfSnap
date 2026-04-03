@@ -16,6 +16,8 @@ from selfsnap.tray.schedule_editor import (
     generate_schedule_id,
     normalize_draft,
     schedule_help_text,
+    schedule_inventory_text,
+    schedule_selection_guidance,
     selection_state,
     unit_label,
     unit_labels,
@@ -30,6 +32,8 @@ def test_schedule_help_text_mentions_defaults_and_multi_select() -> None:
     assert "Every N seconds, minutes, hours, days, weeks, months, or years" in text
     assert "Defaults are Every 1 day, today, and now" in text
     assert "select many rows to delete only" in text
+    assert "click the On/Off column to toggle quickly" in text
+    assert "recent runs refresh every 5 seconds" in text
     assert "month/year schedules skip invalid dates" in text
 
 
@@ -143,3 +147,15 @@ def test_generate_schedule_id_returns_internal_identifier() -> None:
 
     assert schedule_id.startswith("sched_")
     assert len(schedule_id) > len("sched_")
+
+
+def test_schedule_inventory_and_selection_guidance_are_diagnostic() -> None:
+    enabled = default_draft(datetime(2026, 3, 23, 9, 0, 0))
+    disabled = default_draft(datetime(2026, 3, 23, 10, 0, 0))
+    disabled.enabled = False
+
+    assert schedule_inventory_text([]) == "0 schedules | no recurring captures configured"
+    assert schedule_inventory_text([enabled, disabled]) == "2 schedules | 1 enabled | 1 disabled"
+    assert "Click the On/Off column" in schedule_selection_guidance(0)
+    assert "Recent Runs refreshes automatically" in schedule_selection_guidance(1)
+    assert "Bulk selection is active" in schedule_selection_guidance(2)

@@ -2,13 +2,24 @@ from __future__ import annotations
 
 import tkinter as tk
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
 from tkinter import filedialog, messagebox, ttk
 
 from selfsnap.config_store import save_config
-from selfsnap.models import AppConfig, ConfigValidationError, StoragePreset
+from selfsnap.db import connect, ensure_database
+from selfsnap.models import AppConfig, CaptureRecord, ConfigValidationError, StoragePreset
 from selfsnap.paths import AppPaths
+from selfsnap.records import get_latest_record
 from selfsnap.storage import apply_storage_preset, validate_storage_config
+from selfsnap.tray.diagnostics import (
+    DiagnosticSummary,
+    format_local_timestamp,
+    last_activity_summary,
+    notification_summary,
+    operational_summary,
+    retention_summary,
+    scheduler_sync_summary,
+    storage_summary,
+)
 from selfsnap.tray.schedule_editor import (
     RecurringScheduleDraft,
     default_draft,
@@ -19,10 +30,18 @@ from selfsnap.tray.schedule_editor import (
     format_date_text,
     format_time_text,
     schedule_help_text,
+    schedule_inventory_text,
+    schedule_selection_guidance,
     selection_state,
     unit_label,
     unit_labels,
     unit_phrase,
+)
+from selfsnap.tray.ui_helpers import (
+    bind_card_wrap,
+    bind_wrap,
+    create_diagnostic_card,
+    set_diagnostic_card_content,
 )
 from selfsnap.ui_labels import (
     local_privacy_notice,
@@ -115,14 +134,6 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     content.bind("<Configure>", _sync_canvas)
     canvas.bind("<Configure>", _sync_canvas)
 
-    def _bind_wrap(widget: ttk.Label, padding: int = 56) -> None:
-        def _update_wrap(_event=None) -> None:
-            wrap = max(content.winfo_width() - padding, 380)
-            widget.configure(wraplength=wrap)
-
-        content.bind("<Configure>", _update_wrap, add="+")
-        root.after_idle(_update_wrap)
-
     def _set_preset_from_label(selected_label: str) -> None:
         internal_preset_update["active"] = True
         try:
@@ -150,13 +161,135 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     capture_root_var.trace_add("write", _mark_custom)
     archive_root_var.trace_add("write", _mark_custom)
 
+    def _load_latest_record() -> CaptureRecord | None:
+        if not paths.db_path.exists():
+            return None
+        try:
+            ensure_database(paths.db_path)
+            with connect(paths.db_path) as connection:
+                return get_latest_record(connection)
+        except Exception:
+            return None
+
+    latest_record = _load_latest_record()
+
     row = 0
     trust_label = ttk.Label(content, text=local_privacy_notice(), justify="left")
     trust_label.grid(row=row, column=0, sticky="ew", pady=(0, 8))
-    _bind_wrap(trust_label)
+    bind_wrap(content, root, trust_label)
     row += 1
 
-    storage_frame = ttk.LabelFrame(content, text="Storage", padding=10)
+    overview_frame = ttk.LabelFrame(content, text="Diagnostics Overview", padding=10)
+    overview_frame.grid(row=row, column=0, sticky="ew")
+    overview_frame.columnconfigure(0, weight=1)
+    overview_frame.columnconfigure(1, weight=1)
+    row += 1
+
+    scheduler_card = create_diagnostic_card(overview_frame, "Scheduler Sync")
+    scheduler_card.frame.grid(row=0, column=0, sticky="nsew", padx=(0, 8), pady=(0, 8))
+    last_activity_card = create_diagnostic_card(overview_frame, "Last Activity")
+    last_activity_card.frame.grid(row=0, column=1, sticky="nsew", pady=(0, 8))
+    storage_card = create_diagnostic_card(overview_frame, "Storage")
+    storage_card.frame.grid(row=1, column=0, sticky="nsew", padx=(0, 8), pady=(0, 8))
+    retention_card = create_diagnostic_card(overview_frame, "Retention")
+    retention_card.frame.grid(row=1, column=1, sticky="nsew", pady=(0, 8))
+    notification_card = create_diagnostic_card(overview_frame, "Notifications")
+    notification_card.frame.grid(row=2, column=0, sticky="nsew", padx=(0, 8))
+    operational_card = create_diagnostic_card(overview_frame, "Operational Context")
+    operational_card.frame.grid(row=2, column=1, sticky="nsew")
+    for card in (
+        scheduler_card,
+        last_activity_card,
+        storage_card,
+        retention_card,
+        notification_card,
+        operational_card,
+    ):
+        bind_card_wrap(card, root)
+
+    def _safe_int(value: str, fallback: int) -> int:
+        stripped = value.strip()
+        if not stripped:
+            return fallback
+        try:
+            return int(stripped)
+        except ValueError:
+            return fallback
+
+    def _selected_storage_preset() -> str:
+        try:
+            return storage_preset_value(preset_var.get().strip())
+        except ConfigValidationError:
+            return config.storage_preset
+
+    def _selected_retention_mode() -> str:
+        try:
+            return retention_mode_value(retention_mode_var.get())
+        except ConfigValidationError:
+            return config.retention_mode
+
+    def _preview_config() -> AppConfig:
+        retention_mode = _selected_retention_mode()
+        retention_days = None
+        if retention_mode == "keep_days":
+            fallback_days = config.retention_days if config.retention_days is not None else 1
+            retention_days = _safe_int(retention_days_var.get(), fallback_days)
+        image_format = image_format_var.get().strip().lower()
+        if image_format not in {"png", "jpeg", "webp"}:
+            image_format = config.image_format
+        return replace(
+            config,
+            storage_preset=_selected_storage_preset(),
+            capture_storage_root=capture_root_var.get().strip(),
+            archive_storage_root=archive_root_var.get().strip(),
+            retention_mode=retention_mode,
+            retention_days=retention_days,
+            purge_enabled=purge_enabled_var.get(),
+            retention_grace_days=_safe_int(
+                retention_grace_days_var.get(), config.retention_grace_days
+            ),
+            capture_mode="per_monitor"
+            if capture_mode_var.get() == "Per Monitor"
+            else "composite",
+            image_format=image_format,
+            image_quality=_safe_int(image_quality_var.get(), config.image_quality),
+            start_tray_on_login=start_tray_on_login_var.get(),
+            wake_for_scheduled_captures=wake_for_scheduled_captures_var.get(),
+            show_last_capture_status=show_last_capture_status_var.get(),
+            notify_on_failed_or_missed=notify_on_failed_or_missed_var.get(),
+            notify_on_every_capture=notify_on_every_capture_var.get(),
+            show_capture_overlay=show_capture_overlay_var.get(),
+        )
+
+    def _set_card(card, summary: DiagnosticSummary) -> None:
+        set_diagnostic_card_content(
+            card,
+            headline=summary.headline,
+            detail=summary.detail,
+            tone=summary.tone,
+        )
+
+    def _refresh_overview(*_args) -> None:
+        preview = _preview_config()
+        _set_card(scheduler_card, scheduler_sync_summary(preview))
+        _set_card(last_activity_card, last_activity_summary(latest_record))
+        for card, builder in (
+            (storage_card, lambda: storage_summary(preview, paths)),
+            (retention_card, lambda: retention_summary(preview)),
+            (notification_card, lambda: notification_summary(preview)),
+            (operational_card, lambda: operational_summary(preview, paths)),
+        ):
+            try:
+                summary = builder()
+            except (ConfigValidationError, ValueError) as exc:
+                summary = DiagnosticSummary(
+                    headline="Pending validation",
+                    detail=str(exc),
+                    tone="warn",
+                )
+            _set_card(card, summary)
+
+    storage_frame = ttk.LabelFrame(content, text="Storage and Capture", padding=10)
     storage_frame.grid(row=row, column=0, sticky="ew")
     storage_frame.columnconfigure(1, weight=1)
     row += 1
@@ -246,20 +379,37 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         row=4, column=3, sticky="w", pady=(4, 0)
     )
 
-    schedules_frame = ttk.LabelFrame(content, text="Schedules", padding=10)
+    schedules_frame = ttk.LabelFrame(content, text="Schedules and Recent Runs", padding=10)
     schedules_frame.grid(row=row, column=0, sticky="ew", pady=(8, 0))
     schedules_frame.columnconfigure(0, weight=1)
     row += 1
 
     schedule_help_label = ttk.Label(schedules_frame, text=schedule_help_text(), justify="left")
     schedule_help_label.grid(row=0, column=0, sticky="ew", pady=(0, 8))
-    _bind_wrap(schedule_help_label, padding=56)
+    bind_wrap(schedules_frame, root, schedule_help_label, padding=56)
+
+    schedule_inventory_var = tk.StringVar(master=root, value="")
+    schedule_selection_var = tk.StringVar(master=root, value="")
+    schedule_inventory_label = ttk.Label(
+        schedules_frame,
+        textvariable=schedule_inventory_var,
+        justify="left",
+        font=("Segoe UI", 10, "bold"),
+    )
+    schedule_inventory_label.grid(row=1, column=0, sticky="ew")
+    schedule_selection_label = ttk.Label(
+        schedules_frame,
+        textvariable=schedule_selection_var,
+        justify="left",
+    )
+    schedule_selection_label.grid(row=2, column=0, sticky="ew", pady=(4, 8))
+    bind_wrap(schedules_frame, root, schedule_selection_label, padding=56)
 
     schedules_body = ttk.Frame(schedules_frame)
-    schedules_body.grid(row=1, column=0, sticky="nsew")
+    schedules_body.grid(row=3, column=0, sticky="nsew")
     schedules_body.columnconfigure(0, weight=1)
     schedules_body.columnconfigure(1, weight=1)
-    schedules_frame.rowconfigure(1, weight=1)
+    schedules_frame.rowconfigure(3, weight=1)
 
     list_frame = ttk.LabelFrame(schedules_body, text="Existing Schedules", padding=8)
     list_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
@@ -348,20 +498,6 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         cancel_schedule_button.state(["!disabled"] if state.cancel_enabled else ["disabled"])
         list_delete_btn.state(["!disabled"] if state.delete_enabled else ["disabled"])
 
-    def _format_local_timestamp(utc_text: str) -> str:
-        if not utc_text:
-            return "(unknown time)"
-        text = utc_text.strip()
-        if text.endswith("Z"):
-            text = text[:-1] + "+00:00"
-        try:
-            parsed = datetime.fromisoformat(text)
-        except ValueError:
-            return utc_text[:19].replace("T", " ")
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
-        return parsed.astimezone().strftime("%Y-%m-%d %H:%M:%S")
-
     def _refresh_tree(select: list[int] | None = None) -> None:
         schedule_tree.delete(*schedule_tree.get_children())
         for index, draft in enumerate(drafts):
@@ -403,7 +539,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             with connect(paths.db_path) as conn:
                 records = get_by_schedule(conn, schedule_id, limit=5)
             for r in records:
-                ts = _format_local_timestamp(r.started_utc or r.created_utc or "")
+                ts = format_local_timestamp(r.started_utc or r.created_utc or "")
                 icon = {"success": "✓", "failed": "✗", "missed": "–", "skipped": "○"}.get(
                     r.outcome_category, "?"
                 )
@@ -446,6 +582,11 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             _load_draft_to_form(drafts[selected_indices[0]])
             _clear_history()
         _selected_mode()
+        _refresh_schedule_status()
+
+    def _refresh_schedule_status() -> None:
+        schedule_inventory_var.set(schedule_inventory_text(drafts))
+        schedule_selection_var.set(schedule_selection_guidance(len(selected_indices)))
 
     def _add_schedule() -> None:
         try:
@@ -550,6 +691,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         current_vals = list(schedule_tree.item(item, "values"))
         current_vals[3] = "✓" if drafts[index].enabled else "✗"
         schedule_tree.item(item, values=current_vals)
+        _refresh_schedule_status()
 
     def _on_treeview_motion(event: tk.Event) -> None:
         col = schedule_tree.identify_column(event.x)
@@ -561,9 +703,10 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     _refresh_tree([])
     _load_draft_to_form(_new_default_draft())
     _selected_mode()
+    _refresh_schedule_status()
     history_refresh_job = root.after(HISTORY_REFRESH_INTERVAL_MS, _poll_history)
 
-    visibility_frame = ttk.LabelFrame(content, text="Visibility", padding=10)
+    visibility_frame = ttk.LabelFrame(content, text="Tray, Notifications, and Power", padding=10)
     visibility_frame.grid(row=row, column=0, sticky="ew", pady=(8, 0))
     visibility_frame.columnconfigure(0, weight=1)
     row += 1
@@ -731,7 +874,27 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     preset_combo.bind(
         "<<ComboboxSelected>>", lambda _event: _set_preset_from_label(preset_var.get())
     )
+    for variable in (
+        preset_var,
+        capture_root_var,
+        archive_root_var,
+        retention_mode_var,
+        retention_days_var,
+        purge_enabled_var,
+        retention_grace_days_var,
+        capture_mode_var,
+        image_format_var,
+        image_quality_var,
+        start_tray_on_login_var,
+        wake_for_scheduled_captures_var,
+        show_last_capture_status_var,
+        notify_on_failed_or_missed_var,
+        notify_on_every_capture_var,
+        show_capture_overlay_var,
+    ):
+        variable.trace_add("write", _refresh_overview)
     _update_path_state()
+    _refresh_overview()
     root.protocol("WM_DELETE_WINDOW", _cancel)
     root.mainloop()
     return result

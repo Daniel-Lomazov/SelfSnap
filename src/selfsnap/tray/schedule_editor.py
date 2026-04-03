@@ -44,8 +44,10 @@ def schedule_help_text() -> str:
     return (
         "Add schedules as Every N seconds, minutes, hours, days, weeks, months, or years. "
         "The start date and start time anchor the recurrence. Defaults are Every 1 day, today, "
-        "and now. Select one row to edit it in place, select many rows to delete only, and note "
-        "that month/year schedules skip invalid dates instead of rolling to the last day."
+        "and now. Select one row to edit it in place, select many rows to delete only, click "
+        "the On/Off column to toggle quickly, recent runs refresh every 5 seconds for a single "
+        "selected schedule, and note that month/year schedules skip invalid dates instead of "
+        "rolling to the last day."
     )
 
 
@@ -181,6 +183,38 @@ def selection_state(selection_count: int) -> EditorControlState:
         cancel_enabled=False,
         delete_enabled=True,
         fields_enabled=False,
+    )
+
+
+def schedule_inventory_text(drafts: list[RecurringScheduleDraft]) -> str:
+    total = len(drafts)
+    if total == 0:
+        return "0 schedules | no recurring captures configured"
+    enabled = sum(1 for draft in drafts if draft.enabled)
+    disabled = total - enabled
+    parts = [
+        f"{total} {'schedule' if total == 1 else 'schedules'}",
+        f"{enabled} enabled",
+    ]
+    if disabled:
+        parts.append(f"{disabled} disabled")
+    return " | ".join(parts)
+
+
+def schedule_selection_guidance(selection_count: int) -> str:
+    if selection_count <= 0:
+        return (
+            "Add a schedule, or select one row to edit in place. Click the On/Off column to "
+            "toggle a schedule without opening the editor."
+        )
+    if selection_count == 1:
+        return (
+            "Editing one schedule. Save commits field changes, Cancel restores the form, and "
+            "Recent Runs refreshes automatically while this row stays selected."
+        )
+    return (
+        "Bulk selection is active. Delete stays available, while field editing remains locked "
+        "until one row remains selected."
     )
 
 
