@@ -11,6 +11,8 @@ from selfsnap.tray.app import (
     _announce_record,
     _build_menu_items,
     _capture_now,
+    _format_local_timestamp,
+    _latest_label,
     _open_report_issue,
     _open_settings,
     _run_high_frequency_scheduler,
@@ -206,6 +208,41 @@ def test_settings_menu_item_is_default_action(temp_paths, monkeypatch) -> None:
     ]
     assert len(settings_items) == 1
     assert settings_items[0].default is True
+
+
+def test_format_local_timestamp_treats_naive_as_utc() -> None:
+    naive = "2026-04-03T14:03:00"
+    explicit_utc = "2026-04-03T14:03:00+00:00"
+
+    assert _format_local_timestamp(naive) == _format_local_timestamp(explicit_utc)
+
+
+def test_latest_label_prefers_started_utc_when_present(temp_paths, monkeypatch) -> None:
+    record = _sample_record("record-latest")
+    record.started_utc = "2026-04-03T14:03:00+00:00"
+    record.created_utc = "2026-04-03T14:04:00+00:00"
+
+    monkeypatch.setattr("selfsnap.tray.app.ensure_database", lambda _path: None)
+
+    class _Conn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    seen: list[str] = []
+    monkeypatch.setattr("selfsnap.tray.app.connect", lambda _path: _Conn())
+    monkeypatch.setattr("selfsnap.tray.app.get_latest_record", lambda _conn: record)
+    monkeypatch.setattr(
+        "selfsnap.tray.app._format_local_timestamp",
+        lambda value: seen.append(value) or "LOCAL_TIME",
+    )
+
+    label = _latest_label(temp_paths)
+
+    assert seen == ["2026-04-03T14:03:00+00:00"]
+    assert label == "Latest: capture_saved at LOCAL_TIME"
 
 
 def test_report_issue_ignores_duplicate_requests(temp_paths, monkeypatch) -> None:
