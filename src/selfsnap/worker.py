@@ -159,6 +159,11 @@ def run_capture_command(
                 image_quality=config.image_quality,
                 per_monitor=use_per_monitor,
             )
+            # The reservation placeholder is a zero-byte file used to claim the
+            # path atomically.  When actual images land at different paths (e.g.
+            # per-monitor _m1/_m2 naming, or a different extension), remove it.
+            if base_destination not in written_paths and base_destination.exists():
+                base_destination.unlink(missing_ok=True)
             primary_path = written_paths[0]
             file_bytes = sum(path.stat().st_size for path in written_paths)
             image_hash = _hash_file(primary_path)

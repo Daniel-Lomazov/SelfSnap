@@ -159,6 +159,9 @@ def test_per_monitor_capture_writes_multiple_monitor_files(temp_paths, monkeypat
     assert second_path.exists()
     assert first_path.suffix == ".png"
     assert second_path.suffix == ".png"
+    # The zero-byte reservation placeholder (no _m1/_m2 suffix) must be removed.
+    ghost = first_path.with_name(first_path.name.replace("_m1", ""))
+    assert not ghost.exists(), f"Ghost reservation file was not cleaned up: {ghost}"
 
 
 def test_composite_capture_honors_image_format_and_quality(temp_paths, monkeypatch) -> None:
