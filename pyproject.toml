@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "selfsnap-win11"
-version = "1.0.0"
+version = "1.0.1"
 description = "Windows 11 local screenshot capture utility with tray control and Task Scheduler integration."
 readme = "README.md"
 requires-python = ">=3.11"

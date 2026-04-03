@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.1 - 2026-04-03
+
+Why: UI crash fixes for the Recent Captures and Statistics windows, both of which were broken when opened after any other dialog had closed.
+
+- **Fix — Recent Captures and Statistics windows crashed after any prior dialog.** Both windows used `tk.Toplevel()` without a parent `Tk` instance. After Settings or Report Issue closed and destroyed their `Tk()` root, the Tcl interpreter was gone; subsequent calls to `Toplevel()` raised `TclError`. Fixed by using `tk.Tk()` as the root for both windows.
+- **Fix — Statistics window appeared and immediately disappeared.** `show_statistics_window` had no `root.mainloop()` call, so the window was created, drawn, and then immediately garbage-collected as the function returned. Added `root.mainloop()`.
+- **Fix — Recent Captures and Statistics blocked the pystray callback thread.** Both tray menu callbacks invoked the window functions directly instead of via `_run_async`, which froze the tray icon while the window was open. Wrapped both with `_run_async`.
+
 ## v1.0.0 - 2026-03-29
 
 Why: First public trust-grade release baseline for privacy-minded Windows 11 power users, with explicit contract, validated scheduler behavior, and release-ready operational evidence.

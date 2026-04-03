@@ -19,7 +19,7 @@ def show_recent_captures_window(paths: AppPaths) -> None:
     except ImportError:
         pil_available = False
 
-    root = tk.Toplevel()
+    root = tk.Tk()
     root.title("Recent Captures")
     root.resizable(False, False)
     root.geometry("640x480")

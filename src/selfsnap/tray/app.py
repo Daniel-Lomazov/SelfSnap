@@ -150,11 +150,11 @@ def _build_menu_items(pystray, paths: AppPaths, icon, state: TrayRuntimeState) -
             ),
             pystray.MenuItem(
                 "Recent Captures",
-                lambda _icon, _item: show_recent_captures_window(paths),
+                lambda _icon, _item: _run_async(show_recent_captures_window, paths),
             ),
             pystray.MenuItem(
                 "Statistics",
-                lambda _icon, _item: show_statistics_window(paths),
+                lambda _icon, _item: _run_async(show_statistics_window, paths),
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(

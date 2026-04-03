@@ -10,7 +10,7 @@ from selfsnap.records import daily_counts, summary_stats
 
 def show_statistics_window(paths: AppPaths) -> None:
     """Open a window showing capture statistics and a 30-day bar chart."""
-    root = tk.Toplevel()
+    root = tk.Tk()
     root.title("Capture Statistics")
     root.resizable(True, True)
     root.geometry("600x440")
@@ -84,3 +84,4 @@ def show_statistics_window(paths: AppPaths) -> None:
     root.after(100, _draw_chart)
 
     ttk.Button(root, text="Close", command=root.destroy).pack(pady=8)
+    root.mainloop()
