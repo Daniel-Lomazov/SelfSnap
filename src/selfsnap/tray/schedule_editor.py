@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, time
 from uuid import uuid4
@@ -80,11 +81,10 @@ def unit_label(value: str) -> str:
 
 def summary_text(draft: RecurringScheduleDraft) -> str:
     normalized = normalize_draft(draft)
-    recurrence = f"Every {normalized.interval_value} {unit_phrase(normalized.interval_value, normalized.interval_unit)}"
+    recurrence = recurrence_text(normalized)
     status = "enabled" if normalized.enabled else "disabled"
     return (
-        f"{normalized.label} | {recurrence} starting {format_date_text(normalized.start_date_local)} "
-        f"at {format_time_text(normalized.start_time_local)} | {status}"
+        f"{normalized.label} | {recurrence} starting {start_text(normalized)} | {status}"
     )
 
 
@@ -221,6 +221,46 @@ def format_time_text(value: time) -> str:
 
 def format_time_compact(value: time) -> str:
     return value.replace(microsecond=0).strftime("%H:%M")
+
+
+def recurrence_text(draft: RecurringScheduleDraft) -> str:
+    normalized = normalize_draft(draft)
+    return (
+        f"Every {normalized.interval_value} "
+        f"{unit_phrase(normalized.interval_value, normalized.interval_unit)}"
+    )
+
+
+def start_text(draft: RecurringScheduleDraft, *, compact_time: bool = False) -> str:
+    normalized = normalize_draft(draft)
+    formatted_time = (
+        format_time_compact(normalized.start_time_local)
+        if compact_time
+        else format_time_text(normalized.start_time_local)
+    )
+    return f"{format_date_text(normalized.start_date_local)} {formatted_time}"
+
+
+def enabled_symbol(enabled: bool) -> str:
+    return "✓" if enabled else "✗"
+
+
+def schedule_collection_summary(drafts: Sequence[RecurringScheduleDraft]) -> str:
+    total = len(drafts)
+    if total == 0:
+        return "No schedules"
+    enabled_count = sum(1 for draft in drafts if draft.enabled)
+    noun = "schedule" if total == 1 else "schedules"
+    return f"{total} {noun} • {enabled_count} enabled"
+
+
+def selection_guidance(selection_count: int) -> str:
+    state = selection_state(selection_count)
+    if state.mode == "add":
+        return "Add a recurring schedule or select one to edit."
+    if state.mode == "single":
+        return "Editing one schedule. Toggle on/off in the list, then save here."
+    return "Multiple schedules selected. Delete is available; editing stays locked."
 
 
 def draft_from_form(

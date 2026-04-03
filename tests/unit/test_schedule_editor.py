@@ -12,11 +12,16 @@ from selfsnap.tray.schedule_editor import (
     draft_from_form,
     draft_from_schedule,
     draft_to_schedule,
+    enabled_symbol,
     first_run_schedule_help_text,
     generate_schedule_id,
     normalize_draft,
+    recurrence_text,
     schedule_help_text,
+    schedule_collection_summary,
     selection_state,
+    selection_guidance,
+    start_text,
     unit_label,
     unit_labels,
     unit_phrase,
@@ -81,6 +86,35 @@ def test_default_draft_uses_every_one_day_now() -> None:
     assert draft.start_date_local.isoformat() == "2026-03-23"
     assert draft.start_time_local.strftime("%H:%M:%S") == "09:15:45"
     assert draft.schedule_id is None
+
+
+def test_schedule_presentation_helpers_produce_compact_copy() -> None:
+    first = draft_from_form(
+        label="Morning",
+        interval_value="5",
+        unit_label_value="Minutes",
+        start_date="2026-03-23",
+        start_time="14:30",
+        enabled=True,
+    )
+    second = draft_from_form(
+        label="Night",
+        interval_value="1",
+        unit_label_value="Days",
+        start_date="2026-03-24",
+        start_time="21:00",
+        enabled=False,
+    )
+
+    assert recurrence_text(first) == "Every 5 minutes"
+    assert start_text(first) == "2026-03-23 14:30:00"
+    assert start_text(first, compact_time=True) == "2026-03-23 14:30"
+    assert enabled_symbol(True) == "✓"
+    assert enabled_symbol(False) == "✗"
+    assert schedule_collection_summary([first, second]) == "2 schedules • 1 enabled"
+    assert selection_guidance(0) == "Add a recurring schedule or select one to edit."
+    assert selection_guidance(1) == "Editing one schedule. Toggle on/off in the list, then save here."
+    assert selection_guidance(2) == "Multiple schedules selected. Delete is available; editing stays locked."
 
 
 def test_draft_round_trips_to_schedule_and_back() -> None:

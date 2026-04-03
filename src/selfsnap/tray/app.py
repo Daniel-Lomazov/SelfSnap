@@ -39,6 +39,13 @@ from selfsnap.tray.report_issue_window import show_report_issue_dialog
 from selfsnap.tray.settings_window import show_settings_dialog
 from selfsnap.tray.startup import sync_startup_shortcut
 from selfsnap.tray.statistics_window import show_statistics_window
+from selfsnap.tray.ui_presenters import (
+    format_local_timestamp as present_local_timestamp,
+    tray_icon_title as present_tray_icon_title,
+    tray_scheduler_warning_label as present_tray_scheduler_warning_label,
+    tray_state_label as present_tray_state_label,
+    tray_toggle_label as present_tray_toggle_label,
+)
 from selfsnap.worker import EXIT_OK
 
 
@@ -129,12 +136,9 @@ def _build_menu_items(pystray, paths: AppPaths, icon, state: TrayRuntimeState) -
     items.append(pystray.MenuItem(lambda _item: _state_label(config), None, enabled=False))
     if config.show_last_capture_status:
         items.append(pystray.MenuItem(lambda _item: _latest_label(paths), None, enabled=False))
+    items.append(pystray.Menu.SEPARATOR)
     items.extend(
         [
-            pystray.MenuItem(
-                "Report Issue",
-                lambda _icon, _item: _run_async(_open_report_issue, paths, icon, state),
-            ),
             pystray.MenuItem(
                 "Capture Now", lambda _icon, _item: _run_async(_capture_now, paths, icon, state)
             ),
@@ -143,10 +147,16 @@ def _build_menu_items(pystray, paths: AppPaths, icon, state: TrayRuntimeState) -
                 lambda _icon, _item: _toggle_enabled(paths, icon),
             ),
             pystray.MenuItem(
-                "Open Capture Folder", lambda _icon, _item: _open_capture_folder(paths)
+                "Settings",
+                lambda _icon, _item: _run_async(_open_settings, paths, icon, state),
+                default=True,
             ),
+            pystray.Menu.SEPARATOR,
             pystray.MenuItem(
                 "Open Latest Capture", lambda _icon, _item: _open_latest_capture(paths)
+            ),
+            pystray.MenuItem(
+                "Open Capture Folder", lambda _icon, _item: _open_capture_folder(paths)
             ),
             pystray.MenuItem(
                 "Recent Captures",
@@ -156,12 +166,11 @@ def _build_menu_items(pystray, paths: AppPaths, icon, state: TrayRuntimeState) -
                 "Statistics",
                 lambda _icon, _item: _run_async(show_statistics_window, paths),
             ),
-            pystray.Menu.SEPARATOR,
             pystray.MenuItem(
-                "Settings",
-                lambda _icon, _item: _run_async(_open_settings, paths, icon, state),
-                default=True,
+                "Report Issue",
+                lambda _icon, _item: _run_async(_open_report_issue, paths, icon, state),
             ),
+            pystray.Menu.SEPARATOR,
             pystray.MenuItem(
                 "Reinstall",
                 lambda _icon, _item: _run_async(
@@ -409,19 +418,11 @@ def _open_latest_capture(paths: AppPaths) -> None:
 
 
 def _state_label(config: AppConfig) -> str:
-    if not config.first_run_completed:
-        return "State: setup required"
-    if not config.app_enabled:
-        return "State: disabled"
-    if config.scheduler_sync_failed():
-        return "State: enabled, scheduler sync failed"
-    return "State: enabled"
+    return present_tray_state_label(config)
 
 
 def _scheduler_warning_label(config: AppConfig) -> str | None:
-    if not config.scheduler_sync_failed():
-        return None
-    return "Warning: scheduler sync failed - open Settings"
+    return present_tray_scheduler_warning_label(config)
 
 
 def _latest_label(paths: AppPaths) -> str:
@@ -436,29 +437,16 @@ def _latest_label(paths: AppPaths) -> str:
 
 
 def _format_local_timestamp(utc_text: str) -> str:
-    text = utc_text.strip()
-    if text.endswith("Z"):
-        text = text[:-1] + "+00:00"
-    try:
-        parsed = datetime.fromisoformat(text)
-    except ValueError:
-        return utc_text[:19].replace("T", " ")
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=UTC)
-    return parsed.astimezone().strftime("%Y-%m-%d %H:%M:%S")
+    return present_local_timestamp(utc_text, empty_text="")
 
 
 def _toggle_enabled_label(config: AppConfig) -> str:
-    return "Disable Scheduled Captures" if config.app_enabled else "Enable Scheduled Captures"
+    return present_tray_toggle_label(config)
 
 
 def _icon_title(paths: AppPaths) -> str:
     config = load_or_create_config(paths)
-    if config.scheduler_sync_failed():
-        return "SelfSnap Win11 - scheduler sync failed"
-    if not config.first_run_completed:
-        return "SelfSnap Win11 - setup required"
-    return "SelfSnap Win11"
+    return present_tray_icon_title(config)
 
 
 def _exit(icon, stop_event: threading.Event) -> None:

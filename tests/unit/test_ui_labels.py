@@ -4,6 +4,12 @@ import pytest
 
 from selfsnap.models import ConfigValidationError
 from selfsnap.ui_labels import (
+    capture_mode_label,
+    capture_mode_labels,
+    capture_mode_value,
+    image_format_label,
+    image_format_labels,
+    image_format_value,
     local_privacy_notice,
     retention_mode_label,
     retention_mode_value,
@@ -40,6 +46,7 @@ def test_local_privacy_notice_matches_public_trust_boundary() -> None:
 
 def test_storage_preset_labels_returns_list() -> None:
     from selfsnap.ui_labels import storage_preset_labels
+
     labels = storage_preset_labels()
     assert "Local Pictures" in labels
     assert "OneDrive Pictures" in labels
@@ -48,9 +55,28 @@ def test_storage_preset_labels_returns_list() -> None:
 
 def test_retention_mode_labels_returns_list() -> None:
     from selfsnap.ui_labels import retention_mode_labels
+
     labels = retention_mode_labels()
     assert "Keep Forever" in labels
     assert "Archive After N Days" in labels
+
+
+def test_capture_mode_labels_round_trip() -> None:
+    assert capture_mode_labels() == ["Composite", "Per Monitor"]
+    assert capture_mode_label("composite") == "Composite"
+    assert capture_mode_label("per_monitor") == "Per Monitor"
+    assert capture_mode_value("Composite") == "composite"
+    assert capture_mode_value("Per Monitor") == "per_monitor"
+
+
+def test_image_format_labels_round_trip() -> None:
+    assert image_format_labels() == ["PNG", "JPEG", "WEBP"]
+    assert image_format_label("png") == "PNG"
+    assert image_format_label("jpeg") == "JPEG"
+    assert image_format_label("webp") == "WEBP"
+    assert image_format_value("PNG") == "png"
+    assert image_format_value("JPEG") == "jpeg"
+    assert image_format_value("WEBP") == "webp"
 
 
 def test_storage_preset_label_invalid_raises() -> None:
@@ -71,3 +97,23 @@ def test_retention_mode_label_invalid_raises() -> None:
 def test_retention_mode_value_invalid_raises() -> None:
     with pytest.raises(ConfigValidationError, match="Unsupported retention mode label"):
         retention_mode_value("Delete All")
+
+
+def test_capture_mode_label_invalid_raises() -> None:
+    with pytest.raises(ConfigValidationError, match="Unsupported capture mode"):
+        capture_mode_label("timelapse")
+
+
+def test_capture_mode_value_invalid_raises() -> None:
+    with pytest.raises(ConfigValidationError, match="Unsupported capture mode label"):
+        capture_mode_value("Timelapse")
+
+
+def test_image_format_label_invalid_raises() -> None:
+    with pytest.raises(ConfigValidationError, match="Unsupported image format"):
+        image_format_label("tiff")
+
+
+def test_image_format_value_invalid_raises() -> None:
+    with pytest.raises(ConfigValidationError, match="Unsupported image format label"):
+        image_format_value("TIFF")

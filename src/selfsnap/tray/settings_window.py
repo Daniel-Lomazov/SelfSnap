@@ -2,6 +2,1033 @@ from __future__ import annotations
 
 import tkinter as tk
 from dataclasses import dataclass, replace
+from tkinter import filedialog, messagebox, ttk
+
+from selfsnap.config_store import save_config
+from selfsnap.models import AppConfig, ConfigValidationError, StoragePreset
+from selfsnap.paths import AppPaths
+from selfsnap.runtime_launch import (
+    launch_background,
+    resolve_manual_capture_background_invocation,
+)
+from selfsnap.storage import apply_storage_preset, validate_storage_config
+from selfsnap.tray.focus_layout import (
+    DisclosureSection,
+    apply_focus_minimal_styles,
+    create_disclosure_section,
+)
+from selfsnap.tray.schedule_editor import (
+    RecurringScheduleDraft,
+    default_draft,
+    draft_from_form,
+    draft_from_schedule,
+    draft_to_schedule,
+    enabled_symbol,
+    format_date_text,
+    format_time_text,
+    recurrence_text,
+    schedule_collection_summary,
+    schedule_help_text,
+    selection_guidance,
+    selection_state,
+    start_text,
+    unit_label,
+    unit_labels,
+)
+from selfsnap.tray.ui_presenters import (
+    format_latest_record_label,
+    format_local_timestamp,
+    maintenance_section_summary,
+    notifications_section_summary,
+    settings_hero_state,
+    storage_section_summary,
+)
+from selfsnap.ui_labels import (
+    capture_mode_label,
+    capture_mode_labels,
+    capture_mode_value,
+    image_format_label,
+    image_format_labels,
+    image_format_value,
+    local_privacy_notice,
+    retention_mode_label,
+    retention_mode_labels,
+    retention_mode_value,
+    storage_preset_label,
+    storage_preset_labels,
+    storage_preset_value,
+)
+
+WINDOW_MIN_WIDTH = 960
+WINDOW_MIN_HEIGHT = 760
+HISTORY_REFRESH_INTERVAL_MS = 5000
+
+
+@dataclass(slots=True)
+class SettingsDialogResult:
+    updated_config: AppConfig | None
+    window_size: tuple[int, int]
+    requested_reset: bool = False
+
+
+def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogResult:
+    root = tk.Tk()
+    root.title("SelfSnap Settings")
+    root.update_idletasks()
+    root.geometry(
+        f"{max(config.settings_window_width, WINDOW_MIN_WIDTH)}x"
+        f"{max(config.settings_window_height, WINDOW_MIN_HEIGHT)}"
+    )
+    root.minsize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
+    root.resizable(True, True)
+    apply_focus_minimal_styles(root)
+
+    app_enabled_var = tk.BooleanVar(master=root, value=config.app_enabled)
+    preset_var = tk.StringVar(master=root, value=storage_preset_label(config.storage_preset))
+    capture_root_var = tk.StringVar(master=root, value=config.capture_storage_root)
+    archive_root_var = tk.StringVar(master=root, value=config.archive_storage_root)
+    retention_mode_var = tk.StringVar(
+        master=root, value=retention_mode_label(config.retention_mode)
+    )
+    retention_days_var = tk.StringVar(
+        master=root, value="" if config.retention_days is None else str(config.retention_days)
+    )
+    capture_mode_var = tk.StringVar(master=root, value=capture_mode_label(config.capture_mode))
+    image_format_var = tk.StringVar(master=root, value=image_format_label(config.image_format))
+    image_quality_var = tk.StringVar(master=root, value=str(config.image_quality))
+    purge_enabled_var = tk.BooleanVar(master=root, value=config.purge_enabled)
+    retention_grace_days_var = tk.StringVar(master=root, value=str(config.retention_grace_days))
+    start_tray_on_login_var = tk.BooleanVar(master=root, value=config.start_tray_on_login)
+    wake_for_scheduled_captures_var = tk.BooleanVar(
+        master=root, value=config.wake_for_scheduled_captures
+    )
+    show_last_capture_status_var = tk.BooleanVar(master=root, value=config.show_last_capture_status)
+    notify_on_failed_or_missed_var = tk.BooleanVar(
+        master=root, value=config.notify_on_failed_or_missed
+    )
+    notify_on_every_capture_var = tk.BooleanVar(master=root, value=config.notify_on_every_capture)
+    show_capture_overlay_var = tk.BooleanVar(master=root, value=config.show_capture_overlay)
+    latest_capture_var = tk.StringVar(master=root, value=_latest_capture_summary(paths))
+    capture_feedback_var = tk.StringVar(master=root, value="")
+    hero_headline_var = tk.StringVar(master=root, value="")
+    hero_message_var = tk.StringVar(master=root, value="")
+    hero_details_var = tk.StringVar(master=root, value="")
+    schedule_overview_var = tk.StringVar(master=root, value="")
+    selection_guidance_var = tk.StringVar(master=root, value="")
+
+    internal_preset_update = {"active": False}
+    drafts: list[RecurringScheduleDraft] = [
+        draft_from_schedule(schedule) for schedule in config.schedules
+    ]
+    selected_indices: list[int] = []
+    history_refresh_job: str | None = None
+    sections: dict[str, DisclosureSection] = {}
+    widgets_to_toggle: list[tk.Widget] = []
+
+    root.columnconfigure(0, weight=1)
+    root.rowconfigure(0, weight=1)
+
+    container = ttk.Frame(root)
+    container.grid(row=0, column=0, sticky="nsew")
+    container.columnconfigure(0, weight=1)
+    container.rowconfigure(0, weight=1)
+
+    canvas = tk.Canvas(container, highlightthickness=0, borderwidth=0)
+    canvas.grid(row=0, column=0, sticky="nsew")
+    scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+    scrollbar.grid(row=0, column=1, sticky="ns")
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    content = ttk.Frame(canvas, padding=12)
+    content.columnconfigure(0, weight=1)
+    canvas_window = canvas.create_window((0, 0), window=content, anchor="nw")
+
+    def _sync_canvas(_event=None) -> None:
+        canvas.configure(scrollregion=canvas.bbox("all"))
+        canvas.itemconfigure(canvas_window, width=canvas.winfo_width())
+
+    content.bind("<Configure>", _sync_canvas)
+    canvas.bind("<Configure>", _sync_canvas)
+
+    def _bind_wrap(widget: ttk.Label, padding: int = 72) -> None:
+        def _update_wrap(_event=None) -> None:
+            wrap = max(content.winfo_width() - padding, 380)
+            widget.configure(wraplength=wrap)
+
+        content.bind("<Configure>", _update_wrap, add="+")
+        root.after_idle(_update_wrap)
+
+    def _safe_int(value: str, fallback: int | None) -> int | None:
+        text = value.strip()
+        if not text:
+            return fallback
+        return int(text) if text.isdigit() else fallback
+
+    def _preview_config() -> AppConfig:
+        try:
+            preview_preset = storage_preset_value(preset_var.get().strip())
+        except ConfigValidationError:
+            preview_preset = config.storage_preset
+
+        try:
+            preview_retention_mode = retention_mode_value(retention_mode_var.get())
+        except ConfigValidationError:
+            preview_retention_mode = config.retention_mode
+
+        preview_retention_days = None
+        if preview_retention_mode == "keep_days":
+            preview_retention_days = _safe_int(retention_days_var.get(), config.retention_days or 1)
+
+        return replace(
+            config,
+            app_enabled=app_enabled_var.get() if config.first_run_completed else config.app_enabled,
+            storage_preset=preview_preset,
+            retention_mode=preview_retention_mode,
+            retention_days=preview_retention_days,
+            start_tray_on_login=start_tray_on_login_var.get(),
+            wake_for_scheduled_captures=wake_for_scheduled_captures_var.get(),
+            show_last_capture_status=show_last_capture_status_var.get(),
+            notify_on_failed_or_missed=notify_on_failed_or_missed_var.get(),
+            notify_on_every_capture=notify_on_every_capture_var.get(),
+            show_capture_overlay=show_capture_overlay_var.get(),
+        )
+
+    def _refresh_status_panel() -> None:
+        preview = _preview_config()
+        hero = settings_hero_state(preview, drafts, latest_capture_var.get())
+        hero_headline_var.set(hero.headline)
+        hero_message_var.set(hero.message)
+        hero_details_var.set("\n".join(hero.details))
+        schedule_overview_var.set(schedule_collection_summary(drafts))
+        selection_guidance_var.set(selection_guidance(len(selected_indices)))
+        if "storage" in sections:
+            sections["storage"].set_summary(storage_section_summary(preview))
+        if "visibility" in sections:
+            sections["visibility"].set_summary(notifications_section_summary(preview))
+        if "maintenance" in sections:
+            sections["maintenance"].set_summary(maintenance_section_summary())
+
+    def _set_preset_from_label(selected_label: str) -> None:
+        internal_preset_update["active"] = True
+        try:
+            preset = storage_preset_value(selected_label)
+            preset_config = apply_storage_preset(paths, config, preset)
+            preset_var.set(storage_preset_label(preset))
+            capture_root_var.set(preset_config.capture_storage_root)
+            archive_root_var.set(preset_config.archive_storage_root)
+        finally:
+            internal_preset_update["active"] = False
+        _update_path_state()
+        _refresh_status_panel()
+
+    def _mark_custom(*_args) -> None:
+        if internal_preset_update["active"]:
+            return
+        if preset_var.get() != storage_preset_label(StoragePreset.CUSTOM.value):
+            preset_var.set(storage_preset_label(StoragePreset.CUSTOM.value))
+
+    def _update_path_state() -> None:
+        capture_entry.configure(state="normal")
+        archive_entry.configure(state="normal")
+        capture_browse.configure(state="normal")
+        archive_browse.configure(state="normal")
+
+    def _update_retention_input_state(*_args) -> None:
+        try:
+            enabled = retention_mode_value(retention_mode_var.get()) == "keep_days"
+        except ConfigValidationError:
+            enabled = True
+        retention_days_entry.configure(state="normal" if enabled else "disabled")
+
+    def _update_quality_input_state(*_args) -> None:
+        try:
+            enabled = image_format_value(image_format_var.get()) in {"jpeg", "webp"}
+        except ConfigValidationError:
+            enabled = True
+        image_quality_entry.configure(state="normal" if enabled else "disabled")
+
+    def _new_default_draft() -> RecurringScheduleDraft:
+        return default_draft()
+
+    def _draft_from_form(
+        schedule_id: str | None = None,
+        enabled: bool = True,
+    ) -> RecurringScheduleDraft:
+        return draft_from_form(
+            label=label_var.get(),
+            interval_value=every_var.get(),
+            unit_label_value=unit_var.get(),
+            start_date=start_date_var.get(),
+            start_time=start_time_var.get(),
+            enabled=enabled,
+            schedule_id=schedule_id,
+        )
+
+    def _selection_indices() -> list[int]:
+        return sorted(int(item) for item in schedule_tree.selection())
+
+    def _load_draft_to_form(draft: RecurringScheduleDraft) -> None:
+        label_var.set(draft.label)
+        every_var.set(str(draft.interval_value))
+        try:
+            unit_var.set(unit_label(draft.interval_unit))
+        except ConfigValidationError:
+            unit_var.set(unit_labels()[3])
+        start_date_var.set(format_date_text(draft.start_date_local))
+        start_time_var.set(format_time_text(draft.start_time_local))
+
+    def _set_editor_state(state) -> None:
+        for widget in widgets_to_toggle:
+            try:
+                if isinstance(widget, ttk.Combobox):
+                    widget.state(["readonly"] if state.fields_enabled else ["disabled"])
+                else:
+                    widget.configure(state="normal" if state.fields_enabled else "disabled")
+            except tk.TclError:
+                continue
+        add_button.state(["!disabled"] if state.add_enabled else ["disabled"])
+        save_schedule_button.state(["!disabled"] if state.save_enabled else ["disabled"])
+        cancel_schedule_button.state(["!disabled"] if state.cancel_enabled else ["disabled"])
+        delete_schedule_button.state(["!disabled"] if state.delete_enabled else ["disabled"])
+
+    def _refresh_tree(select: list[int] | None = None) -> None:
+        schedule_tree.delete(*schedule_tree.get_children())
+        for index, draft in enumerate(drafts):
+            schedule_tree.insert(
+                "",
+                "end",
+                iid=str(index),
+                values=(
+                    draft.label,
+                    recurrence_text(draft),
+                    start_text(draft, compact_time=True),
+                    enabled_symbol(draft.enabled),
+                ),
+            )
+        schedule_tree.selection_remove(schedule_tree.selection())
+        if select:
+            schedule_tree.selection_set([str(index) for index in select])
+            schedule_tree.see(str(select[0]))
+        _update_selection_from_tree()
+
+    def _refresh_history(schedule_id: str | None) -> None:
+        history_list.configure(state="normal")
+        history_list.delete(0, "end")
+        if schedule_id is None:
+            history_list.configure(state="disabled")
+            return
+        try:
+            from selfsnap.db import connect
+            from selfsnap.records import get_by_schedule
+
+            with connect(paths.db_path) as conn:
+                records = get_by_schedule(conn, schedule_id, limit=5)
+            for record in records:
+                ts = format_local_timestamp(
+                    record.started_utc or record.created_utc or "",
+                    empty_text="(unknown time)",
+                )
+                icon = {
+                    "success": "✓",
+                    "failed": "✗",
+                    "missed": "–",
+                    "skipped": "○",
+                }.get(record.outcome_category, "?")
+                history_list.insert("end", f"{icon}  {ts}  {record.outcome_code}")
+        except Exception:
+            history_list.insert("end", "(history unavailable)")
+        finally:
+            history_list.configure(state="disabled")
+
+    def _clear_history() -> None:
+        history_list.configure(state="normal")
+        history_list.delete(0, "end")
+        history_list.configure(state="disabled")
+
+    def _cancel_history_poll() -> None:
+        nonlocal history_refresh_job
+        if history_refresh_job is not None:
+            try:
+                root.after_cancel(history_refresh_job)
+            except tk.TclError:
+                pass
+            history_refresh_job = None
+
+    def _poll_history() -> None:
+        nonlocal history_refresh_job
+        if len(selected_indices) == 1:
+            _refresh_history(drafts[selected_indices[0]].schedule_id)
+        history_refresh_job = root.after(HISTORY_REFRESH_INTERVAL_MS, _poll_history)
+
+    def _update_selection_from_tree(_event=None) -> None:
+        nonlocal selected_indices
+        selected_indices = _selection_indices()
+        if len(selected_indices) == 1:
+            _load_draft_to_form(drafts[selected_indices[0]])
+            _refresh_history(drafts[selected_indices[0]].schedule_id)
+        elif len(selected_indices) == 0:
+            _load_draft_to_form(_new_default_draft())
+            _clear_history()
+        else:
+            _load_draft_to_form(drafts[selected_indices[0]])
+            _clear_history()
+        _set_editor_state(selection_state(len(selected_indices)))
+        _refresh_status_panel()
+
+    def _add_schedule() -> None:
+        try:
+            draft = _draft_from_form(enabled=True)
+        except ConfigValidationError as exc:
+            messagebox.showerror("Invalid schedule", str(exc), parent=root)
+            return
+        drafts.append(draft)
+        _refresh_tree([len(drafts) - 1])
+        _load_draft_to_form(draft)
+
+    def _save_schedule() -> None:
+        if len(selected_indices) != 1:
+            return
+        index = selected_indices[0]
+        try:
+            drafts[index] = _draft_from_form(
+                schedule_id=drafts[index].schedule_id,
+                enabled=drafts[index].enabled,
+            )
+        except ConfigValidationError as exc:
+            messagebox.showerror("Invalid schedule", str(exc), parent=root)
+            return
+        _refresh_tree([index])
+        _load_draft_to_form(drafts[index])
+
+    def _cancel_schedule_edit() -> None:
+        if len(selected_indices) == 1:
+            _load_draft_to_form(drafts[selected_indices[0]])
+            return
+        _load_draft_to_form(_new_default_draft())
+
+    def _delete_schedule() -> None:
+        if not selected_indices:
+            return
+        for index in sorted(selected_indices, reverse=True):
+            del drafts[index]
+        if drafts:
+            next_index = min(selected_indices[0], len(drafts) - 1)
+            _refresh_tree([next_index])
+            _load_draft_to_form(drafts[next_index])
+        else:
+            _refresh_tree([])
+            _load_draft_to_form(_new_default_draft())
+
+    def _refresh_latest_capture_status() -> None:
+        latest_capture_var.set(_latest_capture_summary(paths))
+        _refresh_status_panel()
+
+    def _capture_now_from_settings() -> None:
+        try:
+            launch_background(resolve_manual_capture_background_invocation(paths))
+        except Exception as exc:
+            messagebox.showerror(
+                "Capture Failed",
+                f"Could not start a manual capture:\n{exc}",
+                parent=root,
+            )
+            return
+        capture_feedback_var.set("Capture launched in background.")
+        root.after(2500, _refresh_latest_capture_status)
+
+    row = 0
+
+    hero_frame = ttk.Frame(content, padding=(14, 12), style="FocusHero.TFrame")
+    hero_frame.grid(row=row, column=0, sticky="ew")
+    hero_frame.columnconfigure(0, weight=1)
+    row += 1
+
+    ttk.Label(hero_frame, textvariable=hero_headline_var, style="FocusHeroTitle.TLabel").grid(
+        row=0,
+        column=0,
+        sticky="w",
+    )
+    hero_message_label = ttk.Label(
+        hero_frame,
+        textvariable=hero_message_var,
+        justify="left",
+    )
+    hero_message_label.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+    _bind_wrap(hero_message_label, padding=120)
+
+    hero_details_label = ttk.Label(
+        hero_frame,
+        textvariable=hero_details_var,
+        justify="left",
+        style="FocusMuted.TLabel",
+    )
+    hero_details_label.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+    _bind_wrap(hero_details_label, padding=120)
+
+    hero_actions = ttk.Frame(hero_frame)
+    hero_actions.grid(row=0, column=1, rowspan=3, sticky="ne", padx=(18, 0))
+    hero_actions.columnconfigure(0, weight=1)
+
+    enabled_toggle = ttk.Checkbutton(
+        hero_actions,
+        text="Scheduled captures enabled",
+        variable=app_enabled_var,
+        command=_refresh_status_panel,
+    )
+    enabled_toggle.grid(row=0, column=0, sticky="w")
+    if not config.first_run_completed:
+        enabled_toggle.state(["disabled"])
+
+    ttk.Button(
+        hero_actions,
+        text="Capture Now",
+        command=_capture_now_from_settings,
+        style="FocusAction.TButton",
+    ).grid(row=1, column=0, sticky="ew", pady=(8, 0))
+
+    capture_feedback_label = ttk.Label(
+        hero_actions,
+        textvariable=capture_feedback_var,
+        style="FocusMuted.TLabel",
+        justify="left",
+    )
+    capture_feedback_label.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+    _bind_wrap(capture_feedback_label, padding=140)
+
+    privacy_label = ttk.Label(
+        content,
+        text=local_privacy_notice(),
+        justify="left",
+        style="FocusMuted.TLabel",
+    )
+    privacy_label.grid(row=row, column=0, sticky="ew", pady=(8, 0))
+    _bind_wrap(privacy_label)
+    row += 1
+
+    schedules_frame = ttk.LabelFrame(content, text="Schedules", padding=10)
+    schedules_frame.grid(row=row, column=0, sticky="ew", pady=(12, 0))
+    schedules_frame.columnconfigure(0, weight=1)
+    row += 1
+
+    schedules_meta = ttk.Frame(schedules_frame)
+    schedules_meta.grid(row=0, column=0, sticky="ew")
+    schedules_meta.columnconfigure(0, weight=1)
+    ttk.Label(
+        schedules_meta,
+        textvariable=schedule_overview_var,
+        style="FocusStatus.TLabel",
+    ).grid(row=0, column=0, sticky="w")
+    ttk.Label(
+        schedules_meta,
+        textvariable=selection_guidance_var,
+        style="FocusMuted.TLabel",
+        justify="right",
+    ).grid(row=0, column=1, sticky="e")
+
+    schedules_body = ttk.Frame(schedules_frame)
+    schedules_body.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+    schedules_body.columnconfigure(0, weight=1)
+    schedules_body.columnconfigure(1, weight=1)
+
+    list_frame = ttk.Frame(schedules_body)
+    list_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+    list_frame.columnconfigure(0, weight=1)
+    list_frame.rowconfigure(1, weight=1)
+    ttk.Label(list_frame, text="Existing schedules", style="FocusSectionTitle.TLabel").grid(
+        row=0,
+        column=0,
+        sticky="w",
+        pady=(0, 6),
+    )
+
+    schedule_tree = ttk.Treeview(
+        list_frame,
+        columns=("label", "recurrence", "start", "enabled"),
+        show="headings",
+        selectmode="extended",
+        height=8,
+    )
+    schedule_tree.heading("label", text="Label")
+    schedule_tree.heading("recurrence", text="Recurrence")
+    schedule_tree.heading("start", text="Start")
+    schedule_tree.heading("enabled", text="On")
+    schedule_tree.column("label", width=170, anchor="w", stretch=True)
+    schedule_tree.column("recurrence", width=190, anchor="w", stretch=True)
+    schedule_tree.column("start", width=150, anchor="w", stretch=True)
+    schedule_tree.column("enabled", width=52, anchor="center", stretch=False)
+    schedule_tree.grid(row=1, column=0, sticky="nsew")
+    tree_scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=schedule_tree.yview)
+    tree_scrollbar.grid(row=1, column=1, sticky="ns")
+    schedule_tree.configure(yscrollcommand=tree_scrollbar.set)
+
+    delete_schedule_button = ttk.Button(list_frame, text="Delete Selected", command=_delete_schedule)
+    delete_schedule_button.grid(row=2, column=0, sticky="e", pady=(8, 0))
+
+    editor_frame = ttk.Frame(schedules_body)
+    editor_frame.grid(row=0, column=1, sticky="nsew")
+    editor_frame.columnconfigure(1, weight=1)
+    ttk.Label(editor_frame, text="Schedule editor", style="FocusSectionTitle.TLabel").grid(
+        row=0,
+        column=0,
+        columnspan=2,
+        sticky="w",
+        pady=(0, 6),
+    )
+
+    label_var = tk.StringVar(master=root, value=default_draft().label)
+    every_var = tk.StringVar(master=root, value="1")
+    unit_var = tk.StringVar(master=root, value=unit_labels()[3])
+    start_date_var = tk.StringVar(
+        master=root,
+        value=format_date_text(default_draft().start_date_local),
+    )
+    start_time_var = tk.StringVar(
+        master=root,
+        value=format_time_text(default_draft().start_time_local),
+    )
+
+    ttk.Label(editor_frame, text="Label").grid(row=1, column=0, sticky="w", pady=(0, 6))
+    label_entry = ttk.Entry(editor_frame, textvariable=label_var)
+    label_entry.grid(row=1, column=1, sticky="ew", pady=(0, 6))
+
+    ttk.Label(editor_frame, text="Every").grid(row=2, column=0, sticky="w", pady=(0, 6))
+    every_spinbox = tk.Spinbox(editor_frame, from_=1, to=999999, textvariable=every_var, width=10)
+    every_spinbox.grid(row=2, column=1, sticky="w", pady=(0, 6))
+
+    ttk.Label(editor_frame, text="Unit").grid(row=3, column=0, sticky="w", pady=(0, 6))
+    unit_combo = ttk.Combobox(
+        editor_frame,
+        textvariable=unit_var,
+        values=unit_labels(),
+        state="readonly",
+    )
+    unit_combo.grid(row=3, column=1, sticky="ew", pady=(0, 6))
+
+    ttk.Label(editor_frame, text="Start Date").grid(row=4, column=0, sticky="w", pady=(0, 6))
+    start_date_entry = ttk.Entry(editor_frame, textvariable=start_date_var)
+    start_date_entry.grid(row=4, column=1, sticky="ew", pady=(0, 6))
+
+    ttk.Label(editor_frame, text="Start Time").grid(row=5, column=0, sticky="w", pady=(0, 6))
+    start_time_entry = ttk.Entry(editor_frame, textvariable=start_time_var)
+    start_time_entry.grid(row=5, column=1, sticky="ew", pady=(0, 6))
+
+    form_buttons = ttk.Frame(editor_frame)
+    form_buttons.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+    form_buttons.columnconfigure(0, weight=1)
+
+    add_button = ttk.Button(form_buttons, text="Add", command=_add_schedule)
+    save_schedule_button = ttk.Button(form_buttons, text="Save", command=_save_schedule)
+    cancel_schedule_button = ttk.Button(form_buttons, text="Revert", command=_cancel_schedule_edit)
+    cancel_schedule_button.pack(side="right")
+    save_schedule_button.pack(side="right", padx=(0, 8))
+    add_button.pack(side="right", padx=(0, 8))
+
+    schedule_help_label = ttk.Label(
+        editor_frame,
+        text=schedule_help_text(),
+        justify="left",
+        style="FocusMuted.TLabel",
+    )
+    schedule_help_label.grid(row=7, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+    _bind_wrap(schedule_help_label, padding=120)
+
+    history_frame = ttk.Frame(schedules_frame)
+    history_frame.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+    history_frame.columnconfigure(0, weight=1)
+    ttk.Label(history_frame, text="Recent runs", style="FocusSectionTitle.TLabel").grid(
+        row=0,
+        column=0,
+        sticky="w",
+        pady=(0, 6),
+    )
+    history_list = tk.Listbox(history_frame, height=5, state="disabled", selectmode="browse")
+    history_list.grid(row=1, column=0, sticky="ew")
+
+    widgets_to_toggle.extend(
+        [label_entry, every_spinbox, unit_combo, start_date_entry, start_time_entry]
+    )
+
+    def _on_enabled_click(event: tk.Event) -> None:
+        col = schedule_tree.identify_column(event.x)
+        item = schedule_tree.identify_row(event.y)
+        if col != "#4" or not item:
+            return
+        index = int(item)
+        drafts[index].enabled = not drafts[index].enabled
+        current_vals = list(schedule_tree.item(item, "values"))
+        current_vals[3] = enabled_symbol(drafts[index].enabled)
+        schedule_tree.item(item, values=current_vals)
+        _refresh_status_panel()
+
+    def _on_treeview_motion(event: tk.Event) -> None:
+        col = schedule_tree.identify_column(event.x)
+        schedule_tree.configure(cursor="hand2" if col == "#4" else "")
+
+    schedule_tree.bind("<Button-1>", _on_enabled_click, add="+")
+    schedule_tree.bind("<Motion>", _on_treeview_motion)
+    schedule_tree.bind("<<TreeviewSelect>>", _update_selection_from_tree)
+
+    storage_section = create_disclosure_section(
+        content,
+        title="Storage & Output",
+        summary=storage_section_summary(_preview_config()),
+        expanded=False,
+        on_toggle=_sync_canvas,
+    )
+    storage_section.container.grid(row=row, column=0, sticky="ew", pady=(12, 0))
+    sections["storage"] = storage_section
+    row += 1
+
+    storage_frame = storage_section.body
+    storage_frame.columnconfigure(1, weight=1)
+
+    ttk.Label(storage_frame, text="Storage Preset").grid(row=0, column=0, sticky="w", pady=(0, 6))
+    preset_combo = ttk.Combobox(
+        storage_frame,
+        textvariable=preset_var,
+        state="readonly",
+        values=storage_preset_labels(),
+        width=24,
+    )
+    preset_combo.grid(row=0, column=1, sticky="ew", pady=(0, 6))
+
+    ttk.Label(storage_frame, text="Capture Storage Root").grid(
+        row=1,
+        column=0,
+        sticky="w",
+        pady=(0, 6),
+    )
+    capture_entry = ttk.Entry(storage_frame, textvariable=capture_root_var)
+    capture_entry.grid(row=1, column=1, sticky="ew", pady=(0, 6))
+    capture_browse = ttk.Button(
+        storage_frame,
+        text="Browse",
+        command=lambda: _browse_directory(root, capture_root_var),
+    )
+    capture_browse.grid(row=1, column=2, sticky="w", padx=(6, 0), pady=(0, 6))
+
+    ttk.Label(storage_frame, text="Archive Storage Root").grid(
+        row=2,
+        column=0,
+        sticky="w",
+        pady=(0, 6),
+    )
+    archive_entry = ttk.Entry(storage_frame, textvariable=archive_root_var)
+    archive_entry.grid(row=2, column=1, sticky="ew", pady=(0, 6))
+    archive_browse = ttk.Button(
+        storage_frame,
+        text="Browse",
+        command=lambda: _browse_directory(root, archive_root_var),
+    )
+    archive_browse.grid(row=2, column=2, sticky="w", padx=(6, 0), pady=(0, 6))
+
+    ttk.Label(storage_frame, text="Retention Mode").grid(row=3, column=0, sticky="w")
+    ttk.Combobox(
+        storage_frame,
+        textvariable=retention_mode_var,
+        values=retention_mode_labels(),
+        width=18,
+        state="readonly",
+    ).grid(row=3, column=1, sticky="ew")
+    ttk.Label(storage_frame, text="Archive After Days").grid(
+        row=3,
+        column=2,
+        sticky="w",
+        padx=(10, 0),
+    )
+    retention_days_entry = ttk.Entry(storage_frame, textvariable=retention_days_var, width=8)
+    retention_days_entry.grid(row=3, column=3, sticky="w")
+
+    ttk.Checkbutton(
+        storage_frame,
+        text="Permanently delete after grace period",
+        variable=purge_enabled_var,
+    ).grid(row=4, column=0, columnspan=2, sticky="w", pady=(6, 0))
+    ttk.Label(storage_frame, text="Grace Days").grid(
+        row=4,
+        column=2,
+        sticky="w",
+        padx=(10, 0),
+        pady=(6, 0),
+    )
+    ttk.Entry(storage_frame, textvariable=retention_grace_days_var, width=8).grid(
+        row=4,
+        column=3,
+        sticky="w",
+        pady=(6, 0),
+    )
+
+    ttk.Label(storage_frame, text="Capture Mode").grid(row=5, column=0, sticky="w", pady=(6, 0))
+    ttk.Combobox(
+        storage_frame,
+        textvariable=capture_mode_var,
+        values=capture_mode_labels(),
+        state="readonly",
+        width=18,
+    ).grid(row=5, column=1, sticky="ew", pady=(6, 0))
+
+    ttk.Label(storage_frame, text="Image Format").grid(row=6, column=0, sticky="w", pady=(6, 0))
+    ttk.Combobox(
+        storage_frame,
+        textvariable=image_format_var,
+        values=image_format_labels(),
+        state="readonly",
+        width=12,
+    ).grid(row=6, column=1, sticky="ew", pady=(6, 0))
+    ttk.Label(storage_frame, text="Quality (JPEG/WebP)").grid(
+        row=6,
+        column=2,
+        sticky="w",
+        padx=(10, 0),
+        pady=(6, 0),
+    )
+    image_quality_entry = ttk.Entry(storage_frame, textvariable=image_quality_var, width=8)
+    image_quality_entry.grid(row=6, column=3, sticky="w", pady=(6, 0))
+
+    visibility_section = create_disclosure_section(
+        content,
+        title="Notifications & Startup",
+        summary=notifications_section_summary(_preview_config()),
+        expanded=False,
+        on_toggle=_sync_canvas,
+    )
+    visibility_section.container.grid(row=row, column=0, sticky="ew", pady=(12, 0))
+    sections["visibility"] = visibility_section
+    row += 1
+
+    visibility_frame = visibility_section.body
+    visibility_frame.columnconfigure(0, weight=1)
+
+    ttk.Checkbutton(
+        visibility_frame,
+        text="Start tray on login",
+        variable=start_tray_on_login_var,
+    ).grid(row=0, column=0, sticky="w")
+    ttk.Checkbutton(
+        visibility_frame,
+        text="Wake for scheduled captures when supported",
+        variable=wake_for_scheduled_captures_var,
+    ).grid(row=1, column=0, sticky="w", pady=(4, 0))
+    ttk.Checkbutton(
+        visibility_frame,
+        text="Show latest capture status in tray menu",
+        variable=show_last_capture_status_var,
+    ).grid(row=2, column=0, sticky="w", pady=(4, 0))
+    ttk.Checkbutton(
+        visibility_frame,
+        text="Notify on failed or missed captures",
+        variable=notify_on_failed_or_missed_var,
+    ).grid(row=3, column=0, sticky="w", pady=(4, 0))
+    ttk.Checkbutton(
+        visibility_frame,
+        text="Notify on every scheduled and manual capture",
+        variable=notify_on_every_capture_var,
+    ).grid(row=4, column=0, sticky="w", pady=(4, 0))
+    ttk.Checkbutton(
+        visibility_frame,
+        text="Show brief on-screen overlay after capture",
+        variable=show_capture_overlay_var,
+    ).grid(row=5, column=0, sticky="w", pady=(4, 0))
+
+    maintenance_section = create_disclosure_section(
+        content,
+        title="Maintenance",
+        summary=maintenance_section_summary(),
+        expanded=False,
+        on_toggle=_sync_canvas,
+    )
+    maintenance_section.container.grid(row=row, column=0, sticky="ew", pady=(12, 0))
+    sections["maintenance"] = maintenance_section
+    row += 1
+
+    maintenance_frame = maintenance_section.body
+    maintenance_frame.columnconfigure(0, weight=1)
+
+    maintenance_message = ttk.Label(
+        maintenance_frame,
+        text=(
+            "Reset Capture History permanently deletes SelfSnap capture and archive files, "
+            "database history, logs, schedules, and local user settings, then relaunches "
+            "first run."
+        ),
+        justify="left",
+        foreground="#7f1d1d",
+    )
+    maintenance_message.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+    _bind_wrap(maintenance_message)
+
+    result = SettingsDialogResult(
+        updated_config=None,
+        window_size=(config.settings_window_width, config.settings_window_height),
+    )
+
+    def _capture_size() -> tuple[int, int]:
+        root.update_idletasks()
+        return max(root.winfo_width(), WINDOW_MIN_WIDTH), max(
+            root.winfo_height(),
+            WINDOW_MIN_HEIGHT,
+        )
+
+    def _request_reset() -> None:
+        confirmed = messagebox.askyesno(
+            "Reset Capture History",
+            (
+                "This permanently deletes SelfSnap capture files, archive files, logs, "
+                "history, schedules, and user settings, then restarts into first run.\n\n"
+                "This cannot be undone.\n\nContinue?"
+            ),
+            parent=root,
+            icon="warning",
+        )
+        if not confirmed:
+            return
+        _cancel_history_poll()
+        result.window_size = _capture_size()
+        result.requested_reset = True
+        root.destroy()
+
+    ttk.Button(
+        maintenance_frame,
+        text="Reset Capture History",
+        command=_request_reset,
+    ).grid(row=1, column=0, sticky="w")
+
+    action_row = ttk.Frame(root, padding=(10, 8))
+    action_row.grid(row=1, column=0, sticky="ew")
+
+    def _apply_settings() -> None:
+        if len(selected_indices) == 1:
+            try:
+                drafts[selected_indices[0]] = _draft_from_form(
+                    schedule_id=drafts[selected_indices[0]].schedule_id,
+                    enabled=drafts[selected_indices[0]].enabled,
+                )
+            except ConfigValidationError as exc:
+                messagebox.showerror("Invalid schedule", str(exc), parent=root)
+                return
+        try:
+            parsed_schedules = [draft_to_schedule(draft) for draft in drafts]
+            retention_mode = retention_mode_value(retention_mode_var.get())
+            retention_days = None
+            if retention_mode == "keep_days":
+                retention_days = int(retention_days_var.get())
+            updated = replace(
+                config,
+                app_enabled=app_enabled_var.get()
+                if config.first_run_completed
+                else config.app_enabled,
+                storage_preset=storage_preset_value(preset_var.get().strip()),
+                capture_storage_root=capture_root_var.get().strip(),
+                archive_storage_root=archive_root_var.get().strip(),
+                retention_mode=retention_mode,
+                retention_days=retention_days,
+                purge_enabled=purge_enabled_var.get(),
+                retention_grace_days=int(retention_grace_days_var.get())
+                if retention_grace_days_var.get().strip().isdigit()
+                else config.retention_grace_days,
+                capture_mode=capture_mode_value(capture_mode_var.get()),
+                image_format=image_format_value(image_format_var.get()),
+                image_quality=int(image_quality_var.get())
+                if image_quality_var.get().strip().isdigit()
+                else config.image_quality,
+                start_tray_on_login=start_tray_on_login_var.get(),
+                wake_for_scheduled_captures=wake_for_scheduled_captures_var.get(),
+                show_last_capture_status=show_last_capture_status_var.get(),
+                notify_on_failed_or_missed=notify_on_failed_or_missed_var.get(),
+                notify_on_every_capture=notify_on_every_capture_var.get(),
+                show_capture_overlay=show_capture_overlay_var.get(),
+                settings_window_width=_capture_size()[0],
+                settings_window_height=_capture_size()[1],
+                schedules=parsed_schedules,
+            )
+            if updated.storage_preset != StoragePreset.CUSTOM.value:
+                updated = apply_storage_preset(paths, updated, updated.storage_preset)
+            else:
+                validate_storage_config(paths, updated)
+            updated.validate()
+        except (ConfigValidationError, ValueError) as exc:
+            messagebox.showerror("Invalid settings", str(exc), parent=root)
+            return
+        try:
+            save_config(paths, updated)
+        except Exception as exc:
+            messagebox.showerror("Save Failed", f"Could not save settings:\n{exc}", parent=root)
+            return
+        result.updated_config = updated
+        result.window_size = _capture_size()
+        _refresh_tree(select=selected_indices[:1] if selected_indices else [])
+        _save_btn.configure(text="✓ Saved")
+        root.after(1500, lambda: _save_btn.configure(text="Save Changes"))
+
+    def _cancel() -> None:
+        _cancel_history_poll()
+        result.window_size = _capture_size()
+        root.destroy()
+
+    _save_btn = ttk.Button(action_row, text="Save Changes", command=_apply_settings)
+    _save_btn.pack(side="right")
+    ttk.Button(action_row, text="Close", command=_cancel).pack(side="right", padx=(0, 8))
+
+    preset_combo.bind(
+        "<<ComboboxSelected>>",
+        lambda _event: _set_preset_from_label(preset_var.get()),
+    )
+
+    for variable in (
+        preset_var,
+        retention_mode_var,
+        retention_days_var,
+        app_enabled_var,
+        start_tray_on_login_var,
+        wake_for_scheduled_captures_var,
+        show_last_capture_status_var,
+        notify_on_failed_or_missed_var,
+        notify_on_every_capture_var,
+        show_capture_overlay_var,
+    ):
+        variable.trace_add("write", lambda *_args: _refresh_status_panel())
+
+    retention_mode_var.trace_add("write", _update_retention_input_state)
+    image_format_var.trace_add("write", _update_quality_input_state)
+    capture_root_var.trace_add("write", _mark_custom)
+    archive_root_var.trace_add("write", _mark_custom)
+
+    _update_path_state()
+    _update_retention_input_state()
+    _update_quality_input_state()
+    _refresh_tree([])
+    _load_draft_to_form(_new_default_draft())
+    _set_editor_state(selection_state(0))
+    _refresh_status_panel()
+    history_refresh_job = root.after(HISTORY_REFRESH_INTERVAL_MS, _poll_history)
+    root.protocol("WM_DELETE_WINDOW", _cancel)
+    root.mainloop()
+    return result
+
+
+def _latest_capture_summary(paths: AppPaths) -> str:
+    try:
+        from selfsnap.db import connect
+        from selfsnap.records import get_latest_record
+
+        with connect(paths.db_path) as connection:
+            latest = get_latest_record(connection)
+    except Exception:
+        return "Latest capture: unavailable"
+    return format_latest_record_label(latest)
+
+
+def _browse_directory(parent: tk.Tk, target: tk.StringVar) -> None:
+    chosen = filedialog.askdirectory(parent=parent, initialdir=target.get() or None)
+    if chosen:
+        target.set(chosen)
+
+"""
+
+from __future__ import annotations
+
+import tkinter as tk
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from tkinter import filedialog, messagebox, ttk
 
@@ -741,3 +1768,4 @@ def _browse_directory(parent: tk.Tk, target: tk.StringVar) -> None:
     chosen = filedialog.askdirectory(parent=parent, initialdir=target.get() or None)
     if chosen:
         target.set(chosen)
+"""
