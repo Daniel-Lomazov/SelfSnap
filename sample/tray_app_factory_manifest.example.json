@@ -1,0 +1,137 @@
+{
+  "app": {
+    "product_name": "SignalBoard",
+    "tagline": "A local tray dashboard for small recurring jobs.",
+    "package_name": "signalboard",
+    "tray_title": "SignalBoard",
+    "local_appdata_dir": "SignalBoard",
+    "version": "0.1.0"
+  },
+  "window": {
+    "title": "SignalBoard",
+    "default_width": 1040,
+    "default_height": 760,
+    "mode": "dashboard",
+    "summary": "Run local jobs, inspect status, and keep small automations under one tray icon.",
+    "sections": [
+      "hero",
+      "status_cards",
+      "actions",
+      "toggles",
+      "links",
+      "diagnostics"
+    ]
+  },
+  "tray": {
+    "default_action": "open_main_window",
+    "show_status_line": true,
+    "menu_items": [
+      "open_main_window",
+      "run_refresh",
+      "toggle_enabled",
+      "open_settings",
+      "restart_app",
+      "exit_app"
+    ]
+  },
+  "actions": [
+    {
+      "id": "run_refresh",
+      "label": "Refresh Now",
+      "kind": "background_job",
+      "job_id": "refresh_local_state",
+      "success_message": "Refresh completed."
+    },
+    {
+      "id": "open_logs",
+      "label": "Open Logs",
+      "kind": "open_path",
+      "target": "%LOCALAPPDATA%\\SignalBoard\\logs"
+    },
+    {
+      "id": "open_docs",
+      "label": "Project Docs",
+      "kind": "open_url",
+      "target": "https://example.invalid/docs"
+    }
+  ],
+  "toggles": [
+    {
+      "key": "app_enabled",
+      "label": "Enable background jobs",
+      "default": true,
+      "show_in_tray": true
+    },
+    {
+      "key": "start_on_login",
+      "label": "Start on login",
+      "default": true,
+      "show_in_tray": false
+    },
+    {
+      "key": "show_success_overlay",
+      "label": "Show success overlay",
+      "default": false,
+      "show_in_tray": false
+    }
+  ],
+  "links": [
+    {
+      "label": "Open workspace folder",
+      "kind": "path",
+      "target": "%USERPROFILE%\\Documents\\SignalBoard"
+    },
+    {
+      "label": "Usage guide",
+      "kind": "url",
+      "target": "https://example.invalid/guide"
+    }
+  ],
+  "jobs": [
+    {
+      "id": "refresh_local_state",
+      "trigger": {
+        "type": "manual"
+      },
+      "result_on_success": "Status cards update and a success notice may appear.",
+      "result_on_failure": "A tray notification and a log entry are written."
+    },
+    {
+      "id": "midday_refresh",
+      "trigger": {
+        "type": "scheduled",
+        "interval_value": 1,
+        "interval_unit": "day",
+        "start_date_local": "2026-04-01",
+        "start_time_local": "12:00:00"
+      },
+      "result_on_success": "The dashboard is refreshed at midday.",
+      "result_on_failure": "The scheduler state is marked failed and visible diagnostics update."
+    }
+  ],
+  "visuals": {
+    "accent_color": "#1f6feb",
+    "surface_color": "#f6f8fa",
+    "success_color": "#1a7f37",
+    "warning_color": "#9a6700",
+    "error_color": "#cf222e",
+    "font_family": "Segoe UI",
+    "success_overlay": true,
+    "theme_mode": "fixed_light"
+  },
+  "diagnostics": {
+    "doctor_checks": [
+      "python runtime",
+      "required packages",
+      "paths",
+      "scheduler availability"
+    ],
+    "diag_sections": [
+      "version",
+      "resolved_paths",
+      "config_summary",
+      "last_job_result",
+      "scheduler_state"
+    ]
+  }
+}
