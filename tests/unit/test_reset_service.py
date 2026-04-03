@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from selfsnap.config_store import load_or_create_config, save_config
 from selfsnap.db import connect, ensure_database
@@ -16,8 +16,20 @@ def test_perform_clean_reset_removes_user_state_and_relaunches(temp_paths, monke
     save_config(temp_paths, config)
 
     ensure_database(temp_paths.db_path)
-    capture_file = temp_paths.default_capture_root / "2026" / "03" / "22" / "cap_2026-03-22_10-00-00_manual_manual.png"
-    archive_file = temp_paths.default_archive_root / "2026" / "03" / "21" / "cap_2026-03-21_09-00-00_manual_manual.png"
+    capture_file = (
+        temp_paths.default_capture_root
+        / "2026"
+        / "03"
+        / "22"
+        / "cap_2026-03-22_10-00-00_manual_manual.png"
+    )
+    archive_file = (
+        temp_paths.default_archive_root
+        / "2026"
+        / "03"
+        / "21"
+        / "cap_2026-03-21_09-00-00_manual_manual.png"
+    )
     capture_file.parent.mkdir(parents=True, exist_ok=True)
     archive_file.parent.mkdir(parents=True, exist_ok=True)
     capture_file.write_bytes(b"capture")
@@ -30,8 +42,8 @@ def test_perform_clean_reset_removes_user_state_and_relaunches(temp_paths, monke
         trigger_source="manual",
         schedule_id=None,
         planned_local_ts=None,
-        started_utc=datetime.now(timezone.utc).isoformat(),
-        finished_utc=datetime.now(timezone.utc).isoformat(),
+        started_utc=datetime.now(UTC).isoformat(),
+        finished_utc=datetime.now(UTC).isoformat(),
         outcome_category="success",
         outcome_code="capture_saved",
         image_path=str(capture_file),
@@ -47,17 +59,21 @@ def test_perform_clean_reset_removes_user_state_and_relaunches(temp_paths, monke
         archived_at_utc=None,
         retention_deleted_at_utc=None,
         app_version="0.1.0",
-        created_utc=datetime.now(timezone.utc).isoformat(),
+        created_utc=datetime.now(UTC).isoformat(),
     )
     with connect(temp_paths.db_path) as connection:
         insert_capture_record(connection, record)
 
     launch_calls: list[list[str]] = []
-    monkeypatch.setattr("selfsnap.reset_service.delete_all_selfsnap_tasks", lambda logger=None: ["task-1"])
+    monkeypatch.setattr(
+        "selfsnap.reset_service.delete_all_selfsnap_tasks", lambda logger=None: ["task-1"]
+    )
     monkeypatch.setattr("selfsnap.reset_service.remove_startup_shortcut", lambda: None)
+
     class RunningProcess:
         def poll(self):
             return None
+
     monkeypatch.setattr(
         "selfsnap.reset_service.launch_background",
         lambda spec: launch_calls.append(spec.command()) or RunningProcess(),
@@ -75,11 +91,17 @@ def test_perform_clean_reset_removes_user_state_and_relaunches(temp_paths, monke
     assert not archive_file.exists()
 
 
-def test_perform_clean_reset_preserves_non_selfsnap_files_in_custom_roots(temp_paths, monkeypatch) -> None:
+def test_perform_clean_reset_preserves_non_selfsnap_files_in_custom_roots(
+    temp_paths, monkeypatch
+) -> None:
     custom_capture_root = temp_paths.user_profile / "Desktop" / "MixedFolder"
     custom_archive_root = temp_paths.user_profile / "Desktop" / "MixedArchive"
-    capture_file = custom_capture_root / "2026" / "03" / "23" / "cap_2026-03-23_10-00-00_manual_manual.png"
-    archive_file = custom_archive_root / "2026" / "03" / "22" / "cap_2026-03-22_10-00-00_manual_manual.png"
+    capture_file = (
+        custom_capture_root / "2026" / "03" / "23" / "cap_2026-03-23_10-00-00_manual_manual.png"
+    )
+    archive_file = (
+        custom_archive_root / "2026" / "03" / "22" / "cap_2026-03-22_10-00-00_manual_manual.png"
+    )
     unrelated_capture_file = custom_capture_root / "notes.txt"
     unrelated_archive_file = custom_archive_root / "keep.me"
     capture_file.parent.mkdir(parents=True, exist_ok=True)
@@ -102,8 +124,8 @@ def test_perform_clean_reset_preserves_non_selfsnap_files_in_custom_roots(temp_p
         trigger_source="manual",
         schedule_id=None,
         planned_local_ts=None,
-        started_utc=datetime.now(timezone.utc).isoformat(),
-        finished_utc=datetime.now(timezone.utc).isoformat(),
+        started_utc=datetime.now(UTC).isoformat(),
+        finished_utc=datetime.now(UTC).isoformat(),
         outcome_category="success",
         outcome_code="capture_saved",
         image_path=str(capture_file),
@@ -119,7 +141,7 @@ def test_perform_clean_reset_preserves_non_selfsnap_files_in_custom_roots(temp_p
         archived_at_utc=None,
         retention_deleted_at_utc=None,
         app_version="0.1.0",
-        created_utc=datetime.now(timezone.utc).isoformat(),
+        created_utc=datetime.now(UTC).isoformat(),
     )
     with connect(temp_paths.db_path) as connection:
         insert_capture_record(connection, record)

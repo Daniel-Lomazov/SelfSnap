@@ -86,9 +86,7 @@ def test_release_criteria_doc_describes_public_1_0_contract() -> None:
 
 
 def test_baseline_benchmark_doc_tracks_current_1_0_starting_point() -> None:
-    benchmark = Path("docs/implementation/BENCHMARK_1_0_BASELINE.md").read_text(
-        encoding="utf-8"
-    )
+    benchmark = Path("docs/implementation/BENCHMARK_1_0_BASELINE.md").read_text(encoding="utf-8")
     docs_index = Path("docs/README.md").read_text(encoding="utf-8")
     readme = Path("README.md").read_text(encoding="utf-8")
 

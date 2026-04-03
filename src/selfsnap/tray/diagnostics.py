@@ -61,7 +61,9 @@ def scheduler_sync_summary(config: AppConfig) -> DiagnosticSummary:
         )
     detail = "Windows Task Scheduler registrations are synchronized."
     if not config.app_enabled:
-        detail = "Scheduler sync is healthy. Scheduled captures stay paused until the tray is enabled."
+        detail = (
+            "Scheduler sync is healthy. Scheduled captures stay paused until the tray is enabled."
+        )
     return DiagnosticSummary(
         headline=scheduler_sync_state_label(config.scheduler_sync_state),
         detail=detail,
@@ -73,7 +75,10 @@ def last_activity_summary(record: CaptureRecord | None) -> DiagnosticSummary:
     if record is None:
         return DiagnosticSummary(
             headline="No captures recorded",
-            detail="Use Capture Now from the tray to validate storage, notifications, and overlay behavior.",
+            detail=(
+                "Use Capture Now from the tray to validate storage, "
+                "notifications, and overlay behavior."
+            ),
             tone="neutral",
         )
     timestamp_text = format_local_timestamp(record.started_utc or record.created_utc)
@@ -117,7 +122,10 @@ def retention_summary(config: AppConfig) -> DiagnosticSummary:
         config.retention_grace_days,
     )
     if config.retention_mode == "keep_forever":
-        detail = "Automatic archival and purge are off. Files stay in the capture root until you move them."
+        detail = (
+            "Automatic archival and purge are off. Files stay in the "
+            "capture root until you move them."
+        )
     else:
         detail = f"Moves captures to archive after {config.retention_days} day(s)."
         if config.purge_enabled:

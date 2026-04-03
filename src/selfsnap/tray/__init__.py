@@ -1,2 +1,1 @@
 """Tray UI for SelfSnap."""
-

@@ -1,12 +1,10 @@
 """Tests for selfsnap.db — connection management and schema utilities."""
-from __future__ import annotations
 
-import sqlite3
+from __future__ import annotations
 
 import pytest
 
-from selfsnap.db import ManagedConnection, _ensure_column, connect, ensure_database
-
+from selfsnap.db import _ensure_column, connect, ensure_database
 
 # ---------------------------------------------------------------------------
 # ManagedConnection — commit / rollback behaviour
@@ -20,7 +18,10 @@ def test_managed_connection_commits_on_clean_exit(temp_paths) -> None:
             "INSERT INTO capture_records("
             " record_id, trigger_source, outcome_category, outcome_code,"
             " file_present, archived, app_version, created_utc"
-            ") VALUES ('test-1', 'manual', 'success', 'capture_saved', 0, 0, '1.0', '2026-01-01T00:00:00')"
+            ") VALUES ("
+            "'test-1', 'manual', 'success', 'capture_saved',"
+            " 0, 0, '1.0', '2026-01-01T00:00:00'"
+            ")"
         )
     # Re-open to verify the row was committed
     with connect(temp_paths.db_path) as conn:
@@ -39,7 +40,10 @@ def test_managed_connection_rolls_back_on_exception(temp_paths) -> None:
                 "INSERT INTO capture_records("
                 " record_id, trigger_source, outcome_category, outcome_code,"
                 " file_present, archived, app_version, created_utc"
-                ") VALUES ('rollback-1', 'manual', 'success', 'capture_saved', 0, 0, '1.0', '2026-01-01T00:00:00')"
+                ") VALUES ("
+                "'rollback-1', 'manual', 'success', 'capture_saved',"
+                " 0, 0, '1.0', '2026-01-01T00:00:00'"
+                ")"
             )
             raise RuntimeError("simulated failure")
     except RuntimeError:
@@ -55,7 +59,7 @@ def test_managed_connection_rolls_back_on_exception(temp_paths) -> None:
 def test_managed_connection_does_not_suppress_exception(temp_paths) -> None:
     ensure_database(temp_paths.db_path)
     with pytest.raises(ValueError, match="intentional"):
-        with connect(temp_paths.db_path) as conn:
+        with connect(temp_paths.db_path):
             raise ValueError("intentional")
 
 

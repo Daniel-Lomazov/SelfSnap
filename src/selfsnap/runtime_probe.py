@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
 import importlib
 import platform
 import sys
+from dataclasses import asdict, dataclass
 
 
 @dataclass(slots=True)
@@ -37,7 +37,9 @@ def probe_runtime_dependencies() -> DependencyProbeResult:
         return DependencyProbeResult(
             ok=False,
             summary="Runtime dependency is missing",
-            details=_format_error_details(exc, python_executable, python_version, python_architecture),
+            details=_format_error_details(
+                exc, python_executable, python_version, python_architecture
+            ),
             classification="missing_dependency",
             python_executable=python_executable,
             python_version=python_version,
@@ -47,7 +49,9 @@ def probe_runtime_dependencies() -> DependencyProbeResult:
         return DependencyProbeResult(
             ok=False,
             summary="Runtime dependency failed to load",
-            details=_format_error_details(exc, python_executable, python_version, python_architecture),
+            details=_format_error_details(
+                exc, python_executable, python_version, python_architecture
+            ),
             classification="broken_native_dependency",
             python_executable=python_executable,
             python_version=python_version,
@@ -63,7 +67,8 @@ def probe_runtime_dependencies() -> DependencyProbeResult:
         python_version=python_version,
         python_architecture=python_architecture,
         pillow_version=getattr(pillow_module, "__version__", None),
-        pillow_path=getattr(pillow_image, "__file__", None) or getattr(pillow_binary, "__file__", None),
+        pillow_path=getattr(pillow_image, "__file__", None)
+        or getattr(pillow_binary, "__file__", None),
     )
 
 

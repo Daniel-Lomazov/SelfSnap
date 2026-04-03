@@ -88,6 +88,7 @@ def test_legacy_schedule_dict_migrates_to_daily_recurrence() -> None:
 # AppConfig validation — uncovered branches
 # ---------------------------------------------------------------------------
 
+
 def test_schema_version_mismatch_raises() -> None:
     config = AppConfig(
         capture_storage_root="C:\\captures",
@@ -210,6 +211,7 @@ def test_retention_grace_days_zero_raises() -> None:
 # AppConfig.mark_scheduler_sync_ok
 # ---------------------------------------------------------------------------
 
+
 def test_mark_scheduler_sync_ok_clears_failed_state() -> None:
     config = AppConfig(
         capture_storage_root="C:\\cap",
@@ -227,8 +229,10 @@ def test_mark_scheduler_sync_ok_clears_failed_state() -> None:
 # AppConfig.get_schedule
 # ---------------------------------------------------------------------------
 
+
 def test_get_schedule_returns_none_for_unknown_id() -> None:
     from selfsnap.models import Schedule
+
     config = AppConfig(
         capture_storage_root="C:\\cap",
         archive_storage_root="C:\\arc",
@@ -250,8 +254,10 @@ def test_get_schedule_returns_none_for_unknown_id() -> None:
 # Schedule validation — uncovered branches
 # ---------------------------------------------------------------------------
 
+
 def test_schedule_invalid_interval_unit_raises() -> None:
     from selfsnap.models import Schedule
+
     sched = Schedule(
         schedule_id="test",
         label="Test",
@@ -266,6 +272,7 @@ def test_schedule_invalid_interval_unit_raises() -> None:
 
 def test_schedule_invalid_start_date_raises() -> None:
     from selfsnap.models import Schedule
+
     sched = Schedule(
         schedule_id="test",
         label="Test",
@@ -280,6 +287,7 @@ def test_schedule_invalid_start_date_raises() -> None:
 
 def test_schedule_invalid_start_time_raises() -> None:
     from selfsnap.models import Schedule
+
     sched = Schedule(
         schedule_id="test",
         label="Test",
@@ -294,6 +302,7 @@ def test_schedule_invalid_start_time_raises() -> None:
 
 def test_schedule_validate_raises_for_invalid_schedule_id() -> None:
     from selfsnap.models import Schedule
+
     sched = Schedule(
         schedule_id="HAS_UPPER",
         label="Test",
@@ -308,6 +317,7 @@ def test_schedule_validate_raises_for_invalid_schedule_id() -> None:
 
 def test_schedule_validate_raises_for_empty_label() -> None:
     from selfsnap.models import Schedule
+
     sched = Schedule(
         schedule_id="valid_id",
         label="   ",
@@ -322,6 +332,7 @@ def test_schedule_validate_raises_for_empty_label() -> None:
 
 def test_schedule_validate_raises_for_zero_interval_value() -> None:
     from selfsnap.models import Schedule
+
     sched = Schedule(
         schedule_id="valid_id",
         label="Test",

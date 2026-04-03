@@ -36,7 +36,8 @@ def resolve_reinstall_invocation(
     repo_root = Path(resolve_source_repo_root(paths))
     script_path = _require_script(repo_root, ("scripts", "reinstall.ps1"))
     arguments = [
-        "-WindowStyle", "Hidden",
+        "-WindowStyle",
+        "Hidden",
         "-NonInteractive",
         "-NoProfile",
         "-ExecutionPolicy",
@@ -65,7 +66,8 @@ def resolve_uninstall_invocation(paths: AppPaths, *, remove_user_data: bool) -> 
     repo_root = Path(resolve_source_repo_root(paths))
     script_path = _require_script(repo_root, ("scripts", "uninstall.ps1"))
     arguments = [
-        "-WindowStyle", "Hidden",
+        "-WindowStyle",
+        "Hidden",
         "-NonInteractive",
         "-NoProfile",
         "-ExecutionPolicy",
@@ -91,6 +93,7 @@ def launch_and_confirm(spec: LaunchSpec, *, wait_seconds: float = 2.0) -> bool:
     lifecycle scripts use run_lifecycle_script_and_check instead.
     """
     import time
+
     process = launch_background(spec)
     poll = getattr(process, "poll", None)
     if poll is None:

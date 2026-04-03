@@ -14,7 +14,9 @@ from selfsnap.tray.diagnostics import (
 )
 
 
-def _record(outcome_category: str = "success", outcome_code: str = "capture_saved") -> CaptureRecord:
+def _record(
+    outcome_category: str = "success", outcome_code: str = "capture_saved"
+) -> CaptureRecord:
     now = datetime(2026, 4, 3, 14, 3, 0, tzinfo=UTC).isoformat()
     return CaptureRecord(
         record_id="record-1",
@@ -68,7 +70,9 @@ def test_scheduler_and_storage_summaries_surface_health_and_paths(temp_paths) ->
 
 
 def test_last_activity_summary_warns_for_failed_record() -> None:
-    summary = last_activity_summary(_record(outcome_category="failed", outcome_code="scheduler_sync_error"))
+    summary = last_activity_summary(
+        _record(outcome_category="failed", outcome_code="scheduler_sync_error")
+    )
 
     assert summary.tone == "warn"
     assert "scheduler_sync_error at" in summary.headline

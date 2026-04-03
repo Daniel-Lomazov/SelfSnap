@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from selfsnap.config_store import load_or_create_config, save_config
 from selfsnap.db import connect, ensure_database
@@ -39,7 +39,7 @@ def test_reconcile_records_missed_coarse_occurrences(temp_paths, monkeypatch) ->
     save_config(temp_paths, config)
     ensure_database(temp_paths.db_path)
 
-    fake_now = datetime(2026, 3, 23, 10, 10, 0, tzinfo=timezone.utc)
+    fake_now = datetime(2026, 3, 23, 10, 10, 0, tzinfo=UTC)
 
     class FrozenDatetime(datetime):
         @classmethod
@@ -131,7 +131,7 @@ def test_reconcile_skips_non_coarse_schedules(temp_paths, monkeypatch) -> None:
     save_config(temp_paths, config)
     ensure_database(temp_paths.db_path)
 
-    fake_now = datetime(2026, 3, 23, 10, 10, 0, tzinfo=timezone.utc)
+    fake_now = datetime(2026, 3, 23, 10, 10, 0, tzinfo=UTC)
 
     class FrozenDatetime(datetime):
         @classmethod
@@ -168,7 +168,7 @@ def test_reconcile_skips_already_existing_slot(temp_paths, monkeypatch) -> None:
     save_config(temp_paths, config)
     ensure_database(temp_paths.db_path)
 
-    fake_now = datetime(2026, 3, 23, 10, 10, 0, tzinfo=timezone.utc)
+    fake_now = datetime(2026, 3, 23, 10, 10, 0, tzinfo=UTC)
 
     class FrozenDatetime(datetime):
         @classmethod

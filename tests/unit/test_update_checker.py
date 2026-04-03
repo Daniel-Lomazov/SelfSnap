@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import json
-from io import BytesIO
 from unittest.mock import MagicMock, patch
 
 from selfsnap.update_checker import compare_versions, fetch_latest_release_tag
-
 
 # ---------------------------------------------------------------------------
 # compare_versions

@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 
 from selfsnap.runtime_launch import (
-    resolve_background_working_directory,
     resolve_background_python_executable,
+    resolve_background_working_directory,
     resolve_foreground_python_executable,
     resolve_manual_capture_background_invocation,
     resolve_source_repo_root,
@@ -31,7 +31,9 @@ def test_resolve_background_python_executable_prefers_install_metadata(temp_path
     assert Path(result) == pythonw
 
 
-def test_resolve_background_python_executable_ignores_stale_metadata(monkeypatch, temp_paths) -> None:
+def test_resolve_background_python_executable_ignores_stale_metadata(
+    monkeypatch, temp_paths
+) -> None:
     temp_paths.bin_dir.mkdir(parents=True, exist_ok=True)
     stale_pythonw = temp_paths.bin_dir / "stale-pythonw.exe"
     stale_pythonw.write_text("", encoding="utf-8")
@@ -157,9 +159,7 @@ def test_resolve_foreground_python_executable_prefers_install_metadata(temp_path
 def test_resolve_source_repo_root_prefers_trusted_install_metadata(temp_paths) -> None:
     temp_paths.bin_dir.mkdir(parents=True, exist_ok=True)
     (temp_paths.bin_dir / "install-meta.json").write_text(
-        '{"repo_root": "'
-        + str(temp_paths.user_profile).replace("\\", "\\\\")
-        + '"}',
+        '{"repo_root": "' + str(temp_paths.user_profile).replace("\\", "\\\\") + '"}',
         encoding="utf-8",
     )
 

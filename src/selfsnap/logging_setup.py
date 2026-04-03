@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from logging import Formatter, Logger, getLogger
 import logging
-from logging.handlers import RotatingFileHandler
 import os
-from pathlib import Path
 import tempfile
 import time
+from logging import Formatter, Logger, getLogger
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from selfsnap.paths import AppPaths
 

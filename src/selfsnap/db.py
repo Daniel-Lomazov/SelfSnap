@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import sqlite3
+from pathlib import Path
 
 
 class ManagedConnection(sqlite3.Connection):
@@ -45,9 +45,15 @@ CREATE TABLE IF NOT EXISTS capture_records (
 """
 
 CREATE_INDEXES = [
-    "CREATE INDEX IF NOT EXISTS idx_capture_records_planned_local_ts ON capture_records(planned_local_ts);",
+    (
+        "CREATE INDEX IF NOT EXISTS idx_capture_records_planned_local_ts "
+        "ON capture_records(planned_local_ts);"
+    ),
     "CREATE INDEX IF NOT EXISTS idx_capture_records_started_utc ON capture_records(started_utc);",
-    "CREATE INDEX IF NOT EXISTS idx_capture_records_outcome_category ON capture_records(outcome_category);",
+    (
+        "CREATE INDEX IF NOT EXISTS idx_capture_records_outcome_category "
+        "ON capture_records(outcome_category);"
+    ),
     "CREATE INDEX IF NOT EXISTS idx_capture_records_schedule_id ON capture_records(schedule_id);",
 ]
 

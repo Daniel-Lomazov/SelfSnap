@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from pathlib import Path
-from datetime import datetime, timezone
 import xml.etree.ElementTree as ET
+from datetime import UTC, datetime
+from pathlib import Path
 
 from selfsnap.config_store import load_or_create_config, save_config
 from selfsnap.models import Schedule
@@ -126,7 +126,7 @@ def test_build_task_xml_preserves_wake_and_exec_settings(temp_paths) -> None:
 
     xml_payload = _build_task_xml(
         "SelfSnap.Capture.morning",
-        datetime(2026, 3, 23, 9, 0, 0, tzinfo=timezone.utc),
+        datetime(2026, 3, 23, 9, 0, 0, tzinfo=UTC),
         invocation,
         True,
     )
@@ -134,6 +134,11 @@ def test_build_task_xml_preserves_wake_and_exec_settings(temp_paths) -> None:
     namespace = {"t": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
 
     assert root.findtext(".//t:Exec/t:Command", namespaces=namespace) == invocation.executable
-    assert root.findtext(".//t:Exec/t:Arguments", namespaces=namespace) == invocation.argument_string()
-    assert root.findtext(".//t:Exec/t:WorkingDirectory", namespaces=namespace) == invocation.working_directory
+    assert (
+        root.findtext(".//t:Exec/t:Arguments", namespaces=namespace) == invocation.argument_string()
+    )
+    assert (
+        root.findtext(".//t:Exec/t:WorkingDirectory", namespaces=namespace)
+        == invocation.working_directory
+    )
     assert root.findtext(".//t:Settings/t:WakeToRun", namespaces=namespace) == "true"

@@ -7,8 +7,8 @@ from types import SimpleNamespace
 from selfsnap.models import AppConfig, CaptureRecord, Schedule
 from selfsnap.tray.app import (
     TrayRuntimeState,
-    _any_dialog_open,
     _announce_record,
+    _any_dialog_open,
     _build_menu_items,
     _capture_now,
     _check_for_updates,
@@ -185,11 +185,12 @@ def test_settings_menu_item_is_default_action(temp_paths, monkeypatch) -> None:
             super().__init__(items)
 
     class FakeMenuItem:
-        def __init__(self, text, action, enabled=True, default=False):
+        def __init__(self, text, action, enabled=True, default=False, visible=True):
             self.text = text
             self.action = action
             self.enabled = enabled
             self.default = default
+            self.visible = visible
 
     monkeypatch.setattr(
         "selfsnap.tray.app.load_or_create_config",
@@ -205,7 +206,9 @@ def test_settings_menu_item_is_default_action(temp_paths, monkeypatch) -> None:
     )
 
     settings_items = [
-        item for item in items if item is not None and not callable(item.text) and item.text == "Settings"
+        item
+        for item in items
+        if item is not None and not callable(item.text) and item.text == "Settings"
     ]
     assert len(settings_items) == 1
     assert settings_items[0].default is True
@@ -219,11 +222,12 @@ def test_menu_includes_notification_and_retention_diagnostics(temp_paths, monkey
             super().__init__(items)
 
     class FakeMenuItem:
-        def __init__(self, text, action, enabled=True, default=False):
+        def __init__(self, text, action, enabled=True, default=False, visible=True):
             self.text = text
             self.action = action
             self.enabled = enabled
             self.default = default
+            self.visible = visible
 
     monkeypatch.setattr(
         "selfsnap.tray.app.load_or_create_config",
@@ -240,7 +244,11 @@ def test_menu_includes_notification_and_retention_diagnostics(temp_paths, monkey
         _state(),
     )
 
-    labels = [item.text for item in items if item is not None and not callable(item.text)]
+    labels = [
+        item.text(item) if callable(item.text) else item.text
+        for item in items
+        if item is not None and (item.visible(item) if callable(item.visible) else item.visible)
+    ]
     assert any(label.startswith("Notifications:") for label in labels)
     assert any(label.startswith("Retention:") for label in labels)
 
@@ -345,7 +353,9 @@ def test_any_dialog_open_is_true_when_either_dialog_is_open() -> None:
     assert _any_dialog_open(state) is True
 
 
-def test_tray_menu_contains_restart_reinstall_and_uninstall_before_exit(temp_paths, monkeypatch) -> None:
+def test_tray_menu_contains_restart_reinstall_and_uninstall_before_exit(
+    temp_paths, monkeypatch
+) -> None:
     class FakeMenu(list):
         SEPARATOR = None
 
@@ -353,11 +363,12 @@ def test_tray_menu_contains_restart_reinstall_and_uninstall_before_exit(temp_pat
             super().__init__(items)
 
     class FakeMenuItem:
-        def __init__(self, text, action, enabled=True, default=False):
+        def __init__(self, text, action, enabled=True, default=False, visible=True):
             self.text = text
             self.action = action
             self.enabled = enabled
             self.default = default
+            self.visible = visible
 
     monkeypatch.setattr(
         "selfsnap.tray.app.load_or_create_config",
@@ -375,7 +386,9 @@ def test_tray_menu_contains_restart_reinstall_and_uninstall_before_exit(temp_pat
     labels = [item.text for item in items if item is not None and not callable(item.text)]
     assert labels[-5:] == ["Reinstall", "Check for Updates", "Uninstall", "Restart", "Exit"]
 
-    submenu_by_label = {item.text: item.action for item in items if item is not None and not callable(item.text)}
+    submenu_by_label = {
+        item.text: item.action for item in items if item is not None and not callable(item.text)
+    }
     # Reinstall is now a flat button (action is callable, not a submenu)
     assert callable(submenu_by_label["Reinstall"])
     assert callable(submenu_by_label["Check for Updates"])
@@ -392,9 +405,7 @@ def test_check_for_updates_when_installed_is_newer_shows_installed_as_latest(
 
     shown: list[tuple[str, str]] = []
 
-    monkeypatch.setattr(
-        "selfsnap.update_checker.fetch_latest_release_tag", lambda _repo: "v1.0.0"
-    )
+    monkeypatch.setattr("selfsnap.update_checker.fetch_latest_release_tag", lambda _repo: "v1.0.0")
     monkeypatch.setattr("selfsnap.tray.app._show_info_dialog", lambda t, m: shown.append((t, m)))
     monkeypatch.setattr("selfsnap.tray.app._show_error_dialog", lambda *_args, **_kwargs: None)
 
@@ -439,7 +450,9 @@ def test_run_high_frequency_scheduler_launches_due_occurrences(temp_paths, monke
         "selfsnap.tray.app.launch_background", lambda spec: launched.append(spec.command())
     )
 
-    logger = SimpleNamespace(debug=lambda *args, **kwargs: None, exception=lambda *args, **kwargs: None)
+    logger = SimpleNamespace(
+        debug=lambda *args, **kwargs: None, exception=lambda *args, **kwargs: None
+    )
     state = _state()
     state.last_high_frequency_check = datetime(2026, 3, 23, 10, 0, 0, tzinfo=UTC)
 

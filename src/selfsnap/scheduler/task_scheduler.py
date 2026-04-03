@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import csv
-from datetime import datetime
 import io
 import json
 import logging
 import os
-from pathlib import Path
 import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
+from datetime import datetime
+from pathlib import Path
 
 from selfsnap.config_store import load_or_create_config, save_config
 from selfsnap.logging_setup import setup_logging
@@ -17,9 +17,8 @@ from selfsnap.models import AppConfig, OutcomeCode
 from selfsnap.paths import AppPaths, resolve_app_paths
 from selfsnap.recurrence import is_coarse_schedule, next_occurrence
 from selfsnap.runtime_launch import LaunchSpec, resolve_worker_background_invocation
-from selfsnap.scheduler.backends import InMemoryTaskSchedulerBackend, TaskSchedulerBackend
+from selfsnap.scheduler.backends import TaskSchedulerBackend
 from selfsnap.worker import EXIT_OK, EXIT_SCHEDULER_FAILURE
-
 
 TASK_PREFIX = "SelfSnap.Capture."
 
@@ -143,7 +142,9 @@ def create_or_replace_task(
     except RuntimeError as exc:
         logger.warning("Falling back to schtasks XML registration for %s: %s", task_name, exc)
         result = _register_task_with_xml(task_name, run_at_local, invocation, wake_for_run)
-    logger.info("Created task %s at %s (wake=%s)", task_name, run_at_local.isoformat(), wake_for_run)
+    logger.info(
+        "Created task %s at %s (wake=%s)", task_name, run_at_local.isoformat(), wake_for_run
+    )
     if result.stdout:
         logger.debug("schtasks output: %s", result.stdout.strip())
 
@@ -162,7 +163,9 @@ def delete_task(
     raise RuntimeError(result.stderr or result.stdout or f"Failed to delete task {task_name}")
 
 
-def build_task_action(paths: AppPaths, schedule_id: str, planned_local_ts: str | None = None) -> str:
+def build_task_action(
+    paths: AppPaths, schedule_id: str, planned_local_ts: str | None = None
+) -> str:
     invocation = resolve_worker_background_invocation(paths, schedule_id, planned_local_ts)
     arguments = invocation.argument_string()
     if arguments:
@@ -191,12 +194,23 @@ $arguments = '{_escape_powershell_string(invocation.argument_string())}'
 $workingDirectory = '{_escape_powershell_string(invocation.working_directory)}'
 $runAt = '{_escape_powershell_string(run_at_local.strftime("%Y-%m-%dTH:%M:%S"))}'
 $userId = '{_escape_powershell_string(current_user)}'
-$wake = {'$true' if wake_for_run else '$false'}
-$action = New-ScheduledTaskAction -Execute $execute -Argument $arguments -WorkingDirectory $workingDirectory
+$wake = {"$true" if wake_for_run else "$false"}
+$action = New-ScheduledTaskAction `
+    -Execute $execute `
+    -Argument $arguments `
+    -WorkingDirectory $workingDirectory
 $trigger = New-ScheduledTaskTrigger -Once -At ([datetime]::Parse($runAt))
-$settings = New-ScheduledTaskSettingsSet -WakeToRun:$wake -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances Parallel
+$settings = New-ScheduledTaskSettingsSet `
+    -WakeToRun:$wake `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries `
+    -MultipleInstances Parallel
 $principal = New-ScheduledTaskPrincipal -UserId $userId -LogonType Interactive -RunLevel Limited
-$task = New-ScheduledTask -Action $action -Trigger $trigger -Settings $settings -Principal $principal
+$task = New-ScheduledTask `
+    -Action $action `
+    -Trigger $trigger `
+    -Settings $settings `
+    -Principal $principal
 Register-ScheduledTask -TaskName $taskName -InputObject $task -Force | Out-Null
 $registeredTask = Get-ScheduledTask -TaskName $taskName
 if ($registeredTask.Settings.WakeToRun -ne $wake) {{
@@ -221,9 +235,8 @@ def _register_task_with_xml(
 ) -> subprocess.CompletedProcess[str]:
     task_xml = _build_task_xml(task_name, run_at_local, invocation, wake_for_run)
     # schtasks expects UTF-16 task XML reliably on Windows in fallback mode.
-    task_xml_utf16 = (
-        task_xml.replace("encoding='utf-8'", "encoding='UTF-16'")
-        .replace('encoding="utf-8"', 'encoding="UTF-16"')
+    task_xml_utf16 = task_xml.replace("encoding='utf-8'", "encoding='UTF-16'").replace(
+        'encoding="utf-8"', 'encoding="UTF-16"'
     )
     with tempfile.NamedTemporaryFile("w", delete=False, suffix=".xml", encoding="utf-16") as handle:
         handle.write(task_xml_utf16)
@@ -343,7 +356,9 @@ def _run_powershell(command: str, check: bool = True) -> subprocess.CompletedPro
         check=False,
     )
     if check and completed.returncode != 0:
-        raise RuntimeError(completed.stderr or completed.stdout or "PowerShell task registration failed")
+        raise RuntimeError(
+            completed.stderr or completed.stdout or "PowerShell task registration failed"
+        )
     return completed
 
 
@@ -359,7 +374,9 @@ def _run_schtasks(arguments: list[str], check: bool = True) -> subprocess.Comple
     return completed
 
 
-def _persist_scheduler_sync_state(paths: AppPaths, config: AppConfig, logger: logging.Logger) -> None:
+def _persist_scheduler_sync_state(
+    paths: AppPaths, config: AppConfig, logger: logging.Logger
+) -> None:
     try:
         save_config(paths, config)
     except Exception:
@@ -368,7 +385,9 @@ def _persist_scheduler_sync_state(paths: AppPaths, config: AppConfig, logger: lo
 
 def read_registered_task_details() -> list[dict[str, object]]:
     script = f"""
-$tasks = Get-ScheduledTask | Where-Object {{ $_.TaskName -like '{TASK_PREFIX}*' }} | ForEach-Object {{
+$tasks = Get-ScheduledTask |
+    Where-Object {{ $_.TaskName -like '{TASK_PREFIX}*' }} |
+    ForEach-Object {{
     $action = $_.Actions | Select-Object -First 1
     [PSCustomObject]@{{
         task_name = $_.TaskName

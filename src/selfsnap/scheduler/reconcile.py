@@ -13,7 +13,6 @@ from selfsnap.recurrence import is_coarse_schedule, iter_occurrences_between
 from selfsnap.version import __version__
 from selfsnap.worker import EXIT_OK
 
-
 RECONCILE_LOOKBACK_HOURS = 12
 
 

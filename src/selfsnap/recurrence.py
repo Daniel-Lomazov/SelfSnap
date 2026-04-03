@@ -5,7 +5,6 @@ from math import floor
 
 from selfsnap.models import IntervalUnit, Schedule
 
-
 HIGH_FREQUENCY_UNITS = {IntervalUnit.SECOND.value, IntervalUnit.MINUTE.value}
 COARSE_UNITS = {
     IntervalUnit.HOUR.value,
@@ -134,7 +133,11 @@ def _next_calendar_occurrence(
 ) -> datetime | None:
     anchor_month_index = (anchor_local.year * 12) + (anchor_local.month - 1)
     reference_month_index = (reference_local.year * 12) + (reference_local.month - 1)
-    step_months = schedule.interval_value if schedule.interval_unit == IntervalUnit.MONTH.value else schedule.interval_value * 12
+    step_months = (
+        schedule.interval_value
+        if schedule.interval_unit == IntervalUnit.MONTH.value
+        else schedule.interval_value * 12
+    )
 
     if reference_month_index <= anchor_month_index:
         candidate = _calendar_candidate(anchor_local, 0)

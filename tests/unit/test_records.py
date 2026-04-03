@@ -1,9 +1,8 @@
 """Tests for selfsnap.records — all DB query helpers."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-
-import pytest
 
 from selfsnap.db import connect, ensure_database
 from selfsnap.models import CaptureRecord
@@ -14,7 +13,6 @@ from selfsnap.records import (
     get_latest_record,
     get_purge_candidates,
     get_recent,
-    get_retention_candidates,
     has_record_for_slot,
     insert_capture_record,
     list_all_record_paths,
@@ -71,6 +69,7 @@ def _make_record(
 # resolve_latest_capture_path
 # ---------------------------------------------------------------------------
 
+
 def test_resolve_latest_capture_path_returns_none_for_empty_db(temp_paths) -> None:
     ensure_database(temp_paths.db_path)
     with connect(temp_paths.db_path) as conn:
@@ -90,7 +89,9 @@ def test_resolve_latest_capture_path_returns_path_of_present_record(temp_paths) 
 def test_resolve_latest_capture_path_skips_absent_files(temp_paths) -> None:
     ensure_database(temp_paths.db_path)
     with connect(temp_paths.db_path) as conn:
-        insert_capture_record(conn, _make_record(record_id="r1", image_path="/cap.png", file_present=False))
+        insert_capture_record(
+            conn, _make_record(record_id="r1", image_path="/cap.png", file_present=False)
+        )
         result = resolve_latest_capture_path(conn)
     assert result is None
 
@@ -98,6 +99,7 @@ def test_resolve_latest_capture_path_skips_absent_files(temp_paths) -> None:
 # ---------------------------------------------------------------------------
 # get_recent
 # ---------------------------------------------------------------------------
+
 
 def test_get_recent_returns_records_with_file_present(temp_paths) -> None:
     ensure_database(temp_paths.db_path)
@@ -128,6 +130,7 @@ def test_get_recent_returns_empty_for_empty_db(temp_paths) -> None:
 # summary_stats
 # ---------------------------------------------------------------------------
 
+
 def test_summary_stats_returns_zeros_for_empty_db(temp_paths) -> None:
     ensure_database(temp_paths.db_path)
     with connect(temp_paths.db_path) as conn:
@@ -139,9 +142,15 @@ def test_summary_stats_returns_zeros_for_empty_db(temp_paths) -> None:
 def test_summary_stats_counts_outcomes(temp_paths) -> None:
     ensure_database(temp_paths.db_path)
     with connect(temp_paths.db_path) as conn:
-        insert_capture_record(conn, _make_record(record_id="r1", outcome_category="success", file_bytes=100))
-        insert_capture_record(conn, _make_record(record_id="r2", outcome_category="failed", file_bytes=0))
-        insert_capture_record(conn, _make_record(record_id="r3", outcome_category="skipped", file_bytes=0))
+        insert_capture_record(
+            conn, _make_record(record_id="r1", outcome_category="success", file_bytes=100)
+        )
+        insert_capture_record(
+            conn, _make_record(record_id="r2", outcome_category="failed", file_bytes=0)
+        )
+        insert_capture_record(
+            conn, _make_record(record_id="r3", outcome_category="skipped", file_bytes=0)
+        )
         stats = summary_stats(conn)
     assert stats["total_captures"] == 3
     assert stats["total_success"] == 1
@@ -164,6 +173,7 @@ def test_summary_stats_counts_distinct_schedules(temp_paths) -> None:
 # daily_counts
 # ---------------------------------------------------------------------------
 
+
 def test_daily_counts_returns_today_entry(temp_paths) -> None:
     ensure_database(temp_paths.db_path)
     now_utc = datetime.now(UTC).isoformat()
@@ -185,6 +195,7 @@ def test_daily_counts_returns_empty_when_no_records(temp_paths) -> None:
 # ---------------------------------------------------------------------------
 # get_by_schedule
 # ---------------------------------------------------------------------------
+
 
 def test_get_by_schedule_returns_matching_records(temp_paths) -> None:
     ensure_database(temp_paths.db_path)
@@ -215,6 +226,7 @@ def test_get_by_schedule_returns_empty_for_unknown_schedule(temp_paths) -> None:
 # ---------------------------------------------------------------------------
 # mark_record_purged / get_purge_candidates
 # ---------------------------------------------------------------------------
+
 
 def test_mark_record_purged_sets_purged_utc(temp_paths) -> None:
     ensure_database(temp_paths.db_path)
@@ -271,6 +283,7 @@ def test_get_purge_candidates_excludes_recent_archives(temp_paths) -> None:
 # list_all_record_paths
 # ---------------------------------------------------------------------------
 
+
 def test_list_all_record_paths_returns_distinct_paths(temp_paths) -> None:
     ensure_database(temp_paths.db_path)
     with connect(temp_paths.db_path) as conn:
@@ -286,6 +299,7 @@ def test_list_all_record_paths_returns_distinct_paths(temp_paths) -> None:
 # clear_capture_history
 # ---------------------------------------------------------------------------
 
+
 def test_clear_capture_history_deletes_all_records(temp_paths) -> None:
     ensure_database(temp_paths.db_path)
     with connect(temp_paths.db_path) as conn:
@@ -300,6 +314,7 @@ def test_clear_capture_history_deletes_all_records(temp_paths) -> None:
 # list_recent_records
 # ---------------------------------------------------------------------------
 
+
 def test_list_recent_records_returns_all_record_types(temp_paths) -> None:
     ensure_database(temp_paths.db_path)
     with connect(temp_paths.db_path) as conn:
@@ -313,7 +328,9 @@ def test_has_record_for_slot_returns_true_for_matching_slot(temp_paths) -> None:
     ensure_database(temp_paths.db_path)
     slot = "2026-04-01T09:00:00+00:00"
     with connect(temp_paths.db_path) as conn:
-        insert_capture_record(conn, _make_record(record_id="r1", schedule_id="sched_a", planned_local_ts=slot))
+        insert_capture_record(
+            conn, _make_record(record_id="r1", schedule_id="sched_a", planned_local_ts=slot)
+        )
         assert has_record_for_slot(conn, "sched_a", slot) is True
 
 
@@ -321,7 +338,9 @@ def test_has_record_for_slot_returns_false_for_different_schedule(temp_paths) ->
     ensure_database(temp_paths.db_path)
     slot = "2026-04-01T09:00:00+00:00"
     with connect(temp_paths.db_path) as conn:
-        insert_capture_record(conn, _make_record(record_id="r1", schedule_id="sched_a", planned_local_ts=slot))
+        insert_capture_record(
+            conn, _make_record(record_id="r1", schedule_id="sched_a", planned_local_ts=slot)
+        )
         assert has_record_for_slot(conn, "sched_b", slot) is False
 
 
@@ -349,7 +368,8 @@ def test_mark_record_archived_updates_row(temp_paths) -> None:
         archived_at = datetime.now(UTC).isoformat()
         mark_record_archived(conn, "arc_1", "/archive/cap.png", archived_at)
         rows = conn.execute(
-            "SELECT archived, image_path, archived_at_utc FROM capture_records WHERE record_id='arc_1'"
+            "SELECT archived, image_path, archived_at_utc "
+            "FROM capture_records WHERE record_id='arc_1'"
         ).fetchall()
     assert rows[0]["archived"] == 1
     assert rows[0]["image_path"] == "/archive/cap.png"

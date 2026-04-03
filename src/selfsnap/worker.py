@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from hashlib import sha256
 import logging
-from pathlib import Path
 import traceback
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from hashlib import sha256
+from pathlib import Path
 from uuid import uuid4
 
 from selfsnap.capture_engine import (
@@ -25,11 +25,10 @@ from selfsnap.models import (
     TriggerSource,
 )
 from selfsnap.paths import AppPaths, resolve_app_paths
-from selfsnap.recurrence import is_coarse_schedule, previous_occurrence
 from selfsnap.records import insert_capture_record
+from selfsnap.recurrence import is_coarse_schedule, previous_occurrence
 from selfsnap.retention import apply_retention
 from selfsnap.version import __version__
-
 
 EXIT_OK = 0
 EXIT_OPERATIONAL_FAILURE = 1
@@ -74,7 +73,9 @@ def run_capture_command(
         if trigger_source == TriggerSource.SCHEDULED and schedule_id is not None:
             schedule = config.get_schedule(schedule_id)
             if schedule is None:
-                return WorkerCommandResult(EXIT_CONFIG_FAILURE, None, f"Unknown schedule_id: {schedule_id}")
+                return WorkerCommandResult(
+                    EXIT_CONFIG_FAILURE, None, f"Unknown schedule_id: {schedule_id}"
+                )
             should_resync_coarse_schedule = is_coarse_schedule(schedule)
             if planned_local_ts is None:
                 inferred = previous_occurrence(schedule, now_local, include_reference=True)
@@ -89,7 +90,10 @@ def run_capture_command(
                     planned_local_ts=planned_local_ts,
                     category=OutcomeCategory.SKIPPED,
                     code=OutcomeCode.SCHEDULED_DISABLED,
-                    error_message="Scheduled capture skipped because first-run setup is incomplete.",
+                    error_message=(
+                        "Scheduled capture skipped because first-run setup is "
+                        "incomplete."
+                    ),
                 )
                 insert_capture_record(connection, record)
                 _resync_coarse_scheduler_if_needed(paths, should_resync_coarse_schedule, logger)
@@ -126,7 +130,7 @@ def run_capture_command(
                     trigger_source=trigger_source,
                     schedule_id=schedule_id,
                     planned_local_ts=planned_local_ts,
-                    started_utc=datetime.now(timezone.utc),
+                    started_utc=datetime.now(UTC),
                     code=OutcomeCode.SCHEDULER_SYNC_ERROR,
                     message=(
                         "Scheduled capture blocked because scheduler sync is in a failed state. "
@@ -135,9 +139,11 @@ def run_capture_command(
                 )
                 insert_capture_record(connection, record)
                 _resync_coarse_scheduler_if_needed(paths, should_resync_coarse_schedule, logger)
-                return WorkerCommandResult(EXIT_SCHEDULER_FAILURE, record, record.error_message or "")
+                return WorkerCommandResult(
+                    EXIT_SCHEDULER_FAILURE, record, record.error_message or ""
+                )
 
-        started_utc = datetime.now(timezone.utc)
+        started_utc = datetime.now(UTC)
         record_id = str(uuid4())
         destination: Path | None = None
         try:
@@ -167,7 +173,7 @@ def run_capture_command(
             primary_path = written_paths[0]
             file_bytes = sum(path.stat().st_size for path in written_paths)
             image_hash = _hash_file(primary_path)
-            finished_utc = datetime.now(timezone.utc)
+            finished_utc = datetime.now(UTC)
             record = CaptureRecord(
                 record_id=record_id,
                 trigger_source=trigger_source.value,
@@ -256,7 +262,7 @@ def _build_non_capture_record(
     code: OutcomeCode,
     error_message: str,
 ) -> CaptureRecord:
-    now_utc = datetime.now(timezone.utc)
+    now_utc = datetime.now(UTC)
     return CaptureRecord(
         record_id=str(uuid4()),
         trigger_source=trigger_source.value,
@@ -291,7 +297,7 @@ def _build_failure_record(
     code: OutcomeCode,
     message: str,
 ) -> CaptureRecord:
-    finished_utc = datetime.now(timezone.utc)
+    finished_utc = datetime.now(UTC)
     return CaptureRecord(
         record_id=str(uuid4()),
         trigger_source=trigger_source.value,

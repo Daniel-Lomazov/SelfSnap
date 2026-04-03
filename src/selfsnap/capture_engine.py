@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 @dataclass(slots=True)
 class CaptureImage:
-    images: list[Any]          # one entry per-monitor in per_monitor mode; one entry in composite mode
+    images: list[Any]  # one entry per-monitor in per_monitor mode; one entry in composite mode
     monitor_count: int
     composite_width: int
     composite_height: int
@@ -77,11 +77,11 @@ capture_virtual_desktop = capture_composite
 
 def save_capture_images(
     capture: CaptureImage,
-    base_path: "Path",
+    base_path: Path,
     image_format: str = "png",
     image_quality: int = 85,
     per_monitor: bool = False,
-) -> list["Path"]:
+) -> list[Path]:
     """Save capture images to disk. Returns list of written paths."""
     from pathlib import Path as _Path
 

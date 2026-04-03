@@ -6,7 +6,6 @@ from uuid import uuid4
 
 from selfsnap.models import ConfigValidationError, Schedule
 
-
 _UNIT_LABELS = {
     "second": "Seconds",
     "minute": "Minutes",
@@ -82,10 +81,12 @@ def unit_label(value: str) -> str:
 
 def summary_text(draft: RecurringScheduleDraft) -> str:
     normalized = normalize_draft(draft)
-    recurrence = f"Every {normalized.interval_value} {unit_phrase(normalized.interval_value, normalized.interval_unit)}"
+    interval_text = unit_phrase(normalized.interval_value, normalized.interval_unit)
+    recurrence = f"Every {normalized.interval_value} {interval_text}"
     status = "enabled" if normalized.enabled else "disabled"
     return (
-        f"{normalized.label} | {recurrence} starting {format_date_text(normalized.start_date_local)} "
+        f"{normalized.label} | {recurrence} "
+        f"starting {format_date_text(normalized.start_date_local)} "
         f"at {format_time_text(normalized.start_time_local)} | {status}"
     )
 
@@ -104,14 +105,16 @@ def default_draft(now: datetime | None = None) -> RecurringScheduleDraft:
 
 def draft_from_schedule(schedule: Schedule, now: datetime | None = None) -> RecurringScheduleDraft:
     fallback_now = _local_now(now)
-    start_date_text = str(
-        getattr(schedule, "start_date_local", fallback_now.date().isoformat())
-    )
+    start_date_text = str(getattr(schedule, "start_date_local", fallback_now.date().isoformat()))
     start_time_text = str(
         getattr(
             schedule,
             "start_time_local",
-            getattr(schedule, "local_time", fallback_now.time().replace(microsecond=0).strftime("%H:%M:%S")),
+            getattr(
+                schedule,
+                "local_time",
+                fallback_now.time().replace(microsecond=0).strftime("%H:%M:%S"),
+            ),
         )
     )
     return RecurringScheduleDraft(

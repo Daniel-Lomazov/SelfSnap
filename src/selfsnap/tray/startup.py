@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
 from selfsnap.models import AppConfig
 from selfsnap.paths import AppPaths
 from selfsnap.runtime_launch import resolve_tray_background_invocation
-
 
 SHORTCUT_NAME = "SelfSnap Win11.lnk"
 
@@ -23,7 +22,15 @@ def startup_shortcut_path() -> Path:
     appdata = os.environ.get("APPDATA")
     if not appdata:
         appdata = str(Path.home() / "AppData" / "Roaming")
-    return Path(appdata) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup" / SHORTCUT_NAME
+    return (
+        Path(appdata)
+        / "Microsoft"
+        / "Windows"
+        / "Start Menu"
+        / "Programs"
+        / "Startup"
+        / SHORTCUT_NAME
+    )
 
 
 def sync_startup_shortcut(paths: AppPaths, config: AppConfig) -> None:

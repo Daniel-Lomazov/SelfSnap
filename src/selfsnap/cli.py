@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 import json
-from pathlib import Path
 import sys
+from dataclasses import asdict
+from pathlib import Path
 
 from selfsnap.config_store import load_or_create_config
 from selfsnap.db import connect, ensure_database
@@ -32,7 +32,9 @@ def build_parser() -> argparse.ArgumentParser:
     tray_parser.set_defaults(handler=handle_tray)
 
     capture_parser = subparsers.add_parser("capture", help="Run a manual or scheduled capture")
-    capture_parser.add_argument("--trigger", choices=[item.value for item in TriggerSource], required=True)
+    capture_parser.add_argument(
+        "--trigger", choices=[item.value for item in TriggerSource], required=True
+    )
     capture_parser.add_argument("--schedule-id")
     capture_parser.add_argument("--planned-local-ts")
     capture_parser.set_defaults(handler=handle_capture)
@@ -42,7 +44,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     reconcile_parser.set_defaults(handler=handle_reconcile)
 
-    sync_parser = subparsers.add_parser("sync-scheduler", help="Sync Task Scheduler tasks from config")
+    sync_parser = subparsers.add_parser(
+        "sync-scheduler", help="Sync Task Scheduler tasks from config"
+    )
     sync_parser.set_defaults(handler=handle_sync_scheduler)
 
     reinstall_parser = subparsers.add_parser(
@@ -64,7 +68,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Also remove all user data (config, database, captures, logs)",
     )
     uninstall_parser.add_argument(
-        "--yes", "-y",
+        "--yes",
+        "-y",
         action="store_true",
         default=False,
         help="Skip confirmation prompt",
@@ -176,9 +181,7 @@ def handle_update(args: argparse.Namespace) -> int:
     comparison = compare_versions(__version__, latest_tag)
     if comparison >= 0:
         effective_latest = f"v{__version__}" if comparison > 0 else latest_tag
-        print(
-            f"Already up to date. Installed: v{__version__}  Latest: {effective_latest}"
-        )
+        print(f"Already up to date. Installed: v{__version__}  Latest: {effective_latest}")
         return 0
 
     print(f"Update available: v{__version__} → {latest_tag}")

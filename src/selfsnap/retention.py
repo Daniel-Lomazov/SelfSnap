@@ -1,14 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
 import shutil
 import sqlite3
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from selfsnap.models import AppConfig
 from selfsnap.paths import AppPaths, resolve_app_paths
-from selfsnap.records import get_purge_candidates, get_retention_candidates, mark_record_archived, mark_record_purged
+from selfsnap.records import (
+    get_purge_candidates,
+    get_retention_candidates,
+    mark_record_archived,
+    mark_record_purged,
+)
 
 
 @dataclass(slots=True)
@@ -28,7 +33,7 @@ def apply_retention(
     if config.retention_mode != "keep_days" or config.retention_days is None:
         return []
     paths = paths or resolve_app_paths()
-    now_utc = now_utc or datetime.now(timezone.utc)
+    now_utc = now_utc or datetime.now(UTC)
     cutoff = now_utc - timedelta(days=config.retention_days)
     actions: list[RetentionAction] = []
     capture_root = paths.resolve_capture_root(config)
@@ -47,7 +52,9 @@ def apply_retention(
                 archived_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.move(str(file_path), str(archived_path))
                 archived = True
-            mark_record_archived(connection, record.record_id, str(archived_path), now_utc.isoformat())
+            mark_record_archived(
+                connection, record.record_id, str(archived_path), now_utc.isoformat()
+            )
             actions.append(
                 RetentionAction(
                     record_id=record.record_id,
@@ -73,7 +80,7 @@ def apply_purge(
 ) -> list[PurgeAction]:
     if not config.purge_enabled or config.retention_mode != "keep_days":
         return []
-    now_utc = now_utc or datetime.now(timezone.utc)
+    now_utc = now_utc or datetime.now(UTC)
     grace_cutoff = now_utc - timedelta(days=config.retention_grace_days)
     actions: list[PurgeAction] = []
     for record in get_purge_candidates(connection, grace_cutoff.isoformat()):

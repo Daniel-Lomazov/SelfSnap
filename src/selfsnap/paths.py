@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from datetime import datetime
-import os
 from pathlib import Path
 
 from selfsnap.models import AppConfig, TriggerSource
-
 
 APP_DIR_NAME = "SelfSnap"
 
@@ -62,9 +61,16 @@ class AppPaths:
         trigger_source: TriggerSource,
         schedule_id: str | None,
     ) -> Path:
-        folder = capture_root / when_local.strftime("%Y") / when_local.strftime("%m") / when_local.strftime("%d")
+        folder = (
+            capture_root
+            / when_local.strftime("%Y")
+            / when_local.strftime("%m")
+            / when_local.strftime("%d")
+        )
         suffix = schedule_id if schedule_id else "manual"
-        filename = f"cap_{when_local.strftime('%Y-%m-%d_%H-%M-%S')}_{trigger_source.value}_{suffix}.png"
+        filename = (
+            f"cap_{when_local.strftime('%Y-%m-%d_%H-%M-%S')}_{trigger_source.value}_{suffix}.png"
+        )
         return folder / filename
 
     def archive_file_path(

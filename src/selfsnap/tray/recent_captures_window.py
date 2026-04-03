@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import os
 import subprocess
 import tkinter as tk
+from datetime import UTC, datetime
 from tkinter import ttk
 
 from selfsnap.db import connect
 from selfsnap.models import CaptureRecord
 from selfsnap.paths import AppPaths
 from selfsnap.records import get_recent
-
 
 REFRESH_INTERVAL_MS = 5000
 
@@ -19,11 +18,15 @@ def show_recent_captures_window(paths: AppPaths) -> None:
     """Open a compact window showing recent captures with thumbnails and live updates."""
     try:
         from PIL import Image, ImageTk
+
         pil_available = True
     except ImportError:
         pil_available = False
-        Image = None
-        ImageTk = None
+        pil_image_module = None
+        pil_image_tk = None
+    else:
+        pil_image_module = Image
+        pil_image_tk = ImageTk
 
     root = tk.Tk()
     root.title("Recent Captures")
@@ -68,9 +71,11 @@ def show_recent_captures_window(paths: AppPaths) -> None:
 
             if pil_available and record.image_path and os.path.exists(record.image_path):
                 try:
-                    img = Image.open(record.image_path)
+                    assert pil_image_module is not None
+                    assert pil_image_tk is not None
+                    img = pil_image_module.open(record.image_path)
                     img.thumbnail((96, 64))
-                    photo = ImageTk.PhotoImage(img)
+                    photo = pil_image_tk.PhotoImage(img)
                     thumb_label.configure(image=photo)  # type: ignore[arg-type]
                     _thumb_refs.append(photo)
                 except Exception:
@@ -154,7 +159,7 @@ def _format_local_timestamp(utc_text: str) -> str:
     except ValueError:
         return utc_text[:19].replace("T", " ")
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
     local_dt = parsed.astimezone()
     return local_dt.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -177,8 +182,15 @@ def _bind_tooltip(widget: tk.Widget, text: str) -> None:
         tip = tk.Toplevel(widget)
         tip.wm_overrideredirect(True)
         tip.wm_geometry(f"+{x}+{y}")
-        tk.Label(tip, text=text, justify="left", background="#ffffcc", relief="solid", borderwidth=1,
-                 font=("TkDefaultFont", 8)).pack()
+        tk.Label(
+            tip,
+            text=text,
+            justify="left",
+            background="#ffffcc",
+            relief="solid",
+            borderwidth=1,
+            font=("TkDefaultFont", 8),
+        ).pack()
         tip_window[0] = tip
 
     def _hide(_event: tk.Event) -> None:  # type: ignore[type-arg]

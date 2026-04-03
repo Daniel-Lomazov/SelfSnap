@@ -28,7 +28,7 @@ def show_statistics_window(paths: AppPaths) -> None:
         if val is None:
             return "0"
         if isinstance(val, int) and val >= 1024 * 1024:
-            return f"{val / (1024*1024):.1f} MB"
+            return f"{val / (1024 * 1024):.1f} MB"
         return str(val)
 
     labels = [
@@ -41,10 +41,12 @@ def show_statistics_window(paths: AppPaths) -> None:
         ("Schedules Active", "distinct_schedules"),
     ]
     for row_i, (label, key) in enumerate(labels):
-        ttk.Label(frame, text=label + ":", anchor="e").grid(row=row_i, column=0, sticky="e", pady=2, padx=(0, 8))
-        ttk.Label(frame, text=_fmt(stats.get(key)), anchor="w", font=("TkDefaultFont", 10, "bold")).grid(
-            row=row_i, column=1, sticky="w", pady=2
+        ttk.Label(frame, text=label + ":", anchor="e").grid(
+            row=row_i, column=0, sticky="e", pady=2, padx=(0, 8)
         )
+        ttk.Label(
+            frame, text=_fmt(stats.get(key)), anchor="w", font=("TkDefaultFont", 10, "bold")
+        ).grid(row=row_i, column=1, sticky="w", pady=2)
 
     chart_frame = ttk.LabelFrame(frame, text="Captures — Last 30 Days", padding=8)
     chart_frame.grid(row=len(labels), column=0, columnspan=2, sticky="nsew", pady=(12, 0))
@@ -59,8 +61,11 @@ def show_statistics_window(paths: AppPaths) -> None:
         canvas.delete("all")
         if not counts:
             canvas.create_text(
-                canvas.winfo_width() // 2, 80,
-                text="No data", fill="#999", font=("TkDefaultFont", 10)
+                canvas.winfo_width() // 2,
+                80,
+                text="No data",
+                fill="#999",
+                font=("TkDefaultFont", 10),
             )
             return
         w = canvas.winfo_width() or 560
@@ -78,7 +83,14 @@ def show_statistics_window(paths: AppPaths) -> None:
             y1 = h - margin_b
             canvas.create_rectangle(x0, y0, x1, y1, fill="#3b82f6", outline="")
             if i == 0 or i == len(counts) - 1:
-                canvas.create_text(x0, h - margin_b + 4, text=day[5:], anchor="n", font=("TkDefaultFont", 7), fill="#555")
+                canvas.create_text(
+                    x0,
+                    h - margin_b + 4,
+                    text=day[5:],
+                    anchor="n",
+                    font=("TkDefaultFont", 7),
+                    fill="#555",
+                )
 
     canvas.bind("<Configure>", _draw_chart)
     root.after(100, _draw_chart)

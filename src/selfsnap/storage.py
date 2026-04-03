@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import replace
 import os
+from dataclasses import replace
 from pathlib import Path
 
 from selfsnap.models import AppConfig, ConfigValidationError, StoragePreset
@@ -31,7 +31,9 @@ def apply_storage_preset(
     return updated
 
 
-def normalize_storage_config(paths: AppPaths, config: AppConfig, validate: bool = True) -> AppConfig:
+def normalize_storage_config(
+    paths: AppPaths, config: AppConfig, validate: bool = True
+) -> AppConfig:
     if config.storage_preset == StoragePreset.CUSTOM.value:
         if validate:
             validate_storage_config(paths, config)

@@ -37,9 +37,10 @@ def show_report_issue_dialog(paths: AppPaths) -> ReportIssueDialogResult:
     intro = ttk.Label(
         header,
         text=(
-            "Describe the problem in a short paragraph. SelfSnap stays offline unless you explicitly "
-            "open feedback in the browser. It never attaches screenshots, local file paths, logs, "
-            "or database contents automatically, and it shares only safe diagnostics when you leave "
+            "Describe the problem in a short paragraph. SelfSnap stays offline "
+            "unless you explicitly open feedback in the browser. It never "
+            "attaches screenshots, local file paths, logs, or database contents "
+            "automatically, and it shares only safe diagnostics when you leave "
             "that option enabled."
         ),
         justify="left",

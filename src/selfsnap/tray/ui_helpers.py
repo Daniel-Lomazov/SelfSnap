@@ -4,7 +4,6 @@ import tkinter as tk
 from dataclasses import dataclass
 from tkinter import ttk
 
-
 _TONE_COLORS = {
     "good": "#166534",
     "warn": "#9a3412",
@@ -34,9 +33,7 @@ def bind_wrap(container: tk.Misc, root: tk.Misc, widget: tk.Widget, *, padding: 
 def create_diagnostic_card(parent: ttk.Frame, title: str) -> DiagnosticCardWidgets:
     frame = ttk.Frame(parent, padding=(10, 8))
     frame.columnconfigure(0, weight=1)
-    ttk.Label(frame, text=title, font=("Segoe UI", 9, "bold")).grid(
-        row=0, column=0, sticky="w"
-    )
+    ttk.Label(frame, text=title, font=("Segoe UI", 9, "bold")).grid(row=0, column=0, sticky="w")
     headline = ttk.Label(frame, justify="left", font=("Segoe UI", 12, "bold"))
     headline.grid(row=1, column=0, sticky="ew", pady=(6, 2))
     detail = ttk.Label(frame, justify="left", foreground="#334155")
@@ -64,5 +61,7 @@ def set_diagnostic_card_content(
     detail: str,
     tone: str = "neutral",
 ) -> None:
-    card.headline.configure(text=headline, foreground=_TONE_COLORS.get(tone, _TONE_COLORS["neutral"]))
+    card.headline.configure(
+        text=headline, foreground=_TONE_COLORS.get(tone, _TONE_COLORS["neutral"])
+    )
     card.detail.configure(text=detail)

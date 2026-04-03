@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from pathlib import Path
 import sqlite3
+from pathlib import Path
 
 from selfsnap.models import CaptureRecord
-
 
 INSERT_CAPTURE_RECORD = """
 INSERT INTO capture_records (
@@ -68,7 +67,9 @@ def has_record_for_slot(
     return row is not None
 
 
-def get_retention_candidates(connection: sqlite3.Connection, cutoff_utc: str) -> list[CaptureRecord]:
+def get_retention_candidates(
+    connection: sqlite3.Connection, cutoff_utc: str
+) -> list[CaptureRecord]:
     rows = connection.execute(
         """
         SELECT *
@@ -207,9 +208,7 @@ def get_by_schedule(
     return [CaptureRecord.from_row(dict(row)) for row in rows]
 
 
-def mark_record_purged(
-    connection: sqlite3.Connection, record_id: str, purged_utc: str
-) -> None:
+def mark_record_purged(connection: sqlite3.Connection, record_id: str, purged_utc: str) -> None:
     """Mark a record as permanently purged (file deleted from archive)."""
     connection.execute(
         """

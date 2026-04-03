@@ -3,9 +3,9 @@ from __future__ import annotations
 import logging
 import os
 import threading
+import tkinter as tk
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-import tkinter as tk
 from tkinter import messagebox
 
 from selfsnap.config_store import load_or_create_config, save_config
@@ -20,8 +20,8 @@ from selfsnap.lifecycle_actions import (
 from selfsnap.logging_setup import setup_logging
 from selfsnap.models import AppConfig, CaptureRecord, OutcomeCategory
 from selfsnap.paths import AppPaths, resolve_app_paths
-from selfsnap.recurrence import is_high_frequency_schedule, iter_occurrences_between
 from selfsnap.records import get_latest_record, resolve_latest_capture_path
+from selfsnap.recurrence import is_high_frequency_schedule, iter_occurrences_between
 from selfsnap.reset_service import perform_clean_reset
 from selfsnap.retention import apply_retention
 from selfsnap.runtime_launch import (
@@ -92,28 +92,22 @@ def run_tray_app(paths: AppPaths | None = None) -> int:
         last_announced_record_id=_latest_record_id(paths),
     )
     icon = pystray.Icon("selfsnap", _build_icon_image(Image, ImageDraw), "SelfSnap Win11")
-
-    def refresh_menu() -> None:
-        icon.menu = pystray.Menu(*_build_menu_items(pystray, paths, icon, state))
-        icon.title = _icon_title(paths)
-        icon.update_menu()
+    icon.menu = pystray.Menu(*_build_menu_items(pystray, paths, icon, state))
+    icon.title = _icon_title(paths)
 
     def background_loop() -> None:
         while not state.stop_event.is_set():
             try:
                 now_local = datetime.now().astimezone()
                 _run_high_frequency_scheduler(paths, state, logger, now_local)
-                if _announce_latest_record(paths, icon, state):
-                    refresh_menu()
+                _announce_latest_record(paths, icon, state)
                 if now_local >= state.next_housekeeping_at:
                     _run_housekeeping(paths)
-                    refresh_menu()
                     state.next_housekeeping_at = now_local + timedelta(seconds=60)
             except Exception:
                 logger.exception("Background maintenance loop failed")
             state.stop_event.wait(1)
 
-    refresh_menu()
     threading.Thread(target=background_loop, daemon=True).start()
     icon.run()
     return EXIT_OK
@@ -129,16 +123,37 @@ def _build_icon_image(image_module, draw_module):
 
 
 def _build_menu_items(pystray, paths: AppPaths, icon, state: TrayRuntimeState) -> list:
-    config = load_or_create_config(paths)
+    def _current_config() -> AppConfig:
+        return load_or_create_config(paths)
+
     items = []
-    warning_label = _scheduler_warning_label(config)
-    if warning_label:
-        items.append(pystray.MenuItem(warning_label, None, enabled=False))
-    items.append(pystray.MenuItem(lambda _item: _state_label(config), None, enabled=False))
-    if config.show_last_capture_status:
-        items.append(pystray.MenuItem(lambda _item: _latest_label(paths), None, enabled=False))
-    items.append(pystray.MenuItem(_notifications_label(config), None, enabled=False))
-    items.append(pystray.MenuItem(_retention_label(config), None, enabled=False))
+    items.append(
+        pystray.MenuItem(
+            lambda _item: _scheduler_warning_label(_current_config()) or "",
+            None,
+            enabled=False,
+            visible=lambda _item: _scheduler_warning_label(_current_config()) is not None,
+        )
+    )
+    items.append(
+        pystray.MenuItem(lambda _item: _state_label(_current_config()), None, enabled=False)
+    )
+    items.append(
+        pystray.MenuItem(
+            lambda _item: _latest_label(paths),
+            None,
+            enabled=False,
+            visible=lambda _item: _current_config().show_last_capture_status,
+        )
+    )
+    items.append(
+        pystray.MenuItem(
+            lambda _item: _notifications_label(_current_config()), None, enabled=False
+        )
+    )
+    items.append(
+        pystray.MenuItem(lambda _item: _retention_label(_current_config()), None, enabled=False)
+    )
     items.extend(
         [
             pystray.MenuItem(
@@ -149,7 +164,7 @@ def _build_menu_items(pystray, paths: AppPaths, icon, state: TrayRuntimeState) -
                 "Capture Now", lambda _icon, _item: _run_async(_capture_now, paths, icon, state)
             ),
             pystray.MenuItem(
-                lambda _item: _toggle_enabled_label(config),
+                lambda _item: _toggle_enabled_label(_current_config()),
                 lambda _icon, _item: _toggle_enabled(paths, icon),
             ),
             pystray.MenuItem(
@@ -174,15 +189,11 @@ def _build_menu_items(pystray, paths: AppPaths, icon, state: TrayRuntimeState) -
             ),
             pystray.MenuItem(
                 "Reinstall",
-                lambda _icon, _item: _run_async(
-                    _reinstall_selfsnap, paths, icon, state, False
-                ),
+                lambda _icon, _item: _run_async(_reinstall_selfsnap, paths, icon, state, False),
             ),
             pystray.MenuItem(
                 "Check for Updates",
-                lambda _icon, _item: _run_async(
-                    _check_for_updates, paths, icon, state
-                ),
+                lambda _icon, _item: _run_async(_check_for_updates, paths, icon, state),
             ),
             pystray.MenuItem(
                 "Uninstall",
@@ -234,8 +245,6 @@ def _capture_now(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
         _show_notification(
             icon, "SelfSnap", "Manual capture failed. Open logs or run selfsnap diag."
         )
-    if not suppress_ui_updates:
-        icon.update_menu()
 
 
 def _toggle_enabled(paths: AppPaths, icon) -> None:
@@ -246,14 +255,12 @@ def _toggle_enabled(paths: AppPaths, icon) -> None:
         if not config.first_run_completed:
             updated = show_first_run_dialog(config, paths)
             if updated is None:
-                icon.update_menu()
                 return
             config = updated
         else:
             config.app_enabled = True
     save_config(paths, config)
     sync_scheduler_from_config(paths, emit_console=False)
-    icon.update_menu()
 
 
 def _open_settings(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
@@ -277,7 +284,6 @@ def _open_settings(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
     # Config was already written to disk by the settings dialog; apply side-effects only.
     _sync_startup_shortcut_safe(paths, updated, setup_logging(paths, updated.log_level))
     sync_scheduler_from_config(paths, emit_console=False)
-    icon.update_menu()
 
 
 def _open_report_issue(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
@@ -287,7 +293,6 @@ def _open_report_issue(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
         show_report_issue_dialog(paths)
     finally:
         _end_dialog(state, state.report_dialog_open)
-    icon.update_menu()
 
 
 def _restart_selfsnap(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
@@ -295,13 +300,16 @@ def _restart_selfsnap(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
     if not launched:
         _show_error_dialog(
             "Restart SelfSnap",
-            "SelfSnap could not start a replacement tray process. The current tray is still running.",
+            "SelfSnap could not start a replacement tray process. "
+            "The current tray is still running.",
         )
         return
     _exit(icon, state.stop_event)
 
 
-def _reinstall_selfsnap(paths: AppPaths, icon, state: TrayRuntimeState, update_source: bool) -> None:
+def _reinstall_selfsnap(
+    paths: AppPaths, icon, state: TrayRuntimeState, update_source: bool
+) -> None:
     title = "Reinstall SelfSnap"
     message = (
         "SelfSnap will reinstall itself from the current local source checkout, preserve your "
@@ -379,13 +387,15 @@ def _uninstall_selfsnap(
     title = "Uninstall SelfSnap"
     if remove_user_data:
         message = (
-            "This removes SelfSnap startup/task/install links and all SelfSnap user data, including "
+            "This removes SelfSnap startup/task/install links and all "
+            "SelfSnap user data, including "
             "config, database, logs, captures, archive files, and app temp data.\n\n"
             "The source checkout and .venv will stay in place.\n\nContinue?"
         )
     else:
         message = (
-            "This removes SelfSnap startup/task/install links but keeps your config, history, logs, "
+            "This removes SelfSnap startup/task/install links but keeps "
+            "your config, history, logs, "
             "captures, and archive files.\n\nContinue?"
         )
     if not _ask_confirmation(title, message, warning=remove_user_data):

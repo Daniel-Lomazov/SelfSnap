@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 from selfsnap.paths import AppPaths
@@ -150,7 +150,15 @@ def resolve_worker_background_invocation(
     planned_local_ts: str | None = None,
 ) -> LaunchSpec:
     scheduled_arguments = ["capture", "--trigger", "scheduled", "--schedule-id", schedule_id]
-    module_arguments = ["-m", "selfsnap", "capture", "--trigger", "scheduled", "--schedule-id", schedule_id]
+    module_arguments = [
+        "-m",
+        "selfsnap",
+        "capture",
+        "--trigger",
+        "scheduled",
+        "--schedule-id",
+        schedule_id,
+    ]
     if planned_local_ts:
         scheduled_arguments.extend(["--planned-local-ts", planned_local_ts])
         module_arguments.extend(["--planned-local-ts", planned_local_ts])
@@ -189,9 +197,8 @@ def _script_creation_flags() -> int:
     """
     if sys.platform != "win32":
         return 0
-    return (
-        getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-        | getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    return getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(
+        subprocess, "CREATE_NO_WINDOW", 0
     )
 
 

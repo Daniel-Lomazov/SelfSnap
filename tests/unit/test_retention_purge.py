@@ -1,12 +1,12 @@
 """Tests for apply_purge and apply_retention_and_purge in selfsnap.retention."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 from selfsnap.db import connect, ensure_database
 from selfsnap.models import AppConfig, CaptureRecord
-from selfsnap.records import insert_capture_record, mark_record_archived
+from selfsnap.records import insert_capture_record
 from selfsnap.retention import apply_purge, apply_retention, apply_retention_and_purge
 
 
@@ -45,7 +45,9 @@ def _make_record(
     )
 
 
-def _keep_days_config(temp_paths, days: int = 1, purge: bool = True, grace_days: int = 1) -> AppConfig:
+def _keep_days_config(
+    temp_paths, days: int = 1, purge: bool = True, grace_days: int = 1
+) -> AppConfig:
     return AppConfig(
         capture_storage_root=str(temp_paths.default_capture_root),
         archive_storage_root=str(temp_paths.default_archive_root),
@@ -59,6 +61,7 @@ def _keep_days_config(temp_paths, days: int = 1, purge: bool = True, grace_days:
 # ---------------------------------------------------------------------------
 # apply_purge — gate conditions
 # ---------------------------------------------------------------------------
+
 
 def test_apply_purge_returns_empty_when_purge_disabled(temp_paths) -> None:
     ensure_database(temp_paths.db_path)
@@ -85,6 +88,7 @@ def test_apply_purge_returns_empty_when_retention_mode_is_keep_forever(temp_path
 # apply_purge — deletes file and marks record
 # ---------------------------------------------------------------------------
 
+
 def test_apply_purge_deletes_archived_file_past_grace(temp_paths) -> None:
     ensure_database(temp_paths.db_path)
     # Create a real file to be purged
@@ -93,12 +97,18 @@ def test_apply_purge_deletes_archived_file_past_grace(temp_paths) -> None:
     archived_file.write_bytes(b"archived-data")
 
     old_archived_at = (datetime.now(UTC) - timedelta(days=5)).isoformat()
-    rec = _make_record(record_id="r1", image_path=str(archived_file), archived=True, archived_at_utc=old_archived_at)
+    rec = _make_record(
+        record_id="r1",
+        image_path=str(archived_file),
+        archived=True,
+        archived_at_utc=old_archived_at,
+    )
     config = _keep_days_config(temp_paths, grace_days=2)
 
     with connect(temp_paths.db_path) as conn:
         insert_capture_record(conn, rec)
-        # Manually set archived=1 and archived_at_utc in DB (insert_capture_record inserts archived=0 by default)
+        # insert_capture_record persists archived=0, so force the archived state in SQL
+        # to exercise purge behavior against an already archived record.
         conn.execute(
             "UPDATE capture_records SET archived=1, archived_at_utc=? WHERE record_id=?",
             (old_archived_at, rec.record_id),
@@ -148,6 +158,7 @@ def test_apply_purge_returns_empty_for_no_candidates(temp_paths) -> None:
 # apply_retention — keep_forever skips archiving
 # ---------------------------------------------------------------------------
 
+
 def test_apply_retention_returns_empty_for_keep_forever(temp_paths) -> None:
     ensure_database(temp_paths.db_path)
     config = AppConfig(
@@ -160,7 +171,9 @@ def test_apply_retention_returns_empty_for_keep_forever(temp_paths) -> None:
     old_file.write_bytes(b"data")
     old_time = (datetime.now(UTC) - timedelta(days=5)).isoformat()
     with connect(temp_paths.db_path) as conn:
-        insert_capture_record(conn, _make_record(record_id="r1", image_path=str(old_file), finished_utc=old_time))
+        insert_capture_record(
+            conn, _make_record(record_id="r1", image_path=str(old_file), finished_utc=old_time)
+        )
         actions = apply_retention(conn, config, paths=temp_paths)
     assert actions == []
     assert old_file.exists()  # file not touched
@@ -176,7 +189,9 @@ def test_apply_retention_skips_records_with_no_image_path(temp_paths) -> None:
     )
     old_time = (datetime.now(UTC) - timedelta(days=5)).isoformat()
     with connect(temp_paths.db_path) as conn:
-        insert_capture_record(conn, _make_record(record_id="r1", image_path=None, finished_utc=old_time))
+        insert_capture_record(
+            conn, _make_record(record_id="r1", image_path=None, finished_utc=old_time)
+        )
         actions = apply_retention(conn, config, paths=temp_paths, now_utc=datetime.now(UTC))
     assert actions == []
 
@@ -193,7 +208,9 @@ def test_apply_retention_skips_files_that_do_not_exist(temp_paths) -> None:
     old_time = (datetime.now(UTC) - timedelta(days=5)).isoformat()
     missing_path = str(temp_paths.default_capture_root / "missing.png")
     with connect(temp_paths.db_path) as conn:
-        insert_capture_record(conn, _make_record(record_id="r1", image_path=missing_path, finished_utc=old_time))
+        insert_capture_record(
+            conn, _make_record(record_id="r1", image_path=missing_path, finished_utc=old_time)
+        )
         actions = apply_retention(conn, config, paths=temp_paths, now_utc=datetime.now(UTC))
     assert len(actions) == 1
     assert actions[0].archived is False  # file didn't exist, so wasn't moved
@@ -202,6 +219,7 @@ def test_apply_retention_skips_files_that_do_not_exist(temp_paths) -> None:
 # ---------------------------------------------------------------------------
 # apply_retention_and_purge — combined pipeline
 # ---------------------------------------------------------------------------
+
 
 def test_apply_retention_and_purge_returns_both_action_lists(temp_paths) -> None:
     ensure_database(temp_paths.db_path)

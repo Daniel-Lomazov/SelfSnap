@@ -1,18 +1,17 @@
 """Tests for selfsnap.paths — path resolution, fallbacks, and collision handling."""
+
 from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-
 from selfsnap.models import TriggerSource
 from selfsnap.paths import AppPaths, resolve_app_paths
-
 
 # ---------------------------------------------------------------------------
 # resolve_app_paths — env var fallbacks
 # ---------------------------------------------------------------------------
+
 
 def test_resolve_app_paths_uses_localappdata_env(tmp_path, monkeypatch) -> None:
     local_appdata = tmp_path / "AppData" / "Local"
@@ -50,6 +49,7 @@ def test_resolve_app_paths_falls_back_when_userprofile_unset(tmp_path, monkeypat
 # capture_file_path — naming convention
 # ---------------------------------------------------------------------------
 
+
 def test_capture_file_path_uses_schedule_id_as_suffix(temp_paths) -> None:
     when = datetime(2026, 4, 3, 14, 30, 0)
     path = temp_paths.capture_file_path(
@@ -71,6 +71,7 @@ def test_capture_file_path_uses_manual_suffix_when_no_schedule(temp_paths) -> No
 # ---------------------------------------------------------------------------
 # archive_file_path — collision handling
 # ---------------------------------------------------------------------------
+
 
 def test_archive_file_path_returns_destination_when_no_collision(temp_paths) -> None:
     capture_root = temp_paths.default_capture_root
@@ -119,6 +120,7 @@ def test_archive_file_path_handles_source_outside_capture_root(temp_paths) -> No
 # ---------------------------------------------------------------------------
 # AppPaths.preferred_onedrive_root — env var override
 # ---------------------------------------------------------------------------
+
 
 def test_preferred_onedrive_root_uses_env_var(temp_paths, monkeypatch) -> None:
     custom = temp_paths.user_profile / "MyOneDrive"

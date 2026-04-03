@@ -1,20 +1,20 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
-from pathlib import Path
 import shutil
 import time
+from dataclasses import dataclass
+from pathlib import Path
 
 from selfsnap.config_store import default_config, load_or_create_config
-from selfsnap.models import ConfigValidationError
 from selfsnap.db import connect, ensure_database
+from selfsnap.models import ConfigValidationError
+from selfsnap.paths import AppPaths
 from selfsnap.records import clear_capture_history, list_all_record_paths
 from selfsnap.runtime_launch import launch_background, resolve_tray_background_invocation
 from selfsnap.scheduler.task_scheduler import delete_all_selfsnap_tasks
 from selfsnap.storage import normalize_storage_config
 from selfsnap.tray.startup import remove_startup_shortcut
-from selfsnap.paths import AppPaths
 
 
 @dataclass(slots=True)
@@ -79,9 +79,13 @@ def perform_clean_reset(paths: AppPaths, logger: logging.Logger | None = None) -
     )
 
 
-def _iter_managed_files(capture_root: Path, archive_root: Path, record_paths: set[Path]) -> set[Path]:
+def _iter_managed_files(
+    capture_root: Path, archive_root: Path, record_paths: set[Path]
+) -> set[Path]:
     managed = {
-        path for path in record_paths if _is_relative_to(path, capture_root) or _is_relative_to(path, archive_root)
+        path
+        for path in record_paths
+        if _is_relative_to(path, capture_root) or _is_relative_to(path, archive_root)
     }
     for root in _managed_directories(capture_root, archive_root):
         if not root.exists():
@@ -119,7 +123,9 @@ def _owned_storage_directories(
 def _custom_storage_directories(
     paths: AppPaths, capture_root: Path, archive_root: Path
 ) -> tuple[Path, ...]:
-    owned = {path.resolve() for path in _owned_storage_directories(paths, capture_root, archive_root)}
+    owned = {
+        path.resolve() for path in _owned_storage_directories(paths, capture_root, archive_root)
+    }
     candidates: list[Path] = []
     for root in _managed_directories(capture_root, archive_root):
         try:

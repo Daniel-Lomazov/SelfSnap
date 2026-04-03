@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
-from datetime import date, datetime, time
-from enum import StrEnum
 import re
+from dataclasses import asdict, dataclass, field
+from datetime import date, time
+from enum import StrEnum
 from typing import Any
-
 
 SCHEMA_VERSION = 3
 SCHEDULE_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
@@ -122,7 +121,7 @@ class Schedule:
         return normalize_time_string(self.start_time_local)
 
     @classmethod
-    def _from_legacy_dict(cls, data: dict[str, Any]) -> "Schedule":
+    def _from_legacy_dict(cls, data: dict[str, Any]) -> Schedule:
         local_time = normalize_time_string(str(data["local_time"]))
         schedule = cls(
             schedule_id=str(data["schedule_id"]),
@@ -137,7 +136,7 @@ class Schedule:
         return schedule
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Schedule":
+    def from_dict(cls, data: dict[str, Any]) -> Schedule:
         if "interval_unit" not in data:
             return cls._from_legacy_dict(data)
         schedule = cls(
@@ -205,7 +204,9 @@ class AppConfig:
             raise ConfigValidationError("retention_mode must be keep_forever or keep_days")
         if self.retention_mode == "keep_days":
             if self.retention_days is None or self.retention_days < 1:
-                raise ConfigValidationError("retention_days must be >= 1 when retention_mode is keep_days")
+                raise ConfigValidationError(
+                    "retention_days must be >= 1 when retention_mode is keep_days"
+                )
         elif self.retention_days is not None and self.retention_days < 1:
             raise ConfigValidationError("retention_days must be >= 1 when supplied")
         if self.log_level not in {"INFO", "DEBUG"}:
@@ -251,7 +252,7 @@ class AppConfig:
         self.scheduler_sync_message = None
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "AppConfig":
+    def from_dict(cls, data: dict[str, Any]) -> AppConfig:
         raw_schema_version = int(data.get("schema_version", SCHEMA_VERSION))
         if raw_schema_version not in {1, 2, SCHEMA_VERSION}:
             raise ConfigValidationError(
@@ -350,7 +351,7 @@ class CaptureRecord:
         )
 
     @classmethod
-    def from_row(cls, row: dict[str, Any]) -> "CaptureRecord":
+    def from_row(cls, row: dict[str, Any]) -> CaptureRecord:
         return cls(
             record_id=row["record_id"],
             trigger_source=row["trigger_source"],

@@ -248,9 +248,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             retention_grace_days=_safe_int(
                 retention_grace_days_var.get(), config.retention_grace_days
             ),
-            capture_mode="per_monitor"
-            if capture_mode_var.get() == "Per Monitor"
-            else "composite",
+            capture_mode="per_monitor" if capture_mode_var.get() == "Per Monitor" else "composite",
             image_format=image_format,
             image_quality=_safe_int(image_quality_var.get(), config.image_quality),
             start_tray_on_login=start_tray_on_login_var.get(),
@@ -454,7 +452,9 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     def _new_default_draft() -> RecurringScheduleDraft:
         return default_draft()
 
-    def _draft_from_form(schedule_id: str | None = None, enabled: bool = True) -> RecurringScheduleDraft:
+    def _draft_from_form(
+        schedule_id: str | None = None, enabled: bool = True
+    ) -> RecurringScheduleDraft:
         return draft_from_form(
             label=label_var.get(),
             interval_value=every_var.get(),
@@ -603,7 +603,9 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             return
         index = selected_indices[0]
         try:
-            drafts[index] = _draft_from_form(schedule_id=drafts[index].schedule_id, enabled=drafts[index].enabled)
+            drafts[index] = _draft_from_form(
+                schedule_id=drafts[index].schedule_id, enabled=drafts[index].enabled
+            )
         except ConfigValidationError as exc:
             messagebox.showerror("Invalid schedule", str(exc), parent=root)
             return
@@ -757,7 +759,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         foreground="#7f1d1d",
     )
     maintenance_message.grid(row=0, column=0, sticky="ew", pady=(0, 6))
-    _bind_wrap(maintenance_message)
+    bind_wrap(maintenance_frame, root, maintenance_message)
 
     result = SettingsDialogResult(
         updated_config=None,
