@@ -205,6 +205,19 @@ def test_handle_update_already_up_to_date(monkeypatch, capsys) -> None:
     assert "up to date" in capsys.readouterr().out.lower()
 
 
+def test_handle_update_when_installed_is_newer_shows_installed_as_latest(
+    monkeypatch, capsys
+) -> None:
+    from selfsnap import version as _ver
+
+    monkeypatch.setattr("selfsnap.cli.fetch_latest_release_tag", lambda _repo: "v1.0.0")
+
+    assert handle_update(_update_args()) == 0
+    out = capsys.readouterr().out
+    assert f"Installed: v{_ver.__version__}" in out
+    assert f"Latest: v{_ver.__version__}" in out
+
+
 def test_handle_update_network_error_returns_1(monkeypatch) -> None:
     monkeypatch.setattr("selfsnap.cli.fetch_latest_release_tag", lambda _repo: None)
     assert handle_update(_update_args()) == 1

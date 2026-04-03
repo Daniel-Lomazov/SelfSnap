@@ -327,10 +327,12 @@ def _check_for_updates(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
         )
         return
 
-    if compare_versions(__version__, latest_tag) >= 0:
+    comparison = compare_versions(__version__, latest_tag)
+    if comparison >= 0:
+        effective_latest = f"v{__version__}" if comparison > 0 else latest_tag
         _show_info_dialog(
             title,
-            f"SelfSnap is up to date.\n\nInstalled: v{__version__}\nLatest:    {latest_tag}",
+            f"SelfSnap is up to date.\n\nInstalled: v{__version__}\nLatest:    {effective_latest}",
         )
         return
 

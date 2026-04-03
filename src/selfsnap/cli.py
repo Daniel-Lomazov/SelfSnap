@@ -173,8 +173,12 @@ def handle_update(args: argparse.Namespace) -> int:
         )
         return 1
 
-    if compare_versions(__version__, latest_tag) >= 0:
-        print(f"Already up to date. Installed: v{__version__}  Latest: {latest_tag}")
+    comparison = compare_versions(__version__, latest_tag)
+    if comparison >= 0:
+        effective_latest = f"v{__version__}" if comparison > 0 else latest_tag
+        print(
+            f"Already up to date. Installed: v{__version__}  Latest: {effective_latest}"
+        )
         return 0
 
     print(f"Update available: v{__version__} → {latest_tag}")

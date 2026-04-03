@@ -11,6 +11,7 @@ from selfsnap.tray.app import (
     _announce_record,
     _build_menu_items,
     _capture_now,
+    _check_for_updates,
     _format_local_timestamp,
     _latest_label,
     _open_report_issue,
@@ -348,6 +349,29 @@ def test_tray_menu_contains_restart_reinstall_and_uninstall_before_exit(temp_pat
         "Keep User Data",
         "Remove All User Data",
     ]
+
+
+def test_check_for_updates_when_installed_is_newer_shows_installed_as_latest(
+    temp_paths, monkeypatch
+) -> None:
+    from selfsnap.version import __version__
+
+    shown: list[tuple[str, str]] = []
+
+    monkeypatch.setattr(
+        "selfsnap.update_checker.fetch_latest_release_tag", lambda _repo: "v1.0.0"
+    )
+    monkeypatch.setattr("selfsnap.tray.app._show_info_dialog", lambda t, m: shown.append((t, m)))
+    monkeypatch.setattr("selfsnap.tray.app._show_error_dialog", lambda *_args, **_kwargs: None)
+
+    state = _state()
+    _check_for_updates(temp_paths, icon=SimpleNamespace(), state=state)
+
+    assert len(shown) == 1
+    title, message = shown[0]
+    assert title == "Check for Updates"
+    assert f"Installed: v{__version__}" in message
+    assert f"Latest:    v{__version__}" in message
 
 
 def test_run_high_frequency_scheduler_launches_due_occurrences(temp_paths, monkeypatch) -> None:
