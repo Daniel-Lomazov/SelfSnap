@@ -36,14 +36,14 @@ def test_sample_config_uses_recurring_schedule_schema() -> None:
     assert "local_time" not in config["schedules"][0]
 
 
-def test_version_files_are_aligned_to_1_0_0() -> None:
+def test_version_files_are_aligned_to_1_0_1() -> None:
     pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
     version_file = Path("src/selfsnap/version.py").read_text(encoding="utf-8")
     changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert 'version = "1.0.0"' in pyproject
-    assert '__version__ = "1.0.0"' in version_file
-    assert "## v1.0.0" in changelog
+    assert 'version = "1.0.1"' in pyproject
+    assert '__version__ = "1.0.1"' in version_file
+    assert "## v1.0.1" in changelog
 
 
 def test_product_release_notes_exist_for_v0_8_0() -> None:

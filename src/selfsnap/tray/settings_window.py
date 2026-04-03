@@ -273,7 +273,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     schedule_tree.heading("label", text="Label")
     schedule_tree.heading("recurrence", text="Recurrence")
     schedule_tree.heading("start", text="Start")
-    schedule_tree.heading("enabled", text="Enabled")
+    schedule_tree.heading("enabled", text="On/Off")
     schedule_tree.column("label", width=170, anchor="w", stretch=True)
     schedule_tree.column("recurrence", width=220, anchor="w", stretch=True)
     schedule_tree.column("start", width=170, anchor="w", stretch=True)
@@ -296,20 +296,19 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     start_time_var = tk.StringVar(
         master=root, value=format_time_text(default_draft().start_time_local)
     )
-    enabled_var = tk.BooleanVar(master=root, value=True)
     widgets_to_toggle: list[tk.Widget] = []
 
     def _new_default_draft() -> RecurringScheduleDraft:
         return default_draft()
 
-    def _draft_from_form(schedule_id: str | None = None) -> RecurringScheduleDraft:
+    def _draft_from_form(schedule_id: str | None = None, enabled: bool = True) -> RecurringScheduleDraft:
         return draft_from_form(
             label=label_var.get(),
             interval_value=every_var.get(),
             unit_label_value=unit_var.get(),
             start_date=start_date_var.get(),
             start_time=start_time_var.get(),
-            enabled=enabled_var.get(),
+            enabled=enabled,
             schedule_id=schedule_id,
         )
 
@@ -325,7 +324,6 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             unit_var.set(default_unit_label())
         start_date_var.set(format_date_text(draft.start_date_local))
         start_time_var.set(format_time_text(draft.start_time_local))
-        enabled_var.set(draft.enabled)
 
     def _selected_mode() -> None:
         state = selection_state(len(selected_indices))
@@ -345,7 +343,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         add_button.state(["!disabled"] if state.add_enabled else ["disabled"])
         save_schedule_button.state(["!disabled"] if state.save_enabled else ["disabled"])
         cancel_schedule_button.state(["!disabled"] if state.cancel_enabled else ["disabled"])
-        delete_schedule_button.state(["!disabled"] if state.delete_enabled else ["disabled"])
+        list_delete_btn.state(["!disabled"] if state.delete_enabled else ["disabled"])
 
     def _refresh_tree(select: list[int] | None = None) -> None:
         schedule_tree.delete(*schedule_tree.get_children())
@@ -366,7 +364,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
                     draft.label,
                     recurrence_text,
                     start_text,
-                    "Yes" if draft.enabled else "No",
+                    "✓" if draft.enabled else "✗",
                 ),
             )
         if select:
@@ -419,7 +417,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
 
     def _add_schedule() -> None:
         try:
-            draft = _draft_from_form()
+            draft = _draft_from_form(enabled=True)
         except ConfigValidationError as exc:
             messagebox.showerror("Invalid schedule", str(exc), parent=root)
             return
@@ -432,7 +430,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             return
         index = selected_indices[0]
         try:
-            drafts[index] = _draft_from_form(schedule_id=drafts[index].schedule_id)
+            drafts[index] = _draft_from_form(schedule_id=drafts[index].schedule_id, enabled=drafts[index].enabled)
         except ConfigValidationError as exc:
             messagebox.showerror("Invalid schedule", str(exc), parent=root)
             return
@@ -483,19 +481,14 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     start_time_entry = ttk.Entry(editor_frame, textvariable=start_time_var)
     start_time_entry.grid(row=4, column=1, sticky="ew", pady=(0, 6))
 
-    enabled_check = ttk.Checkbutton(editor_frame, text="Enabled", variable=enabled_var)
-    enabled_check.grid(row=5, column=1, sticky="w", pady=(0, 8))
-
     form_buttons = ttk.Frame(editor_frame)
-    form_buttons.grid(row=6, column=0, columnspan=2, sticky="ew")
+    form_buttons.grid(row=5, column=0, columnspan=2, sticky="ew")
     form_buttons.columnconfigure(0, weight=1)
 
     add_button = ttk.Button(form_buttons, text="Add", command=_add_schedule)
     save_schedule_button = ttk.Button(form_buttons, text="Save", command=_save_schedule)
     cancel_schedule_button = ttk.Button(form_buttons, text="Cancel", command=_cancel_schedule_edit)
-    delete_schedule_button = ttk.Button(form_buttons, text="Delete", command=_delete_schedule)
-    delete_schedule_button.pack(side="right")
-    cancel_schedule_button.pack(side="right", padx=(0, 8))
+    cancel_schedule_button.pack(side="right")
     save_schedule_button.pack(side="right", padx=(0, 8))
     add_button.pack(side="right", padx=(0, 8))
 
@@ -507,9 +500,31 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     history_list.grid(row=0, column=0, sticky="ew")
 
     widgets_to_toggle.extend(
-        [label_entry, every_spinbox, unit_combo, start_date_entry, start_time_entry, enabled_check]
+        [label_entry, every_spinbox, unit_combo, start_date_entry, start_time_entry]
     )
 
+    list_btn_bar = ttk.Frame(list_frame)
+    list_btn_bar.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+    list_delete_btn = ttk.Button(list_btn_bar, text="Delete Selected", command=_delete_schedule)
+    list_delete_btn.pack(side="right")
+
+    def _on_enabled_click(event: tk.Event) -> None:
+        col = schedule_tree.identify_column(event.x)
+        item = schedule_tree.identify_row(event.y)
+        if col != "#4" or not item:
+            return
+        index = int(item)
+        drafts[index].enabled = not drafts[index].enabled
+        current_vals = list(schedule_tree.item(item, "values"))
+        current_vals[3] = "✓" if drafts[index].enabled else "✗"
+        schedule_tree.item(item, values=current_vals)
+
+    def _on_treeview_motion(event: tk.Event) -> None:
+        col = schedule_tree.identify_column(event.x)
+        schedule_tree.configure(cursor="hand2" if col == "#4" else "")
+
+    schedule_tree.bind("<Button-1>", _on_enabled_click, add="+")
+    schedule_tree.bind("<Motion>", _on_treeview_motion)
     schedule_tree.bind("<<TreeviewSelect>>", _update_selection_from_tree)
     _refresh_tree([])
     _load_draft_to_form(_new_default_draft())
@@ -610,7 +625,8 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         if len(selected_indices) == 1:
             try:
                 drafts[selected_indices[0]] = _draft_from_form(
-                    schedule_id=drafts[selected_indices[0]].schedule_id
+                    schedule_id=drafts[selected_indices[0]].schedule_id,
+                    enabled=drafts[selected_indices[0]].enabled,
                 )
             except ConfigValidationError as exc:
                 messagebox.showerror("Invalid schedule", str(exc), parent=root)
