@@ -174,7 +174,7 @@ def test_capture_now_runs_out_of_process_and_suppresses_ui_updates_with_settings
     assert state.last_announced_record_id == record.record_id
 
 
-def test_report_issue_menu_item_is_default_action(temp_paths, monkeypatch) -> None:
+def test_settings_menu_item_is_default_action(temp_paths, monkeypatch) -> None:
     class FakeMenu(list):
         SEPARATOR = None
 
@@ -201,11 +201,11 @@ def test_report_issue_menu_item_is_default_action(temp_paths, monkeypatch) -> No
         SimpleNamespace(MenuItem=FakeMenuItem, Menu=FakeMenu), temp_paths, SimpleNamespace(), state
     )
 
-    report_items = [
-        item for item in items if item is not None and not callable(item.text) and item.text == "Report Issue"
+    settings_items = [
+        item for item in items if item is not None and not callable(item.text) and item.text == "Settings"
     ]
-    assert len(report_items) == 1
-    assert report_items[0].default is True
+    assert len(settings_items) == 1
+    assert settings_items[0].default is True
 
 
 def test_report_issue_ignores_duplicate_requests(temp_paths, monkeypatch) -> None:

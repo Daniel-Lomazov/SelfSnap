@@ -95,10 +95,11 @@ def run_tray_app(paths: AppPaths | None = None) -> int:
             try:
                 now_local = datetime.now().astimezone()
                 _run_high_frequency_scheduler(paths, state, logger, now_local)
+                if _announce_latest_record(paths, icon, state):
+                    refresh_menu()
                 if now_local >= state.next_housekeeping_at:
                     _run_housekeeping(paths)
                     refresh_menu()
-                    _announce_latest_record(paths, icon, state)
                     state.next_housekeeping_at = now_local + timedelta(seconds=60)
             except Exception:
                 logger.exception("Background maintenance loop failed")
@@ -133,7 +134,6 @@ def _build_menu_items(pystray, paths: AppPaths, icon, state: TrayRuntimeState) -
             pystray.MenuItem(
                 "Report Issue",
                 lambda _icon, _item: _run_async(_open_report_issue, paths, icon, state),
-                default=True,
             ),
             pystray.MenuItem(
                 "Capture Now", lambda _icon, _item: _run_async(_capture_now, paths, icon, state)
@@ -158,7 +158,9 @@ def _build_menu_items(pystray, paths: AppPaths, icon, state: TrayRuntimeState) -
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
-                "Settings", lambda _icon, _item: _run_async(_open_settings, paths, icon, state)
+                "Settings",
+                lambda _icon, _item: _run_async(_open_settings, paths, icon, state),
+                default=True,
             ),
             pystray.MenuItem(
                 "Reinstall",
@@ -426,8 +428,20 @@ def _latest_label(paths: AppPaths) -> str:
         latest = get_latest_record(connection)
     if latest is None:
         return "Latest: none"
-    timestamp = latest.created_utc.replace("T", " ").replace("+00:00", "Z")
-    return f"Latest: {latest.outcome_code} at {timestamp}"
+    timestamp_utc = latest.started_utc or latest.created_utc
+    timestamp_local = _format_local_timestamp(timestamp_utc)
+    return f"Latest: {latest.outcome_code} at {timestamp_local}"
+
+
+def _format_local_timestamp(utc_text: str) -> str:
+    text = utc_text.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return utc_text[:19].replace("T", " ")
+    return parsed.astimezone().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _toggle_enabled_label(config: AppConfig) -> str:
@@ -480,10 +494,10 @@ def _latest_record(paths: AppPaths) -> CaptureRecord | None:
         return get_latest_record(connection)
 
 
-def _announce_latest_record(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
+def _announce_latest_record(paths: AppPaths, icon, state: TrayRuntimeState) -> bool:
     latest = _latest_record(paths)
     if latest is None or latest.record_id == state.last_announced_record_id:
-        return
+        return False
     config = load_or_create_config(paths)
     _announce_record(
         icon,
@@ -493,6 +507,7 @@ def _announce_latest_record(paths: AppPaths, icon, state: TrayRuntimeState) -> N
         suppress_notifications=_any_dialog_open(state),
     )
     state.last_announced_record_id = latest.record_id
+    return True
 
 
 def _announce_record(
