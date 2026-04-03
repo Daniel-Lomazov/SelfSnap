@@ -39,6 +39,15 @@ from selfsnap.tray.report_issue_window import show_report_issue_dialog
 from selfsnap.tray.settings_window import show_settings_dialog
 from selfsnap.tray.startup import sync_startup_shortcut
 from selfsnap.tray.statistics_window import show_statistics_window
+from selfsnap.ui.fluent import ACCENT_COLOR, CARD_BG, TEXT_MUTED, TEXT_PRIMARY
+from selfsnap.ui.presentation import (
+    latest_capture_label,
+    record_message,
+    tray_icon_title,
+    tray_state_label,
+    tray_toggle_enabled_label,
+    tray_warning_label,
+)
 from selfsnap.worker import EXIT_OK
 
 
@@ -112,11 +121,12 @@ def run_tray_app(paths: AppPaths | None = None) -> int:
 
 
 def _build_icon_image(image_module, draw_module):
-    image = image_module.new("RGB", (64, 64), color=(30, 30, 30))
+    image = image_module.new("RGB", (64, 64), color=(243, 246, 251))
     draw = draw_module.Draw(image)
-    draw.rectangle((10, 14, 54, 42), fill=(240, 240, 240))
-    draw.rectangle((18, 22, 46, 34), fill=(60, 140, 220))
-    draw.rectangle((24, 46, 40, 50), fill=(200, 200, 200))
+    draw.rounded_rectangle((8, 10, 56, 44), radius=10, fill=(255, 255, 255), outline=(216, 225, 236))
+    draw.rounded_rectangle((16, 18, 48, 32), radius=6, fill=(11, 92, 171))
+    draw.rounded_rectangle((18, 35, 46, 39), radius=2, fill=(234, 243, 255))
+    draw.rounded_rectangle((24, 48, 40, 52), radius=2, fill=(100, 116, 139))
     return image
 
 
@@ -409,19 +419,11 @@ def _open_latest_capture(paths: AppPaths) -> None:
 
 
 def _state_label(config: AppConfig) -> str:
-    if not config.first_run_completed:
-        return "State: setup required"
-    if not config.app_enabled:
-        return "State: disabled"
-    if config.scheduler_sync_failed():
-        return "State: enabled, scheduler sync failed"
-    return "State: enabled"
+    return tray_state_label(config)
 
 
 def _scheduler_warning_label(config: AppConfig) -> str | None:
-    if not config.scheduler_sync_failed():
-        return None
-    return "Warning: scheduler sync failed - open Settings"
+    return tray_warning_label(config)
 
 
 def _latest_label(paths: AppPaths) -> str:
@@ -432,7 +434,7 @@ def _latest_label(paths: AppPaths) -> str:
         return "Latest: none"
     timestamp_utc = latest.started_utc or latest.created_utc
     timestamp_local = _format_local_timestamp(timestamp_utc)
-    return f"Latest: {latest.outcome_code} at {timestamp_local}"
+    return latest_capture_label(latest.outcome_code, timestamp_local)
 
 
 def _format_local_timestamp(utc_text: str) -> str:
@@ -449,16 +451,12 @@ def _format_local_timestamp(utc_text: str) -> str:
 
 
 def _toggle_enabled_label(config: AppConfig) -> str:
-    return "Disable Scheduled Captures" if config.app_enabled else "Enable Scheduled Captures"
+    return tray_toggle_enabled_label(config.app_enabled)
 
 
 def _icon_title(paths: AppPaths) -> str:
     config = load_or_create_config(paths)
-    if config.scheduler_sync_failed():
-        return "SelfSnap Win11 - scheduler sync failed"
-    if not config.first_run_completed:
-        return "SelfSnap Win11 - setup required"
-    return "SelfSnap Win11"
+    return tray_icon_title(config)
 
 
 def _exit(icon, stop_event: threading.Event) -> None:
@@ -534,8 +532,7 @@ def _announce_record(
 
 
 def _format_record_message(record: CaptureRecord) -> str:
-    schedule_suffix = f" ({record.schedule_id})" if record.schedule_id else ""
-    return f"{record.outcome_code}{schedule_suffix}"
+    return record_message(record.outcome_code, record.schedule_id)
 
 
 def _show_notification(icon, title: str, message: str) -> None:
@@ -558,27 +555,43 @@ def _show_capture_overlay() -> None:
         root = tk.Tk()
         root.overrideredirect(True)
         root.attributes("-topmost", True)
-        root.attributes("-alpha", 0.88)
-        root.configure(bg="#0f172a")
+        root.attributes("-alpha", 0.96)
+        root.configure(bg=CARD_BG)
 
-        width = 280
-        height = 72
+        width = 320
+        height = 88
         screen_width = root.winfo_screenwidth()
         x = int((screen_width - width) / 2)
         y = 40
         root.geometry(f"{width}x{height}+{x}+{y}")
 
-        label = tk.Label(
-            root,
-            text="SelfSnap captured",
-            bg="#0f172a",
-            fg="#f8fafc",
-            font=("Segoe UI", 14, "bold"),
-            padx=18,
-            pady=18,
+        accent = tk.Frame(root, bg=ACCENT_COLOR, width=6)
+        accent.pack(side="left", fill="y")
+
+        content = tk.Frame(root, bg=CARD_BG, padx=18, pady=14)
+        content.pack(side="left", fill="both", expand=True)
+
+        title = tk.Label(
+            content,
+            text="Capture saved",
+            bg=CARD_BG,
+            fg=TEXT_PRIMARY,
+            font=("Segoe UI Semibold", 13),
+            anchor="w",
         )
-        label.pack(fill="both", expand=True)
-        root.after(900, root.destroy)
+        title.pack(fill="x")
+
+        subtitle = tk.Label(
+            content,
+            text="SelfSnap wrote a new local screenshot.",
+            bg=CARD_BG,
+            fg=TEXT_MUTED,
+            font=("Segoe UI", 10),
+            anchor="w",
+        )
+        subtitle.pack(fill="x", pady=(4, 0))
+
+        root.after(1100, root.destroy)
         root.mainloop()
 
     threading.Thread(target=run_overlay, daemon=True).start()

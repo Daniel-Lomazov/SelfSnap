@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, time
 from uuid import uuid4
@@ -44,8 +45,9 @@ def schedule_help_text() -> str:
     return (
         "Add schedules as Every N seconds, minutes, hours, days, weeks, months, or years. "
         "The start date and start time anchor the recurrence. Defaults are Every 1 day, today, "
-        "and now. Select one row to edit it in place, select many rows to delete only, and note "
-        "that month/year schedules skip invalid dates instead of rolling to the last day."
+        "and now. Select one row to edit it in place, select many rows to delete only, click "
+        "Status to pause or resume a schedule, and note that month/year schedules skip invalid "
+        "dates instead of rolling to the last day."
     )
 
 
@@ -182,6 +184,41 @@ def selection_state(selection_count: int) -> EditorControlState:
         delete_enabled=True,
         fields_enabled=False,
     )
+
+
+def editor_selection_summary(selection_count: int) -> str:
+    if selection_count <= 0:
+        return "Add a new recurring capture. Changes stay local until you save the full settings window."
+    if selection_count == 1:
+        return "Editing one schedule. Save here to stage the change, then Save the window when you are ready."
+    return (
+        f"{selection_count} schedules selected. Bulk delete stays available, but editing is single-select only."
+    )
+
+
+def enabled_label(enabled: bool) -> str:
+    return "Enabled" if enabled else "Paused"
+
+
+def schedules_summary_text(drafts: Sequence[RecurringScheduleDraft]) -> str:
+    total = len(drafts)
+    if total == 0:
+        return "No recurring captures configured. Manual capture remains available from the tray."
+
+    enabled_count = sum(1 for draft in drafts if draft.enabled)
+    anchor_candidates = [draft for draft in drafts if draft.enabled] or list(drafts)
+    anchor = min(
+        anchor_candidates,
+        key=lambda draft: (draft.start_date_local, draft.start_time_local, draft.label.lower()),
+    )
+    prefix = f"{enabled_count} of {total} schedules enabled"
+    if enabled_count == 0:
+        prefix = f"All {total} schedules are paused"
+    anchor_text = (
+        f"Earliest anchor {format_date_text(anchor.start_date_local)} "
+        f"{format_time_compact(anchor.start_time_local)}"
+    )
+    return f"{prefix} • {anchor_text}"
 
 
 def parse_int_text(value: str) -> int:

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
-from selfsnap.models import ConfigValidationError, StoragePreset
+from selfsnap.models import CaptureMode, ConfigValidationError, StoragePreset
 
 _STORAGE_PRESET_LABELS = {
     StoragePreset.LOCAL_PICTURES.value: "Local Pictures",
     StoragePreset.ONEDRIVE_PICTURES.value: "OneDrive Pictures",
     StoragePreset.CUSTOM.value: "Custom Folder",
+}
+
+_CAPTURE_MODE_LABELS = {
+    CaptureMode.COMPOSITE.value: "Composite",
+    CaptureMode.PER_MONITOR.value: "Per Monitor",
 }
 
 _RETENTION_MODE_LABELS = {
@@ -25,6 +30,10 @@ def storage_preset_labels() -> list[str]:
     return list(_STORAGE_PRESET_LABELS.values())
 
 
+def capture_mode_labels() -> list[str]:
+    return list(_CAPTURE_MODE_LABELS.values())
+
+
 def storage_preset_label(value: str) -> str:
     try:
         return _STORAGE_PRESET_LABELS[value]
@@ -37,6 +46,20 @@ def storage_preset_value(label: str) -> str:
         if label == display_label:
             return value
     raise ConfigValidationError(f"Unsupported storage preset label: {label}")
+
+
+def capture_mode_label(value: str) -> str:
+    try:
+        return _CAPTURE_MODE_LABELS[value]
+    except KeyError as exc:
+        raise ConfigValidationError(f"Unsupported capture mode: {value}") from exc
+
+
+def capture_mode_value(label: str) -> str:
+    for value, display_label in _CAPTURE_MODE_LABELS.items():
+        if label == display_label:
+            return value
+    raise ConfigValidationError(f"Unsupported capture mode label: {label}")
 
 
 def retention_mode_labels() -> list[str]:

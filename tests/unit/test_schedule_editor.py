@@ -12,10 +12,13 @@ from selfsnap.tray.schedule_editor import (
     draft_from_form,
     draft_from_schedule,
     draft_to_schedule,
+    editor_selection_summary,
+    enabled_label,
     first_run_schedule_help_text,
     generate_schedule_id,
     normalize_draft,
     schedule_help_text,
+    schedules_summary_text,
     selection_state,
     unit_label,
     unit_labels,
@@ -30,6 +33,7 @@ def test_schedule_help_text_mentions_defaults_and_multi_select() -> None:
     assert "Every N seconds, minutes, hours, days, weeks, months, or years" in text
     assert "Defaults are Every 1 day, today, and now" in text
     assert "select many rows to delete only" in text
+    assert "click Status to pause or resume a schedule" in text
     assert "month/year schedules skip invalid dates" in text
 
 
@@ -71,6 +75,59 @@ def test_selection_state_controls_editor_modes() -> None:
     assert multi_state.cancel_enabled is False
     assert multi_state.delete_enabled is True
     assert multi_state.fields_enabled is False
+
+
+def test_editor_selection_summary_tracks_editor_mode() -> None:
+    assert editor_selection_summary(0).startswith("Add a new recurring capture")
+    assert editor_selection_summary(1).startswith("Editing one schedule")
+    assert editor_selection_summary(3).startswith("3 schedules selected")
+
+
+def test_enabled_label_uses_clear_status_words() -> None:
+    assert enabled_label(True) == "Enabled"
+    assert enabled_label(False) == "Paused"
+
+
+def test_schedules_summary_text_reports_enabled_count_and_anchor() -> None:
+    first = draft_from_form(
+        label="Daily",
+        interval_value="1",
+        unit_label_value="Days",
+        start_date="2026-03-23",
+        start_time="08:15",
+        enabled=True,
+    )
+    second = draft_from_form(
+        label="Nightly",
+        interval_value="1",
+        unit_label_value="Days",
+        start_date="2026-03-22",
+        start_time="23:45",
+        enabled=False,
+    )
+
+    text = schedules_summary_text([first, second])
+
+    assert text.startswith("1 of 2 schedules enabled")
+    assert "2026-03-23 08:15" in text
+
+
+def test_schedules_summary_text_handles_empty_and_all_paused() -> None:
+    assert schedules_summary_text([]).startswith("No recurring captures configured")
+
+    paused = draft_from_form(
+        label="Paused",
+        interval_value="15",
+        unit_label_value="Minutes",
+        start_date="2026-03-21",
+        start_time="06:30",
+        enabled=False,
+    )
+
+    text = schedules_summary_text([paused])
+
+    assert text.startswith("All 1 schedules are paused")
+    assert "2026-03-21 06:30" in text
 
 
 def test_default_draft_uses_every_one_day_now() -> None:
