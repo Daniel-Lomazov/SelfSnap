@@ -8,12 +8,68 @@ from selfsnap.models import AppConfig, ConfigValidationError, StoragePreset
 from selfsnap.paths import AppPaths
 
 
+USERPROFILE_DISPLAY_TOKEN = "$$USERPROFILE$$"
+ONEDRIVE_DISPLAY_TOKEN = "$$ONEDRIVE$$"
+
+
 def preset_roots(paths: AppPaths, preset: str) -> tuple[Path, Path]:
     if preset == StoragePreset.LOCAL_PICTURES.value:
         return paths.default_capture_root, paths.default_archive_root
     if preset == StoragePreset.ONEDRIVE_PICTURES.value:
         return paths.onedrive_capture_root(), paths.onedrive_archive_root()
     raise ConfigValidationError(f"Unsupported storage preset: {preset}")
+
+
+def storage_path_for_display(paths: AppPaths, path_text: str) -> str:
+    text = path_text.strip()
+    if not text:
+        return text
+
+    resolved = storage_path_from_display(paths, text)
+    onedrive_display = _replace_windows_prefix(
+        resolved,
+        str(paths.preferred_onedrive_root()),
+        ONEDRIVE_DISPLAY_TOKEN,
+    )
+    if onedrive_display is not None:
+        return onedrive_display
+
+    user_display = _replace_windows_prefix(
+        resolved,
+        str(paths.user_profile),
+        USERPROFILE_DISPLAY_TOKEN,
+    )
+    if user_display is not None:
+        return user_display
+    return resolved
+
+
+def storage_path_from_display(paths: AppPaths, path_text: str) -> str:
+    text = path_text.strip()
+    if not text:
+        return text
+
+    resolved = _replace_display_prefix(
+        text,
+        ONEDRIVE_DISPLAY_TOKEN,
+        str(paths.preferred_onedrive_root()),
+    )
+    resolved = _replace_display_prefix(
+        resolved,
+        "%ONEDRIVE%",
+        str(paths.preferred_onedrive_root()),
+    )
+    resolved = _replace_display_prefix(
+        resolved,
+        USERPROFILE_DISPLAY_TOKEN,
+        str(paths.user_profile),
+    )
+    resolved = _replace_display_prefix(
+        resolved,
+        "%USERPROFILE%",
+        str(paths.user_profile),
+    )
+    return os.path.expanduser(os.path.expandvars(resolved))
 
 
 def apply_storage_preset(
@@ -40,8 +96,8 @@ def normalize_storage_config(paths: AppPaths, config: AppConfig, validate: bool 
 
 
 def infer_storage_preset(paths: AppPaths, capture_root: str, archive_root: str) -> str:
-    normalized_capture = Path(capture_root).expanduser()
-    normalized_archive = Path(archive_root).expanduser()
+    normalized_capture = Path(os.path.expandvars(capture_root)).expanduser()
+    normalized_archive = Path(os.path.expandvars(archive_root)).expanduser()
     local_capture, local_archive = preset_roots(paths, StoragePreset.LOCAL_PICTURES.value)
     onedrive_capture, onedrive_archive = preset_roots(paths, StoragePreset.ONEDRIVE_PICTURES.value)
     if normalized_capture == local_capture and normalized_archive == local_archive:
@@ -78,3 +134,29 @@ def _nearest_existing_parent(target: Path) -> Path | None:
         if current.parent == current:
             return None
         current = current.parent
+
+
+def _replace_windows_prefix(path_text: str, prefix: str, replacement: str) -> str | None:
+    normalized_path = path_text.replace("/", "\\")
+    normalized_prefix = prefix.replace("/", "\\")
+    path_lower = normalized_path.lower()
+    prefix_lower = normalized_prefix.lower()
+    if path_lower == prefix_lower:
+        return replacement
+    boundary = normalized_prefix + "\\"
+    if path_lower.startswith(boundary.lower()):
+        return replacement + normalized_path[len(normalized_prefix) :]
+    return None
+
+
+def _replace_display_prefix(path_text: str, token: str, replacement: str) -> str:
+    normalized_path = path_text.replace("/", "\\")
+    normalized_token = token.replace("/", "\\")
+    path_lower = normalized_path.lower()
+    token_lower = normalized_token.lower()
+    if path_lower == token_lower:
+        return replacement
+    boundary = normalized_token + "\\"
+    if path_lower.startswith(boundary.lower()):
+        return replacement + normalized_path[len(normalized_token) :]
+    return path_text

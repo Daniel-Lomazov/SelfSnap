@@ -6,6 +6,13 @@ from enum import StrEnum
 import re
 from typing import Any
 
+from selfsnap.window_sizing import (
+    DEFAULT_SETTINGS_WINDOW_HEIGHT,
+    DEFAULT_SETTINGS_WINDOW_WIDTH,
+    SETTINGS_WINDOW_MIN_HEIGHT,
+    SETTINGS_WINDOW_MIN_WIDTH,
+)
+
 
 SCHEMA_VERSION = 3
 SCHEDULE_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
@@ -180,8 +187,8 @@ class AppConfig:
     wake_for_scheduled_captures: bool = False
     scheduler_sync_state: str = "ok"
     scheduler_sync_message: str | None = None
-    settings_window_width: int = 960
-    settings_window_height: int = 760
+    settings_window_width: int = DEFAULT_SETTINGS_WINDOW_WIDTH
+    settings_window_height: int = DEFAULT_SETTINGS_WINDOW_HEIGHT
     slot_match_tolerance_seconds: int = 120
     capture_mode: str = CaptureMode.COMPOSITE.value
     image_format: str = ImageFormat.PNG.value
@@ -212,10 +219,14 @@ class AppConfig:
             raise ConfigValidationError("log_level must be INFO or DEBUG")
         if self.scheduler_sync_state not in {"ok", "failed"}:
             raise ConfigValidationError("scheduler_sync_state must be ok or failed")
-        if self.settings_window_width < 960:
-            raise ConfigValidationError("settings_window_width must be >= 960")
-        if self.settings_window_height < 760:
-            raise ConfigValidationError("settings_window_height must be >= 760")
+        if self.settings_window_width < SETTINGS_WINDOW_MIN_WIDTH:
+            raise ConfigValidationError(
+                f"settings_window_width must be >= {SETTINGS_WINDOW_MIN_WIDTH}"
+            )
+        if self.settings_window_height < SETTINGS_WINDOW_MIN_HEIGHT:
+            raise ConfigValidationError(
+                f"settings_window_height must be >= {SETTINGS_WINDOW_MIN_HEIGHT}"
+            )
         if self.slot_match_tolerance_seconds < 0:
             raise ConfigValidationError("slot_match_tolerance_seconds must be >= 0")
         if self.capture_mode not in {item.value for item in CaptureMode}:
@@ -278,8 +289,12 @@ class AppConfig:
             wake_for_scheduled_captures=bool(data.get("wake_for_scheduled_captures", False)),
             scheduler_sync_state=str(data.get("scheduler_sync_state", "ok")),
             scheduler_sync_message=data.get("scheduler_sync_message"),
-            settings_window_width=int(data.get("settings_window_width", 960)),
-            settings_window_height=int(data.get("settings_window_height", 760)),
+            settings_window_width=int(
+                data.get("settings_window_width", DEFAULT_SETTINGS_WINDOW_WIDTH)
+            ),
+            settings_window_height=int(
+                data.get("settings_window_height", DEFAULT_SETTINGS_WINDOW_HEIGHT)
+            ),
             slot_match_tolerance_seconds=int(data.get("slot_match_tolerance_seconds", 120)),
             capture_mode=str(data.get("capture_mode", CaptureMode.COMPOSITE.value)),
             image_format=str(data.get("image_format", ImageFormat.PNG.value)),

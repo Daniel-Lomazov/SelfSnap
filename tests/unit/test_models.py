@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from selfsnap.models import AppConfig, ConfigValidationError, Schedule
+from selfsnap.window_sizing import SETTINGS_WINDOW_MIN_HEIGHT, SETTINGS_WINDOW_MIN_WIDTH
 
 
 def test_duplicate_schedule_ids_are_rejected() -> None:
@@ -62,8 +63,8 @@ def test_settings_window_size_floor_is_validated() -> None:
     config = AppConfig(
         capture_storage_root="C:\\captures",
         archive_storage_root="C:\\archive",
-        settings_window_width=900,
-        settings_window_height=700,
+        settings_window_width=SETTINGS_WINDOW_MIN_WIDTH - 1,
+        settings_window_height=SETTINGS_WINDOW_MIN_HEIGHT - 1,
     )
     with pytest.raises(ConfigValidationError):
         config.validate()
@@ -150,7 +151,7 @@ def test_settings_window_height_too_small_raises() -> None:
     config = AppConfig(
         capture_storage_root="C:\\cap",
         archive_storage_root="C:\\arc",
-        settings_window_height=500,
+        settings_window_height=SETTINGS_WINDOW_MIN_HEIGHT - 1,
     )
     with pytest.raises(ConfigValidationError, match="settings_window_height"):
         config.validate()

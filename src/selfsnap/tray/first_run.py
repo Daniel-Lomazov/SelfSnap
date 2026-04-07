@@ -6,7 +6,12 @@ from tkinter import filedialog, messagebox, ttk
 
 from selfsnap.models import AppConfig, ConfigValidationError, StoragePreset
 from selfsnap.paths import AppPaths
-from selfsnap.storage import apply_storage_preset, validate_storage_config
+from selfsnap.storage import (
+    apply_storage_preset,
+    storage_path_for_display,
+    storage_path_from_display,
+    validate_storage_config,
+)
 from selfsnap.tray.schedule_editor import first_run_schedule_help_text
 from selfsnap.ui_labels import (
     local_privacy_notice,
@@ -14,28 +19,46 @@ from selfsnap.ui_labels import (
     storage_preset_labels,
     storage_preset_value,
 )
-
-WINDOW_MIN_WIDTH = 960
-WINDOW_MIN_HEIGHT = 760
+from selfsnap.window_sizing import (
+    SETTINGS_WINDOW_MIN_HEIGHT,
+    SETTINGS_WINDOW_MIN_WIDTH,
+    build_centered_window_geometry,
+    clamp_settings_window_size,
+    resolve_initial_settings_window_size,
+)
 
 
 def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | None:
     root = tk.Tk()
     root.title("SelfSnap First Run Setup")
     root.update_idletasks()
-    root.geometry(
-        f"{max(config.settings_window_width, WINDOW_MIN_WIDTH)}x"
-        f"{max(config.settings_window_height, WINDOW_MIN_HEIGHT)}"
+    window_width, window_height = resolve_initial_settings_window_size(
+        config.settings_window_width,
+        config.settings_window_height,
     )
-    root.minsize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
+    root.geometry(
+        build_centered_window_geometry(
+            root.winfo_screenwidth(),
+            root.winfo_screenheight(),
+            window_width,
+            window_height,
+        )
+    )
+    root.minsize(SETTINGS_WINDOW_MIN_WIDTH, SETTINGS_WINDOW_MIN_HEIGHT)
     root.resizable(True, True)
 
     preset_var = tk.StringVar(value=storage_preset_label(config.storage_preset))
     capture_root_var = tk.StringVar(
-        value=config.capture_storage_root or str(paths.default_capture_root)
+        value=storage_path_for_display(
+            paths,
+            config.capture_storage_root or str(paths.default_capture_root),
+        )
     )
     archive_root_var = tk.StringVar(
-        value=config.archive_storage_root or str(paths.default_archive_root)
+        value=storage_path_for_display(
+            paths,
+            config.archive_storage_root or str(paths.default_archive_root),
+        )
     )
     enable_schedules_var = tk.BooleanVar(value=config.app_enabled)
     show_last_capture_status_var = tk.BooleanVar(value=config.show_last_capture_status)
@@ -48,7 +71,7 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
     root.columnconfigure(0, weight=1)
     root.rowconfigure(0, weight=1)
 
-    content = ttk.Frame(root, padding=10)
+    content = ttk.Frame(root, padding=8)
     content.grid(row=0, column=0, sticky="nsew")
     content.columnconfigure(0, weight=1)
     content.rowconfigure(0, weight=0)
@@ -63,9 +86,7 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
 
     def _capture_size() -> tuple[int, int]:
         root.update_idletasks()
-        return max(root.winfo_width(), WINDOW_MIN_WIDTH), max(
-            root.winfo_height(), WINDOW_MIN_HEIGHT
-        )
+        return clamp_settings_window_size(root.winfo_width(), root.winfo_height())
 
     intro_label = ttk.Label(
         content,
@@ -75,7 +96,7 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
         ),
         justify="left",
     )
-    intro_label.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+    intro_label.grid(row=0, column=0, sticky="ew", pady=(0, 6))
     _bind_wrap(intro_label)
 
     privacy_label = ttk.Label(
@@ -83,10 +104,10 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
         text=local_privacy_notice(),
         justify="left",
     )
-    privacy_label.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+    privacy_label.grid(row=1, column=0, sticky="ew", pady=(0, 6))
     _bind_wrap(privacy_label)
 
-    storage_frame = ttk.LabelFrame(content, text="Storage", padding=10)
+    storage_frame = ttk.LabelFrame(content, text="Storage", padding=8)
     storage_frame.grid(row=2, column=0, sticky="ew")
     storage_frame.columnconfigure(1, weight=1)
 
@@ -96,8 +117,8 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
             preset = storage_preset_value(selected_label)
             preset_config = apply_storage_preset(paths, config, preset)
             preset_var.set(storage_preset_label(preset))
-            capture_root_var.set(preset_config.capture_storage_root)
-            archive_root_var.set(preset_config.archive_storage_root)
+            capture_root_var.set(storage_path_for_display(paths, preset_config.capture_storage_root))
+            archive_root_var.set(storage_path_for_display(paths, preset_config.archive_storage_root))
         finally:
             internal_preset_update["active"] = False
         _update_path_state()
@@ -117,42 +138,42 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
     capture_root_var.trace_add("write", _mark_custom)
     archive_root_var.trace_add("write", _mark_custom)
 
-    ttk.Label(storage_frame, text="Storage Preset").grid(row=0, column=0, sticky="w", pady=(0, 6))
+    ttk.Label(storage_frame, text="Storage Preset").grid(row=0, column=0, sticky="w", pady=(0, 4))
     preset_combo = ttk.Combobox(
         storage_frame,
         textvariable=preset_var,
         state="readonly",
         values=storage_preset_labels(),
-        width=24,
+        width=22,
     )
-    preset_combo.grid(row=0, column=1, sticky="ew", pady=(0, 6))
+    preset_combo.grid(row=0, column=1, sticky="ew", pady=(0, 4))
 
     ttk.Label(storage_frame, text="Capture Storage Root").grid(
-        row=1, column=0, sticky="w", pady=(0, 6)
+        row=1, column=0, sticky="w", pady=(0, 4)
     )
     capture_entry = ttk.Entry(storage_frame, textvariable=capture_root_var)
-    capture_entry.grid(row=1, column=1, sticky="ew", pady=(0, 6))
+    capture_entry.grid(row=1, column=1, sticky="ew", pady=(0, 4))
     capture_browse = ttk.Button(
         storage_frame,
         text="Browse",
-        command=lambda: _browse_directory(root, capture_root_var),
+        command=lambda: _browse_directory(root, capture_root_var, paths),
     )
-    capture_browse.grid(row=1, column=2, sticky="w", padx=(6, 0), pady=(0, 6))
+    capture_browse.grid(row=1, column=2, sticky="w", padx=(4, 0), pady=(0, 4))
 
     ttk.Label(storage_frame, text="Archive Storage Root").grid(
-        row=2, column=0, sticky="w", pady=(0, 6)
+        row=2, column=0, sticky="w", pady=(0, 4)
     )
     archive_entry = ttk.Entry(storage_frame, textvariable=archive_root_var)
-    archive_entry.grid(row=2, column=1, sticky="ew", pady=(0, 6))
+    archive_entry.grid(row=2, column=1, sticky="ew", pady=(0, 4))
     archive_browse = ttk.Button(
         storage_frame,
         text="Browse",
-        command=lambda: _browse_directory(root, archive_root_var),
+        command=lambda: _browse_directory(root, archive_root_var, paths),
     )
-    archive_browse.grid(row=2, column=2, sticky="w", padx=(6, 0), pady=(0, 6))
+    archive_browse.grid(row=2, column=2, sticky="w", padx=(4, 0), pady=(0, 4))
 
-    visibility_frame = ttk.LabelFrame(content, text="Visibility", padding=10)
-    visibility_frame.grid(row=3, column=0, sticky="ew", pady=(8, 0))
+    visibility_frame = ttk.LabelFrame(content, text="Visibility", padding=8)
+    visibility_frame.grid(row=3, column=0, sticky="ew", pady=(6, 0))
     ttk.Checkbutton(
         visibility_frame,
         text="Start tray on login after setup",
@@ -183,14 +204,14 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
         content,
         text="Enable scheduled capture after setup",
         variable=enable_schedules_var,
-    ).grid(row=4, column=0, sticky="w", pady=(8, 0))
+    ).grid(row=4, column=0, sticky="w", pady=(6, 0))
 
     schedules_help = ttk.Label(
         content,
         text=first_run_schedule_help_text(),
         justify="left",
     )
-    schedules_help.grid(row=5, column=0, sticky="ew", pady=(6, 0))
+    schedules_help.grid(row=5, column=0, sticky="ew", pady=(4, 0))
     _bind_wrap(schedules_help)
 
     result: dict[str, AppConfig | None] = {"value": None}
@@ -202,8 +223,8 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
                 first_run_completed=True,
                 app_enabled=enable_schedules_var.get(),
                 storage_preset=storage_preset_value(preset_var.get().strip()),
-                capture_storage_root=capture_root_var.get().strip(),
-                archive_storage_root=archive_root_var.get().strip(),
+                capture_storage_root=storage_path_from_display(paths, capture_root_var.get()),
+                archive_storage_root=storage_path_from_display(paths, archive_root_var.get()),
                 start_tray_on_login=start_tray_on_login_var.get(),
                 show_last_capture_status=show_last_capture_status_var.get(),
                 notify_on_failed_or_missed=notify_on_failed_or_missed_var.get(),
@@ -224,7 +245,7 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
         root.destroy()
 
     button_row = ttk.Frame(content)
-    button_row.grid(row=6, column=0, sticky="ew", pady=(10, 0))
+    button_row.grid(row=6, column=0, sticky="ew", pady=(8, 0))
     ttk.Button(button_row, text="Finish Setup", command=_save_and_close).pack(side="right")
     ttk.Button(button_row, text="Cancel", command=root.destroy).pack(side="right", padx=(0, 8))
 
@@ -236,7 +257,8 @@ def show_first_run_dialog(config: AppConfig, paths: AppPaths) -> AppConfig | Non
     return result["value"]
 
 
-def _browse_directory(parent: tk.Tk, target: tk.StringVar) -> None:
-    chosen = filedialog.askdirectory(parent=parent, initialdir=target.get() or None)
+def _browse_directory(parent: tk.Tk, target: tk.StringVar, paths: AppPaths) -> None:
+    initial_dir = storage_path_from_display(paths, target.get()) or None
+    chosen = filedialog.askdirectory(parent=parent, initialdir=initial_dir)
     if chosen:
-        target.set(chosen)
+        target.set(storage_path_for_display(paths, chosen))

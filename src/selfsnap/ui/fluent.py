@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import tkinter as tk
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from tkinter import ttk
 
 WINDOW_BG = "#f3f6fb"
@@ -26,6 +26,43 @@ class ScrollablePage:
     container: tk.Frame
     canvas: tk.Canvas
     content: tk.Frame
+    _pin_job_ids: list[str] = field(default_factory=list)
+
+    def _pin_once(self) -> None:
+        self.canvas.yview_moveto(0.0)
+
+    def _schedule_pin_job(self, delay: int | None) -> None:
+        job_id_holder: list[str | None] = [None]
+
+        def _callback() -> None:
+            job_id = job_id_holder[0]
+            if job_id is not None:
+                try:
+                    self._pin_job_ids.remove(job_id)
+                except ValueError:
+                    pass
+            self._pin_once()
+
+        if delay is None:
+            job_id = self.canvas.after_idle(_callback)
+        else:
+            job_id = self.canvas.after(delay, _callback)
+        job_id_holder[0] = job_id
+        self._pin_job_ids.append(job_id)
+
+    def pin_to_top(self, *, passes: int = 1) -> None:
+        for job_id in self._pin_job_ids:
+            try:
+                self.canvas.after_cancel(job_id)
+            except tk.TclError:
+                continue
+        self._pin_job_ids.clear()
+
+        self._pin_once()
+
+        follow_up_delays: tuple[int | None, ...] = (None, 24, 72, 144)
+        for delay in follow_up_delays[: max(passes - 1, 0)]:
+            self._schedule_pin_job(delay)
 
 
 @dataclass(slots=True)
@@ -51,19 +88,19 @@ def apply_fluent_window(root: tk.Misc) -> None:
     root.option_add("*TCombobox*Listbox.font", ("Segoe UI", 10))
     style = ttk.Style(root)
     style.configure("TNotebook", background=WINDOW_BG, borderwidth=0)
-    style.configure("TNotebook.Tab", padding=(14, 8), font=("Segoe UI Semibold", 10))
-    style.configure("TButton", padding=(10, 6))
-    style.configure("Small.TButton", padding=(8, 4))
-    style.configure("Wide.TButton", padding=(14, 8))
-    style.configure("TCombobox", padding=4)
-    style.configure("TCheckbutton", padding=2)
+    style.configure("TNotebook.Tab", padding=(6, 3), font=("Segoe UI Semibold", 10))
+    style.configure("TButton", padding=(8, 4))
+    style.configure("Small.TButton", padding=(6, 3))
+    style.configure("Wide.TButton", padding=(10, 5))
+    style.configure("TCombobox", padding=2)
+    style.configure("TCheckbutton", padding=1)
     try:
         style.map(
             "TNotebook.Tab",
             background=[("selected", CARD_BG), ("!selected", WINDOW_BG)],
             foreground=[("selected", TEXT_PRIMARY), ("!selected", TEXT_SECONDARY)],
         )
-        style.configure("Treeview", rowheight=30, font=("Segoe UI", 10))
+        style.configure("Treeview", rowheight=26, font=("Segoe UI", 10))
         style.configure("Treeview.Heading", font=("Segoe UI Semibold", 10))
         style.map(
             "Treeview",
@@ -93,6 +130,7 @@ def create_scrollable_page(parent: tk.Misc) -> ScrollablePage:
 
     content = tk.Frame(canvas, bg=WINDOW_BG)
     window_id = canvas.create_window((0, 0), window=content, anchor="nw")
+    page = ScrollablePage(container=container, canvas=canvas, content=content)
 
     def _sync_canvas(_event=None) -> None:
         canvas.configure(scrollregion=canvas.bbox("all"))
@@ -100,7 +138,7 @@ def create_scrollable_page(parent: tk.Misc) -> ScrollablePage:
 
     content.bind("<Configure>", _sync_canvas)
     canvas.bind("<Configure>", _sync_canvas)
-    return ScrollablePage(container=container, canvas=canvas, content=content)
+    return page
 
 
 def bind_dynamic_wrap(
@@ -109,7 +147,7 @@ def bind_dynamic_wrap(
     widget: tk.Label,
     *,
     padding: int = 56,
-    minimum: int = 380,
+    minimum: int = 280,
 ) -> None:
     def _update_wrap(_event=None) -> None:
         wrap = max(container.winfo_width() - padding, minimum)
@@ -136,19 +174,19 @@ def create_page_header(
         text=eyebrow.upper(),
         bg=WINDOW_BG,
         fg=ACCENT_COLOR,
-        font=("Segoe UI Semibold", 9),
+        font=("Segoe UI Semibold", 7),
         anchor="w",
     ).grid(row=0, column=0, sticky="w")
 
     title_row = tk.Frame(frame, bg=WINDOW_BG)
-    title_row.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+    title_row.grid(row=1, column=0, sticky="ew", pady=(2, 0))
     title_row.columnconfigure(0, weight=1)
     tk.Label(
         title_row,
         text=title,
         bg=WINDOW_BG,
         fg=TEXT_PRIMARY,
-        font=("Segoe UI Semibold", 20),
+        font=("Segoe UI Semibold", 16),
         anchor="w",
     ).grid(row=0, column=0, sticky="w")
 
@@ -162,11 +200,11 @@ def create_page_header(
         text=subtitle,
         bg=WINDOW_BG,
         fg=TEXT_SECONDARY,
-        font=("Segoe UI", 10),
+        font=("Segoe UI", 8),
         justify="left",
         anchor="w",
     )
-    subtitle_label.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+    subtitle_label.grid(row=2, column=0, sticky="ew", pady=(2, 0))
     return PageHeader(frame=frame, subtitle_label=subtitle_label, badge_label=badge_label)
 
 
@@ -185,9 +223,9 @@ def create_card(
         badge_text=badge_text,
         tone=tone,
         background=CARD_BG,
-        title_font=("Segoe UI Semibold", 13),
-        title_pad=(18, 18, 18, 0),
-        body_pad=(18, 18),
+        title_font=("Segoe UI Semibold", 12),
+        title_pad=(10, 8, 10, 0),
+        body_pad=(10, 8),
     )
 
 
@@ -205,9 +243,9 @@ def create_inset_panel(
         badge_text=None,
         tone=tone,
         background=INSET_BG,
-        title_font=("Segoe UI Semibold", 11),
-        title_pad=(14, 14, 14, 0),
-        body_pad=(14, 14),
+        title_font=("Segoe UI Semibold", 10),
+        title_pad=(6, 6, 6, 0),
+        body_pad=(6, 6),
     )
 
 
@@ -261,11 +299,11 @@ def _create_section(
         text=summary,
         bg=background,
         fg=TEXT_SECONDARY,
-        font=("Segoe UI", 10),
+        font=("Segoe UI", 9),
         justify="left",
         anchor="w",
     )
-    summary_label.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+    summary_label.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(3, 0))
 
     body = tk.Frame(frame, bg=background, padx=body_pad[0], pady=body_pad[1])
     body.grid(row=1, column=0, sticky="nsew")
@@ -286,9 +324,9 @@ def _create_pill(parent: tk.Misc, text: str, *, tone: str) -> tk.Label:
         text=text,
         bg=bg,
         fg=fg,
-        font=("Segoe UI Semibold", 9),
-        padx=10,
-        pady=4,
+        font=("Segoe UI Semibold", 8),
+        padx=6,
+        pady=2,
     )
 
 

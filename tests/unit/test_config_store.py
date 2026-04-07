@@ -6,6 +6,7 @@ import pytest
 
 from selfsnap.config_store import load_or_create_config, load_config, save_config
 from selfsnap.models import AppConfig, ConfigValidationError, Schedule
+from selfsnap.window_sizing import DEFAULT_SETTINGS_WINDOW_HEIGHT, DEFAULT_SETTINGS_WINDOW_WIDTH
 
 
 def test_load_or_create_creates_default(temp_paths) -> None:
@@ -15,8 +16,8 @@ def test_load_or_create_creates_default(temp_paths) -> None:
     assert config.storage_preset == "local_pictures"
     assert config.capture_storage_root == str(temp_paths.default_capture_root)
     assert config.archive_storage_root == str(temp_paths.default_archive_root)
-    assert config.settings_window_width == 960
-    assert config.settings_window_height == 760
+    assert config.settings_window_width == DEFAULT_SETTINGS_WINDOW_WIDTH
+    assert config.settings_window_height == DEFAULT_SETTINGS_WINDOW_HEIGHT
     assert config.scheduler_sync_state == "ok"
     assert temp_paths.config_path.exists()
 

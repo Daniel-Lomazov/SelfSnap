@@ -10,7 +10,12 @@ from selfsnap.models import AppConfig, CaptureRecord, ConfigValidationError, Sto
 from selfsnap.paths import AppPaths
 from selfsnap.records import get_latest_record
 from selfsnap.runtime_launch import launch_background, resolve_manual_capture_background_invocation
-from selfsnap.storage import apply_storage_preset, validate_storage_config
+from selfsnap.storage import (
+    apply_storage_preset,
+    storage_path_for_display,
+    storage_path_from_display,
+    validate_storage_config,
+)
 from selfsnap.tray.schedule_editor import (
     RecurringScheduleDraft,
     default_draft,
@@ -59,6 +64,7 @@ from selfsnap.ui.fluent import (
     create_inset_panel,
     create_page_header,
     create_scrollable_page,
+    ScrollablePage,
 )
 from selfsnap.ui.presentation import (
     maintenance_summary_text,
@@ -83,10 +89,54 @@ from selfsnap.ui_labels import (
     storage_preset_labels,
     storage_preset_value,
 )
+from selfsnap.window_sizing import (
+    SETTINGS_WINDOW_MIN_HEIGHT,
+    SETTINGS_WINDOW_MIN_WIDTH,
+    build_centered_window_geometry,
+    clamp_settings_window_size,
+    resolve_initial_settings_window_size,
+)
 
-WINDOW_MIN_WIDTH = 960
-WINDOW_MIN_HEIGHT = 760
 HISTORY_REFRESH_INTERVAL_MS = 5000
+STACKED_COMPACT_LAYOUT_MAX_WIDTH = 660
+
+SCHEDULE_TREE_COLUMN_SPECS: tuple[tuple[str, int, int, str], ...] = (
+    ("label", 112, 3, "w"),
+    ("recurrence", 160, 4, "w"),
+    ("start", 128, 3, "w"),
+    ("enabled", 72, 0, "center"),
+)
+
+
+def resolve_schedule_tree_column_widths(available_width: int) -> dict[str, int]:
+    widths = {name: minimum for name, minimum, _weight, _anchor in SCHEDULE_TREE_COLUMN_SPECS}
+    minimum_total = sum(widths.values())
+    if available_width <= minimum_total:
+        return widths
+
+    extra_width = available_width - minimum_total
+    weighted_specs = [(name, weight) for name, _minimum, weight, _anchor in SCHEDULE_TREE_COLUMN_SPECS if weight > 0]
+    if not weighted_specs:
+        return widths
+
+    total_weight = sum(weight for _name, weight in weighted_specs)
+    remainders: list[tuple[int, str]] = []
+    for name, weight in weighted_specs:
+        added_width, remainder = divmod(extra_width * weight, total_weight)
+        widths[name] += added_width
+        remainders.append((remainder, name))
+
+    leftover = available_width - sum(widths.values())
+    for _remainder, name in sorted(remainders, reverse=True):
+        if leftover <= 0:
+            break
+        widths[name] += 1
+        leftover -= 1
+    return widths
+
+
+def use_stacked_schedule_layout(window_width: int) -> bool:
+    return window_width <= STACKED_COMPACT_LAYOUT_MAX_WIDTH
 
 
 @dataclass(slots=True)
@@ -100,18 +150,33 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     root = tk.Tk()
     root.title("SelfSnap Settings")
     root.update_idletasks()
-    root.geometry(
-        f"{max(config.settings_window_width, WINDOW_MIN_WIDTH)}x"
-        f"{max(config.settings_window_height, WINDOW_MIN_HEIGHT)}"
+    window_width, window_height = resolve_initial_settings_window_size(
+        config.settings_window_width,
+        config.settings_window_height,
     )
-    root.minsize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
+    use_stacked_compact_layout = window_width <= STACKED_COMPACT_LAYOUT_MAX_WIDTH
+    root.geometry(
+        build_centered_window_geometry(
+            root.winfo_screenwidth(),
+            root.winfo_screenheight(),
+            window_width,
+            window_height,
+        )
+    )
+    root.minsize(SETTINGS_WINDOW_MIN_WIDTH, SETTINGS_WINDOW_MIN_HEIGHT)
     root.resizable(True, True)
     apply_fluent_window(root)
 
     app_enabled_var = tk.BooleanVar(master=root, value=config.app_enabled)
     preset_var = tk.StringVar(master=root, value=storage_preset_label(config.storage_preset))
-    capture_root_var = tk.StringVar(master=root, value=config.capture_storage_root)
-    archive_root_var = tk.StringVar(master=root, value=config.archive_storage_root)
+    capture_root_var = tk.StringVar(
+        master=root,
+        value=storage_path_for_display(paths, config.capture_storage_root),
+    )
+    archive_root_var = tk.StringVar(
+        master=root,
+        value=storage_path_for_display(paths, config.archive_storage_root),
+    )
     retention_mode_var = tk.StringVar(
         master=root, value=retention_mode_label(config.retention_mode)
     )
@@ -159,7 +224,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     root.rowconfigure(0, weight=1)
 
     shell = tk.Frame(root, bg=WINDOW_BG)
-    shell.grid(row=0, column=0, sticky="nsew", padx=18, pady=(18, 0))
+    shell.grid(row=0, column=0, sticky="nsew", padx=10, pady=(8, 0))
     shell.columnconfigure(0, weight=1)
     shell.rowconfigure(3, weight=1)
 
@@ -244,8 +309,8 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             config,
             app_enabled=app_enabled_var.get() if config.first_run_completed else config.app_enabled,
             storage_preset=_selected_storage_preset(),
-            capture_storage_root=capture_root_var.get().strip(),
-            archive_storage_root=archive_root_var.get().strip(),
+            capture_storage_root=storage_path_from_display(paths, capture_root_var.get()),
+            archive_storage_root=storage_path_from_display(paths, archive_root_var.get()),
             retention_mode=retention_mode,
             retention_days=retention_days,
             purge_enabled=purge_enabled_var.get(),
@@ -305,8 +370,8 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             preset = storage_preset_value(selected_label)
             preset_config = apply_storage_preset(paths, config, preset)
             preset_var.set(storage_preset_label(preset))
-            capture_root_var.set(preset_config.capture_storage_root)
-            archive_root_var.set(preset_config.archive_storage_root)
+            capture_root_var.set(storage_path_for_display(paths, preset_config.capture_storage_root))
+            archive_root_var.set(storage_path_for_display(paths, preset_config.archive_storage_root))
         finally:
             internal_preset_update["active"] = False
         _update_path_state()
@@ -346,9 +411,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
 
     def _capture_size() -> tuple[int, int]:
         root.update_idletasks()
-        return max(root.winfo_width(), WINDOW_MIN_WIDTH), max(
-            root.winfo_height(), WINDOW_MIN_HEIGHT
-        )
+        return clamp_settings_window_size(root.winfo_width(), root.winfo_height())
 
     header_text, header_tone = settings_header_status(config)
     header = create_page_header(
@@ -363,38 +426,60 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         badge_tone=header_tone,
     )
     header.frame.grid(row=0, column=0, sticky="ew")
-    bind_dynamic_wrap(shell, root, header.subtitle_label, padding=72)
+    bind_dynamic_wrap(shell, root, header.subtitle_label, padding=44)
 
     trust_label = tk.Label(
         shell,
         text=local_privacy_notice(),
         bg=WINDOW_BG,
         fg=TEXT_MUTED,
-        font=("Segoe UI", 10),
+        font=("Segoe UI", 8),
         justify="left",
         anchor="w",
     )
-    trust_label.grid(row=1, column=0, sticky="ew", pady=(10, 0))
-    bind_dynamic_wrap(shell, root, trust_label, padding=64)
+    trust_label.grid(row=1, column=0, sticky="ew", pady=(1, 0))
+    bind_dynamic_wrap(shell, root, trust_label, padding=36)
 
     scheduler_notice_label = tk.Label(
         shell,
         bg=WINDOW_BG,
         fg=WARNING_FG,
-        font=("Segoe UI Semibold", 9),
+        font=("Segoe UI Semibold", 8),
         justify="left",
         anchor="w",
     )
-    scheduler_notice_label.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+    scheduler_notice_label.grid(row=2, column=0, sticky="ew", pady=(1, 0))
 
     notebook = ttk.Notebook(shell)
-    notebook.grid(row=3, column=0, sticky="nsew", pady=(16, 0))
+    notebook.grid(row=3, column=0, sticky="nsew", pady=(4, 0))
+
+    tab_pages: dict[str, ScrollablePage] = {}
 
     def _make_tab(title: str) -> tk.Frame:
         page = create_scrollable_page(notebook)
+        tab_pages[title] = page
         notebook.add(page.container, text=title)
         page.content.columnconfigure(0, weight=1)
         return page.content
+
+    def _selected_tab_title() -> str | None:
+        selected = notebook.select()
+        if not selected:
+            return None
+        return str(notebook.tab(selected, "text"))
+
+    def _scroll_tab_to_top(title: str, *, passes: int = 4) -> None:
+        page = tab_pages.get(title)
+        if page is None:
+            return
+        page.pin_to_top(passes=passes)
+
+    def _handle_tab_changed(_event=None) -> None:
+        if _selected_tab_title() == "Schedules":
+            notebook.focus_set()
+            _scroll_tab_to_top("Schedules")
+
+    notebook.bind("<<NotebookTabChanged>>", _handle_tab_changed, add="+")
 
     general_tab = _make_tab("General")
     storage_tab = _make_tab("Storage")
@@ -404,8 +489,8 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
 
     general_grid = tk.Frame(general_tab, bg=WINDOW_BG)
     general_grid.grid(row=0, column=0, sticky="ew")
-    general_grid.columnconfigure(0, weight=7)
-    general_grid.columnconfigure(1, weight=5)
+    general_grid.columnconfigure(0, weight=1)
+    general_grid.columnconfigure(1, weight=1)
 
     general_status_card = create_card(
         general_grid,
@@ -414,20 +499,25 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         badge_text=header_text,
         tone=header_tone,
     )
-    general_status_card.frame.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
-    bind_dynamic_wrap(general_status_card.frame, root, general_status_card.summary_label, padding=48)
+    if use_stacked_compact_layout:
+        general_status_card.frame.grid(row=0, column=0, sticky="ew")
+    else:
+        general_status_card.frame.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+    bind_dynamic_wrap(general_status_card.frame, root, general_status_card.summary_label, padding=32)
+    general_status_card.body.columnconfigure(0, weight=1)
+    general_status_card.body.columnconfigure(1, weight=0)
 
     general_details_label = _helper_label(general_status_card.body, general_details_var.get())
     general_details_label.configure(textvariable=general_details_var)
     general_details_label.grid(row=0, column=0, columnspan=2, sticky="ew")
-    bind_dynamic_wrap(general_status_card.body, root, general_details_label, padding=42, minimum=280)
+    bind_dynamic_wrap(general_status_card.body, root, general_details_label, padding=26, minimum=180)
 
     general_toggle = ttk.Checkbutton(
         general_status_card.body,
         text="Scheduled captures enabled",
         variable=app_enabled_var,
     )
-    general_toggle.grid(row=1, column=0, sticky="w", pady=(12, 0))
+    general_toggle.grid(row=1, column=0, sticky="w", pady=(8, 0))
     if not config.first_run_completed:
         general_toggle.state(["disabled"])
 
@@ -436,12 +526,12 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         text="Capture Now",
         command=_capture_now_from_settings,
         style="Wide.TButton",
-    ).grid(row=1, column=1, sticky="e", pady=(12, 0))
+    ).grid(row=1, column=1, sticky="e", pady=(8, 0))
 
     feedback_label = _helper_label(general_status_card.body, "")
     feedback_label.configure(textvariable=capture_feedback_var)
-    feedback_label.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
-    bind_dynamic_wrap(general_status_card.body, root, feedback_label, padding=42, minimum=220)
+    feedback_label.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(4, 0))
+    bind_dynamic_wrap(general_status_card.body, root, feedback_label, padding=26, minimum=160)
 
     experience_card = create_card(
         general_grid,
@@ -457,39 +547,67 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         badge_text="General",
         tone="info",
     )
-    experience_card.frame.grid(row=0, column=1, sticky="nsew")
-    bind_dynamic_wrap(experience_card.frame, root, experience_card.summary_label, padding=48)
-
-    ttk.Checkbutton(
-        experience_card.body,
-        text="Start tray on login",
-        variable=start_tray_on_login_var,
-    ).grid(row=0, column=0, sticky="w")
-    ttk.Checkbutton(
-        experience_card.body,
-        text="Wake for scheduled captures when supported",
-        variable=wake_for_scheduled_captures_var,
-    ).grid(row=1, column=0, sticky="w", pady=(4, 0))
-    ttk.Checkbutton(
-        experience_card.body,
-        text="Show latest capture status in tray menu",
-        variable=show_last_capture_status_var,
-    ).grid(row=2, column=0, sticky="w", pady=(4, 0))
-    ttk.Checkbutton(
-        experience_card.body,
-        text="Notify on failed or missed captures",
-        variable=notify_on_failed_or_missed_var,
-    ).grid(row=3, column=0, sticky="w", pady=(4, 0))
-    ttk.Checkbutton(
-        experience_card.body,
-        text="Notify on every scheduled and manual capture",
-        variable=notify_on_every_capture_var,
-    ).grid(row=4, column=0, sticky="w", pady=(4, 0))
-    ttk.Checkbutton(
-        experience_card.body,
-        text="Show brief on-screen overlay after capture",
-        variable=show_capture_overlay_var,
-    ).grid(row=5, column=0, sticky="w", pady=(4, 0))
+    if use_stacked_compact_layout:
+        experience_card.frame.grid(row=1, column=0, sticky="ew", pady=(4, 0))
+    else:
+        experience_card.frame.grid(row=0, column=1, sticky="ew")
+    bind_dynamic_wrap(experience_card.frame, root, experience_card.summary_label, padding=32)
+    experience_options = [
+        ("Start tray on login", start_tray_on_login_var),
+        ("Wake for scheduled captures when supported", wake_for_scheduled_captures_var),
+        ("Show latest capture status in tray menu", show_last_capture_status_var),
+        ("Notify on failed or missed captures", notify_on_failed_or_missed_var),
+        ("Notify on every scheduled and manual capture", notify_on_every_capture_var),
+        ("Show brief on-screen overlay after capture", show_capture_overlay_var),
+    ]
+    if use_stacked_compact_layout:
+        experience_card.body.columnconfigure(0, weight=1)
+        experience_card.body.columnconfigure(1, weight=1)
+        for index, (label_text, variable) in enumerate(experience_options):
+            row_index = index // 2
+            column_index = index % 2
+            ttk.Checkbutton(
+                experience_card.body,
+                text=label_text,
+                variable=variable,
+            ).grid(
+                row=row_index,
+                column=column_index,
+                sticky="w",
+                padx=(0, 6) if column_index == 0 else (0, 0),
+                pady=(0, 4) if row_index == 0 else (4, 0),
+            )
+    else:
+        ttk.Checkbutton(
+            experience_card.body,
+            text="Start tray on login",
+            variable=start_tray_on_login_var,
+        ).grid(row=0, column=0, sticky="w")
+        ttk.Checkbutton(
+            experience_card.body,
+            text="Wake for scheduled captures when supported",
+            variable=wake_for_scheduled_captures_var,
+        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
+        ttk.Checkbutton(
+            experience_card.body,
+            text="Show latest capture status in tray menu",
+            variable=show_last_capture_status_var,
+        ).grid(row=2, column=0, sticky="w", pady=(4, 0))
+        ttk.Checkbutton(
+            experience_card.body,
+            text="Notify on failed or missed captures",
+            variable=notify_on_failed_or_missed_var,
+        ).grid(row=3, column=0, sticky="w", pady=(4, 0))
+        ttk.Checkbutton(
+            experience_card.body,
+            text="Notify on every scheduled and manual capture",
+            variable=notify_on_every_capture_var,
+        ).grid(row=4, column=0, sticky="w", pady=(4, 0))
+        ttk.Checkbutton(
+            experience_card.body,
+            text="Show brief on-screen overlay after capture",
+            variable=show_capture_overlay_var,
+        ).grid(row=5, column=0, sticky="w", pady=(4, 0))
 
     storage_overview_card = create_card(
         general_tab,
@@ -507,14 +625,14 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         badge_text="Storage",
         tone="accent",
     )
-    storage_overview_card.frame.grid(row=1, column=0, sticky="ew", pady=(12, 0))
-    bind_dynamic_wrap(storage_overview_card.frame, root, storage_overview_card.summary_label, padding=48)
+    storage_overview_card.frame.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+    bind_dynamic_wrap(storage_overview_card.frame, root, storage_overview_card.summary_label, padding=32)
     overview_helper = _helper_label(
         storage_overview_card.body,
         "Use the Storage tab to change destinations, retention, capture format, and purge policy.",
     )
     overview_helper.grid(row=0, column=0, sticky="ew")
-    bind_dynamic_wrap(storage_overview_card.body, root, overview_helper, padding=42, minimum=280)
+    bind_dynamic_wrap(storage_overview_card.body, root, overview_helper, padding=26, minimum=180)
 
     storage_grid = tk.Frame(storage_tab, bg=WINDOW_BG)
     storage_grid.grid(row=0, column=0, sticky="ew")
@@ -528,8 +646,11 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         badge_text="Locations",
         tone="accent",
     )
-    destinations_card.frame.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
-    bind_dynamic_wrap(destinations_card.frame, root, destinations_card.summary_label, padding=48)
+    if use_stacked_compact_layout:
+        destinations_card.frame.grid(row=0, column=0, sticky="ew")
+    else:
+        destinations_card.frame.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+    bind_dynamic_wrap(destinations_card.frame, root, destinations_card.summary_label, padding=32)
     destinations_card.body.columnconfigure(0, weight=1)
 
     _field_label(destinations_card.body, "Storage preset").grid(row=0, column=0, sticky="ew")
@@ -538,23 +659,23 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         textvariable=preset_var,
         state="readonly",
         values=storage_preset_labels(),
-        width=24,
+        width=22,
     )
-    preset_combo.grid(row=1, column=0, sticky="ew", pady=(4, 12))
+    preset_combo.grid(row=1, column=0, sticky="ew", pady=(4, 6))
 
     _field_label(destinations_card.body, "Capture storage root").grid(row=2, column=0, sticky="ew")
     capture_row = tk.Frame(destinations_card.body, bg=CARD_BG)
-    capture_row.grid(row=3, column=0, sticky="ew", pady=(4, 12))
+    capture_row.grid(row=3, column=0, sticky="ew", pady=(4, 6))
     capture_row.columnconfigure(0, weight=1)
     capture_entry = ttk.Entry(capture_row, textvariable=capture_root_var)
     capture_entry.grid(row=0, column=0, sticky="ew")
     capture_browse = ttk.Button(
         capture_row,
         text="Browse",
-        command=lambda: _browse_directory(root, capture_root_var),
+        command=lambda: _browse_directory(root, capture_root_var, paths),
         style="Small.TButton",
     )
-    capture_browse.grid(row=0, column=1, sticky="e", padx=(8, 0))
+    capture_browse.grid(row=0, column=1, sticky="e", padx=(6, 0))
 
     _field_label(destinations_card.body, "Archive storage root").grid(row=4, column=0, sticky="ew")
     archive_row = tk.Frame(destinations_card.body, bg=CARD_BG)
@@ -565,10 +686,10 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     archive_browse = ttk.Button(
         archive_row,
         text="Browse",
-        command=lambda: _browse_directory(root, archive_root_var),
+        command=lambda: _browse_directory(root, archive_root_var, paths),
         style="Small.TButton",
     )
-    archive_browse.grid(row=0, column=1, sticky="e", padx=(8, 0))
+    archive_browse.grid(row=0, column=1, sticky="e", padx=(6, 0))
 
     capture_settings_card = create_card(
         storage_grid,
@@ -577,8 +698,11 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         badge_text="Output",
         tone="info",
     )
-    capture_settings_card.frame.grid(row=0, column=1, sticky="nsew")
-    bind_dynamic_wrap(capture_settings_card.frame, root, capture_settings_card.summary_label, padding=48)
+    if use_stacked_compact_layout:
+        capture_settings_card.frame.grid(row=1, column=0, sticky="ew", pady=(4, 0))
+    else:
+        capture_settings_card.frame.grid(row=0, column=1, sticky="ew")
+    bind_dynamic_wrap(capture_settings_card.frame, root, capture_settings_card.summary_label, padding=32)
 
     settings_row = tk.Frame(capture_settings_card.body, bg=CARD_BG)
     settings_row.grid(row=0, column=0, sticky="ew")
@@ -590,20 +714,21 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         row=0,
         column=1,
         sticky="ew",
-        padx=(10, 0),
+        padx=(6, 0),
     )
     ttk.Combobox(
         settings_row,
         textvariable=retention_mode_var,
         values=retention_mode_labels(),
         state="readonly",
-    ).grid(row=1, column=0, sticky="ew", pady=(4, 12))
+    ).grid(row=1, column=0, sticky="ew", pady=(4, 6))
+
     ttk.Entry(settings_row, textvariable=retention_days_var, width=10).grid(
         row=1,
         column=1,
         sticky="ew",
-        padx=(10, 0),
-        pady=(4, 12),
+        padx=(6, 0),
+        pady=(4, 6),
     )
 
     _field_label(settings_row, "Capture mode").grid(row=2, column=0, sticky="ew")
@@ -611,27 +736,27 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         row=2,
         column=1,
         sticky="ew",
-        padx=(10, 0),
+        padx=(6, 0),
     )
     ttk.Combobox(
         settings_row,
         textvariable=capture_mode_var,
         values=capture_mode_labels(),
         state="readonly",
-    ).grid(row=3, column=0, sticky="ew", pady=(4, 12))
+    ).grid(row=3, column=0, sticky="ew", pady=(4, 6))
     ttk.Combobox(
         settings_row,
         textvariable=image_format_var,
         values=image_format_labels(),
         state="readonly",
-    ).grid(row=3, column=1, sticky="ew", padx=(10, 0), pady=(4, 12))
+    ).grid(row=3, column=1, sticky="ew", padx=(6, 0), pady=(4, 6))
 
     quality_row = tk.Frame(capture_settings_card.body, bg=CARD_BG)
     quality_row.grid(row=1, column=0, sticky="ew")
     quality_row.columnconfigure(0, weight=1)
     quality_row.columnconfigure(1, weight=1)
     _field_label(quality_row, "Quality (JPEG/WebP)").grid(row=0, column=0, sticky="ew")
-    _field_label(quality_row, "Grace days").grid(row=0, column=1, sticky="ew", padx=(10, 0))
+    _field_label(quality_row, "Grace days").grid(row=0, column=1, sticky="ew", padx=(6, 0))
     ttk.Entry(quality_row, textvariable=image_quality_var, width=10).grid(
         row=1,
         column=0,
@@ -642,7 +767,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         row=1,
         column=1,
         sticky="ew",
-        padx=(10, 0),
+        padx=(6, 0),
         pady=(4, 0),
     )
 
@@ -650,7 +775,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         capture_settings_card.body,
         text="Permanently delete after grace period",
         variable=purge_enabled_var,
-    ).grid(row=2, column=0, sticky="w", pady=(12, 0))
+    ).grid(row=2, column=0, sticky="w", pady=(8, 0))
 
     schedules_card = create_card(
         schedules_tab,
@@ -660,7 +785,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         tone="accent",
     )
     schedules_card.frame.grid(row=0, column=0, sticky="ew")
-    bind_dynamic_wrap(schedules_card.frame, root, schedules_card.summary_label, padding=48)
+    bind_dynamic_wrap(schedules_card.frame, root, schedules_card.summary_label, padding=32)
     schedules_card.body.columnconfigure(0, weight=1)
 
     schedule_help_label = tk.Label(
@@ -668,27 +793,31 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         text=schedule_help_text(),
         bg=CARD_BG,
         fg=TEXT_MUTED,
-        font=("Segoe UI", 10),
+        font=("Segoe UI", 9),
         justify="left",
         anchor="w",
     )
     schedule_help_label.grid(row=0, column=0, sticky="ew")
-    bind_dynamic_wrap(schedules_card.body, root, schedule_help_label, padding=42, minimum=300)
+    bind_dynamic_wrap(schedules_card.body, root, schedule_help_label, padding=28, minimum=200)
 
     schedules_body = tk.Frame(schedules_card.body, bg=CARD_BG)
-    schedules_body.grid(row=1, column=0, sticky="ew", pady=(14, 0))
+    schedules_body.grid(row=1, column=0, sticky="ew", pady=(6, 0))
     schedules_body.columnconfigure(0, weight=1)
-    schedules_body.columnconfigure(1, weight=1)
+    schedules_body.columnconfigure(1, weight=0, minsize=0)
+    schedules_body.rowconfigure(0, weight=1)
+    schedules_body.rowconfigure(1, weight=0)
+
+    schedule_layout_state = {"stacked": use_stacked_schedule_layout(window_width)}
 
     list_panel = create_inset_panel(
         schedules_body,
         title="Configured captures",
         summary="Click Status to pause or resume a schedule directly from the list.",
     )
-    list_panel.frame.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+    list_panel.frame.grid(row=0, column=0, sticky="ew")
     list_panel.body.columnconfigure(0, weight=1)
     list_panel.body.rowconfigure(0, weight=1)
-    bind_dynamic_wrap(list_panel.frame, root, list_panel.summary_label, padding=36, minimum=220)
+    bind_dynamic_wrap(list_panel.frame, root, list_panel.summary_label, padding=22, minimum=150)
 
     editor_panel = create_inset_panel(
         schedules_body,
@@ -696,39 +825,96 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         summary=editor_selection_summary(0),
         tone="accent",
     )
-    editor_panel.frame.grid(row=0, column=1, sticky="nsew")
+    editor_panel.frame.grid(row=1, column=0, sticky="ew", pady=(4, 0))
     editor_panel.body.columnconfigure(0, weight=1)
     editor_panel.body.columnconfigure(1, weight=1)
-    bind_dynamic_wrap(editor_panel.frame, root, editor_panel.summary_label, padding=36, minimum=220)
+    bind_dynamic_wrap(editor_panel.frame, root, editor_panel.summary_label, padding=22, minimum=150)
 
     history_panel = create_inset_panel(
         schedules_card.body,
         title="Recent runs",
         summary="Refreshes automatically every 5 seconds for the selected schedule.",
     )
-    history_panel.frame.grid(row=2, column=0, sticky="ew", pady=(12, 0))
+    history_panel.frame.grid(row=2, column=0, sticky="ew", pady=(4, 0))
     history_panel.body.columnconfigure(0, weight=1)
-    bind_dynamic_wrap(history_panel.frame, root, history_panel.summary_label, padding=36, minimum=240)
+    bind_dynamic_wrap(history_panel.frame, root, history_panel.summary_label, padding=22, minimum=150)
 
     schedule_tree = ttk.Treeview(
         list_panel.body,
         columns=("label", "recurrence", "start", "enabled"),
         show="headings",
         selectmode="extended",
-        height=10,
+        height=4,
     )
     schedule_tree.heading("label", text="Label")
     schedule_tree.heading("recurrence", text="Recurrence")
     schedule_tree.heading("start", text="Start")
     schedule_tree.heading("enabled", text="Status")
-    schedule_tree.column("label", width=180, anchor="w", stretch=True)
-    schedule_tree.column("recurrence", width=230, anchor="w", stretch=True)
-    schedule_tree.column("start", width=180, anchor="w", stretch=True)
-    schedule_tree.column("enabled", width=96, anchor="center", stretch=False)
+    for column_name, minimum_width, _weight, anchor in SCHEDULE_TREE_COLUMN_SPECS:
+        schedule_tree.column(
+            column_name,
+            width=minimum_width,
+            minwidth=minimum_width,
+            anchor=anchor,
+            stretch=False,
+        )
     schedule_tree.grid(row=0, column=0, sticky="nsew")
     tree_scrollbar = ttk.Scrollbar(list_panel.body, orient="vertical", command=schedule_tree.yview)
     tree_scrollbar.grid(row=0, column=1, sticky="ns")
-    schedule_tree.configure(yscrollcommand=tree_scrollbar.set)
+    tree_scrollbar_x = ttk.Scrollbar(list_panel.body, orient="horizontal", command=schedule_tree.xview)
+    tree_scrollbar_x.grid(row=1, column=0, sticky="ew", pady=(4, 0))
+    schedule_tree.configure(yscrollcommand=tree_scrollbar.set, xscrollcommand=tree_scrollbar_x.set)
+
+    def _resize_schedule_tree_columns(event: tk.Event | None = None) -> None:
+        available_width = schedule_tree.winfo_width() if event is None else int(event.width)
+        if available_width <= 1:
+            return
+        column_widths = resolve_schedule_tree_column_widths(available_width)
+        for column_name, minimum_width, _weight, anchor in SCHEDULE_TREE_COLUMN_SPECS:
+            schedule_tree.column(
+                column_name,
+                width=column_widths[column_name],
+                minwidth=minimum_width,
+                anchor=anchor,
+                stretch=False,
+            )
+
+    schedule_layout_job: str | None = None
+
+    def _apply_schedule_panel_layout(event: tk.Event | None = None, *, force: bool = False) -> None:
+        nonlocal schedule_layout_job
+        schedule_layout_job = None
+        current_width = root.winfo_width() if event is None else int(getattr(event, "width", root.winfo_width()))
+        stacked = use_stacked_schedule_layout(current_width)
+        if not force and schedule_layout_state["stacked"] == stacked:
+            return
+        schedule_layout_state["stacked"] = stacked
+
+        if stacked:
+            schedules_body.columnconfigure(0, weight=1)
+            schedules_body.columnconfigure(1, weight=0, minsize=0)
+            list_panel.frame.grid_configure(row=0, column=0, sticky="ew", padx=(0, 0), pady=(0, 0))
+            editor_panel.frame.grid_configure(row=1, column=0, sticky="ew", padx=(0, 0), pady=(4, 0))
+            schedule_tree.configure(height=4)
+        else:
+            schedules_body.columnconfigure(0, weight=3)
+            schedules_body.columnconfigure(1, weight=2, minsize=0)
+            list_panel.frame.grid_configure(row=0, column=0, sticky="nsew", padx=(0, 4), pady=(0, 0))
+            editor_panel.frame.grid_configure(row=0, column=1, sticky="nsew", padx=(0, 0), pady=(0, 0))
+            schedule_tree.configure(height=5)
+
+        root.after_idle(_resize_schedule_tree_columns)
+
+    def _queue_schedule_panel_layout(event: tk.Event | None = None) -> None:
+        nonlocal schedule_layout_job
+        if event is not None and event.widget is not root:
+            return
+        if schedule_layout_job is not None:
+            try:
+                root.after_cancel(schedule_layout_job)
+            except tk.TclError:
+                pass
+        schedule_layout_job = root.after(75, _apply_schedule_panel_layout)
 
     label_var = tk.StringVar(master=root, value=default_draft().label)
     every_var = tk.StringVar(master=root, value="1")
@@ -925,36 +1111,36 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
 
     _field_label(editor_panel.body, "Label").grid(row=0, column=0, sticky="ew")
     label_entry = ttk.Entry(editor_panel.body, textvariable=label_var)
-    label_entry.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(4, 10))
+    label_entry.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(4, 6))
 
     _field_label(editor_panel.body, "Every N").grid(row=2, column=0, sticky="ew")
-    _field_label(editor_panel.body, "Unit").grid(row=2, column=1, sticky="ew", padx=(10, 0))
+    _field_label(editor_panel.body, "Unit").grid(row=2, column=1, sticky="ew", padx=(4, 0))
     every_spinbox = tk.Spinbox(
         editor_panel.body,
         from_=1,
         to=999999,
         textvariable=every_var,
-        width=12,
+        width=9,
         relief="solid",
         highlightthickness=1,
         highlightbackground=BORDER_COLOR,
         highlightcolor=ACCENT_COLOR,
     )
-    every_spinbox.grid(row=3, column=0, sticky="w", pady=(4, 10))
+    every_spinbox.grid(row=3, column=0, sticky="w", pady=(4, 6))
     unit_combo = ttk.Combobox(
         editor_panel.body,
         textvariable=unit_var,
         values=unit_labels(),
         state="readonly",
     )
-    unit_combo.grid(row=3, column=1, sticky="ew", padx=(10, 0), pady=(4, 10))
+    unit_combo.grid(row=3, column=1, sticky="ew", padx=(4, 0), pady=(4, 6))
 
     _field_label(editor_panel.body, "Start date").grid(row=4, column=0, sticky="ew")
-    _field_label(editor_panel.body, "Start time").grid(row=4, column=1, sticky="ew", padx=(10, 0))
+    _field_label(editor_panel.body, "Start time").grid(row=4, column=1, sticky="ew", padx=(4, 0))
     start_date_entry = ttk.Entry(editor_panel.body, textvariable=start_date_var)
-    start_date_entry.grid(row=5, column=0, sticky="ew", pady=(4, 10))
+    start_date_entry.grid(row=5, column=0, sticky="ew", pady=(4, 6))
     start_time_entry = ttk.Entry(editor_panel.body, textvariable=start_time_var)
-    start_time_entry.grid(row=5, column=1, sticky="ew", padx=(10, 0), pady=(4, 10))
+    start_time_entry.grid(row=5, column=1, sticky="ew", padx=(4, 0), pady=(4, 6))
 
     form_buttons = tk.Frame(editor_panel.body, bg=str(editor_panel.body.cget("bg")))
     form_buttons.grid(row=6, column=0, columnspan=2, sticky="ew")
@@ -974,12 +1160,12 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         style="Small.TButton",
     )
     cancel_schedule_button.pack(side="right")
-    save_schedule_button.pack(side="right", padx=(0, 8))
-    add_button.pack(side="right", padx=(0, 8))
+    save_schedule_button.pack(side="right", padx=(0, 4))
+    add_button.pack(side="right", padx=(0, 4))
 
     history_list = tk.Listbox(
         history_panel.body,
-        height=6,
+        height=2 if use_stacked_compact_layout else 3,
         state="disabled",
         selectmode="browse",
         relief="flat",
@@ -996,7 +1182,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     )
 
     list_btn_bar = tk.Frame(list_panel.body, bg=str(list_panel.body.cget("bg")))
-    list_btn_bar.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+    list_btn_bar.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(4, 0))
     list_delete_btn = ttk.Button(
         list_btn_bar,
         text="Delete Selected",
@@ -1024,7 +1210,11 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     schedule_tree.bind("<Button-1>", _on_enabled_click, add="+")
     schedule_tree.bind("<Motion>", _on_treeview_motion)
     schedule_tree.bind("<<TreeviewSelect>>", _update_selection_from_tree)
+    schedule_tree.bind("<Configure>", _resize_schedule_tree_columns, add="+")
+    root.bind("<Configure>", _queue_schedule_panel_layout, add="+")
+    _apply_schedule_panel_layout(force=True)
     _refresh_tree([])
+    root.after_idle(_resize_schedule_tree_columns)
     _load_draft_to_form(_new_default_draft())
     _set_editor_state(selection_state(0))
     editor_panel.summary_label.configure(text=editor_selection_summary(0))
@@ -1053,14 +1243,14 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         card.frame.grid(
             row=row_index,
             column=column_index,
-            sticky="nsew",
-            padx=(0, 8) if column_index == 0 else (0, 0),
-            pady=(0, 8),
+            sticky="ew",
+            padx=(0, 4) if column_index == 0 else (0, 0),
+            pady=(0, 4),
         )
-        bind_dynamic_wrap(card.frame, root, card.summary_label, padding=48, minimum=220)
+        bind_dynamic_wrap(card.frame, root, card.summary_label, padding=32, minimum=150)
         detail_label = _helper_label(card.body, "")
         detail_label.grid(row=0, column=0, sticky="ew")
-        bind_dynamic_wrap(card.body, root, detail_label, padding=42, minimum=220)
+        bind_dynamic_wrap(card.body, root, detail_label, padding=26, minimum=150)
         diagnostic_cards[key] = (card, detail_label)
 
     _make_diagnostic_card("scheduler", "Scheduler Sync", 0, 0)
@@ -1078,7 +1268,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         tone="danger",
     )
     maintenance_card.frame.grid(row=0, column=0, sticky="ew")
-    bind_dynamic_wrap(maintenance_card.frame, root, maintenance_card.summary_label, padding=48)
+    bind_dynamic_wrap(maintenance_card.frame, root, maintenance_card.summary_label, padding=32)
     maintenance_card.body.columnconfigure(0, weight=1)
 
     maintenance_message = _helper_label(
@@ -1090,18 +1280,18 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         foreground=DANGER_FG,
     )
     maintenance_message.grid(row=0, column=0, sticky="ew")
-    bind_dynamic_wrap(maintenance_card.body, root, maintenance_message, padding=42, minimum=280)
+    bind_dynamic_wrap(maintenance_card.body, root, maintenance_message, padding=26, minimum=180)
 
     tray_actions_note = _helper_label(
         maintenance_card.body,
         "Reinstall, update checks, restart, and uninstall remain available from the tray menu.",
     )
-    tray_actions_note.grid(row=1, column=0, sticky="ew", pady=(10, 0))
-    bind_dynamic_wrap(maintenance_card.body, root, tray_actions_note, padding=42, minimum=280)
+    tray_actions_note.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+    bind_dynamic_wrap(maintenance_card.body, root, tray_actions_note, padding=26, minimum=180)
 
     result = SettingsDialogResult(
         updated_config=None,
-        window_size=(config.settings_window_width, config.settings_window_height),
+        window_size=(window_width, window_height),
     )
 
     def _request_reset() -> None:
@@ -1127,7 +1317,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         text="Reset Capture History",
         command=_request_reset,
         style="Wide.TButton",
-    ).grid(row=2, column=0, sticky="w", pady=(12, 0))
+    ).grid(row=2, column=0, sticky="w", pady=(6, 0))
 
     def _set_diagnostic_card(key: str, summary: DiagnosticSummary) -> None:
         card, detail_label = diagnostic_cards[key]
@@ -1189,7 +1379,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
                 )
             _set_diagnostic_card(key, summary)
 
-    action_row = tk.Frame(root, bg=WINDOW_BG, padx=18, pady=14)
+    action_row = tk.Frame(root, bg=WINDOW_BG, padx=10, pady=8)
     action_row.grid(row=1, column=0, sticky="ew")
 
     def _apply_settings() -> None:
@@ -1214,8 +1404,8 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
                 if config.first_run_completed
                 else config.app_enabled,
                 storage_preset=storage_preset_value(preset_var.get().strip()),
-                capture_storage_root=capture_root_var.get().strip(),
-                archive_storage_root=archive_root_var.get().strip(),
+                capture_storage_root=storage_path_from_display(paths, capture_root_var.get()),
+                archive_storage_root=storage_path_from_display(paths, archive_root_var.get()),
                 retention_mode=retention_mode,
                 retention_days=retention_days,
                 purge_enabled=purge_enabled_var.get(),
@@ -1301,10 +1491,11 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     return result
 
 
-def _browse_directory(parent: tk.Tk, target: tk.StringVar) -> None:
-    chosen = filedialog.askdirectory(parent=parent, initialdir=target.get() or None)
+def _browse_directory(parent: tk.Tk, target: tk.StringVar, paths: AppPaths) -> None:
+    initial_dir = storage_path_from_display(paths, target.get()) or None
+    chosen = filedialog.askdirectory(parent=parent, initialdir=initial_dir)
     if chosen:
-        target.set(chosen)
+        target.set(storage_path_for_display(paths, chosen))
 
 
 def _latest_capture_summary(record: CaptureRecord | None) -> str:

@@ -4,7 +4,15 @@ import pytest
 
 from selfsnap.config_store import load_config, save_config
 from selfsnap.models import AppConfig, ConfigValidationError, StoragePreset
-from selfsnap.storage import apply_storage_preset, infer_storage_preset, preset_roots
+from selfsnap.storage import (
+    ONEDRIVE_DISPLAY_TOKEN,
+    USERPROFILE_DISPLAY_TOKEN,
+    apply_storage_preset,
+    infer_storage_preset,
+    preset_roots,
+    storage_path_for_display,
+    storage_path_from_display,
+)
 
 
 def test_save_config_normalizes_local_storage_preset(temp_paths) -> None:
@@ -73,6 +81,40 @@ def test_infer_storage_preset_detects_local_pictures(temp_paths) -> None:
     arc = str(temp_paths.default_archive_root)
     result = infer_storage_preset(temp_paths, cap, arc)
     assert result == StoragePreset.LOCAL_PICTURES.value
+
+
+def test_storage_path_for_display_replaces_userprofile_prefix(temp_paths) -> None:
+    display = storage_path_for_display(temp_paths, str(temp_paths.default_capture_root))
+
+    assert display == f"{USERPROFILE_DISPLAY_TOKEN}\\Pictures\\SelfSnap\\captures"
+
+
+def test_storage_path_for_display_prefers_onedrive_prefix(temp_paths, monkeypatch) -> None:
+    onedrive_root = temp_paths.user_profile / "OneDrive"
+    onedrive_root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("OneDrive", str(onedrive_root))
+
+    display = storage_path_for_display(temp_paths, str(temp_paths.onedrive_capture_root()))
+
+    assert display == f"{ONEDRIVE_DISPLAY_TOKEN}\\Pictures\\SelfSnap\\captures"
+
+
+def test_storage_path_from_display_round_trips_userprofile_prefix(temp_paths) -> None:
+    resolved = storage_path_from_display(
+        temp_paths,
+        f"{USERPROFILE_DISPLAY_TOKEN}\\Pictures\\SelfSnap\\captures",
+    )
+
+    assert resolved == str(temp_paths.default_capture_root)
+
+
+def test_storage_path_from_display_accepts_percent_userprofile_syntax(temp_paths) -> None:
+    resolved = storage_path_from_display(
+        temp_paths,
+        "%USERPROFILE%\\Pictures\\SelfSnap\\archive",
+    )
+
+    assert resolved == str(temp_paths.default_archive_root)
 
 
 def test_save_config_blocks_unwritable_onedrive_root2(temp_paths, monkeypatch) -> None:
