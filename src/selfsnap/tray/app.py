@@ -11,9 +11,8 @@ from tkinter import messagebox
 from selfsnap.config_store import load_or_create_config, save_config
 from selfsnap.db import connect, ensure_database
 from selfsnap.lifecycle_actions import (
-    launch_and_confirm,
     resolve_reinstall_invocation,
-    resolve_restart_invocation,
+    schedule_tray_relaunch_after_exit,
     resolve_uninstall_invocation,
     run_lifecycle_script_and_check,
 )
@@ -291,7 +290,7 @@ def _open_report_issue(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
 
 
 def _restart_selfsnap(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
-    launched = launch_and_confirm(resolve_restart_invocation(paths))
+    launched = schedule_tray_relaunch_after_exit(paths, wait_for_process_id=os.getpid())
     if not launched:
         _show_error_dialog(
             "Restart SelfSnap",
@@ -311,12 +310,18 @@ def _reinstall_selfsnap(paths: AppPaths, icon, state: TrayRuntimeState, update_s
         return
 
     succeeded = run_lifecycle_script_and_check(
-        resolve_reinstall_invocation(paths, update_source=update_source, relaunch_tray=True)
+        resolve_reinstall_invocation(paths, update_source=update_source, relaunch_tray=False)
     )
     if not succeeded:
         _show_error_dialog(
             title,
             "SelfSnap reinstall failed. Check the reinstall.ps1 script output for details.",
+        )
+        return
+    if not schedule_tray_relaunch_after_exit(paths, wait_for_process_id=os.getpid()):
+        _show_error_dialog(
+            title,
+            "SelfSnap reinstalled successfully, but the replacement tray could not be scheduled.",
         )
         return
     _exit(icon, state.stop_event)
@@ -357,7 +362,7 @@ def _check_for_updates(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
 
     succeeded = run_lifecycle_script_and_check(
         resolve_reinstall_invocation(
-            paths, update_source=True, target_tag=latest_tag, relaunch_tray=True
+            paths, update_source=True, target_tag=latest_tag, relaunch_tray=False
         )
     )
     if not succeeded:
@@ -365,6 +370,12 @@ def _check_for_updates(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
             title,
             f"Update to {latest_tag} failed.\n\n"
             "Check that you have network access and the release tag exists on GitHub.",
+        )
+        return
+    if not schedule_tray_relaunch_after_exit(paths, wait_for_process_id=os.getpid()):
+        _show_error_dialog(
+            title,
+            "Update installed, but the replacement tray could not be scheduled.",
         )
         return
     _exit(icon, state.stop_event)

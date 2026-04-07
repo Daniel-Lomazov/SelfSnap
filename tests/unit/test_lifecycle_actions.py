@@ -5,6 +5,8 @@ from pathlib import Path
 from selfsnap.lifecycle_actions import (
     resolve_reinstall_invocation,
     resolve_restart_invocation,
+    resolve_tray_relaunch_after_exit_invocation,
+    schedule_tray_relaunch_after_exit,
     resolve_uninstall_invocation,
 )
 
@@ -67,3 +69,45 @@ def test_resolve_uninstall_invocation_targets_uninstall_script(temp_paths, monke
     assert Path(spec.arguments[file_idx + 1]).name == "uninstall.ps1"
     assert "-RemoveUserData" in spec.arguments
     assert r"C:\Python312\python.exe" in spec.arguments
+
+
+def test_resolve_tray_relaunch_after_exit_invocation_waits_then_launches(temp_paths, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "selfsnap.lifecycle_actions.resolve_tray_background_invocation",
+        lambda _paths: type(
+            "Spec",
+            (),
+            {
+                "executable": r"C:\Python312\pythonw.exe",
+                "arguments": ["-m", "selfsnap", "tray"],
+                "working_directory": str(temp_paths.root),
+            },
+        )(),
+    )
+
+    spec = resolve_tray_relaunch_after_exit_invocation(temp_paths, wait_for_process_id=4242)
+
+    assert spec.executable.lower() == "powershell.exe"
+    assert "-Command" in spec.arguments
+    command = spec.arguments[spec.arguments.index("-Command") + 1]
+    assert "Wait-Process -Id 4242" in command
+    assert "Start-Process -FilePath 'C:\\Python312\\pythonw.exe'" in command
+    assert "-ArgumentList @('-m', 'selfsnap', 'tray')" in command
+
+
+def test_schedule_tray_relaunch_after_exit_returns_false_if_helper_exits(temp_paths, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "selfsnap.lifecycle_actions.resolve_tray_relaunch_after_exit_invocation",
+        lambda _paths, wait_for_process_id: object(),
+    )
+
+    class ExitedProcess:
+        def poll(self):
+            return 1
+
+    monkeypatch.setattr(
+        "selfsnap.lifecycle_actions.launch_hidden_background",
+        lambda _spec: ExitedProcess(),
+    )
+
+    assert schedule_tray_relaunch_after_exit(temp_paths, wait_for_process_id=4242) is False

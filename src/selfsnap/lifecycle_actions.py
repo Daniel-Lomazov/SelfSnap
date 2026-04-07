@@ -6,6 +6,7 @@ from selfsnap.paths import AppPaths
 from selfsnap.runtime_launch import (
     LaunchSpec,
     launch_background,
+    launch_hidden_background,
     resolve_background_python_executable,
     resolve_foreground_python_executable,
     resolve_source_repo_root,
@@ -82,6 +83,60 @@ def resolve_uninstall_invocation(paths: AppPaths, *, remove_user_data: bool) -> 
         arguments=arguments,
         working_directory=str(repo_root),
     )
+
+
+def _powershell_quote(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
+def _powershell_argument_list(arguments: list[str]) -> str:
+    if not arguments:
+        return "@()"
+    quoted = ", ".join(_powershell_quote(argument) for argument in arguments)
+    return f"@({quoted})"
+
+
+def resolve_tray_relaunch_after_exit_invocation(
+    paths: AppPaths,
+    *,
+    wait_for_process_id: int,
+) -> LaunchSpec:
+    tray_spec = resolve_tray_background_invocation(paths)
+    command = (
+        "$ErrorActionPreference = 'Stop'; "
+        f"Wait-Process -Id {wait_for_process_id} -ErrorAction SilentlyContinue; "
+        f"Start-Process -FilePath {_powershell_quote(tray_spec.executable)} "
+        f"-ArgumentList {_powershell_argument_list(tray_spec.arguments)} "
+        f"-WorkingDirectory {_powershell_quote(tray_spec.working_directory)} "
+        "-WindowStyle Hidden"
+    )
+    return LaunchSpec(
+        executable="powershell.exe",
+        arguments=[
+            "-WindowStyle",
+            "Hidden",
+            "-NonInteractive",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            command,
+        ],
+        working_directory=tray_spec.working_directory,
+    )
+
+
+def schedule_tray_relaunch_after_exit(paths: AppPaths, *, wait_for_process_id: int) -> bool:
+    process = launch_hidden_background(
+        resolve_tray_relaunch_after_exit_invocation(
+            paths,
+            wait_for_process_id=wait_for_process_id,
+        )
+    )
+    poll = getattr(process, "poll", None)
+    if poll is None:
+        return True
+    return poll() is None
 
 
 def launch_and_confirm(spec: LaunchSpec, *, wait_seconds: float = 2.0) -> bool:

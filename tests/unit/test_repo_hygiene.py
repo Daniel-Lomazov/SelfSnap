@@ -34,6 +34,9 @@ def test_install_and_uninstall_scripts_support_interpreter_overrides() -> None:
     assert "PythonExe" in uninstall
     assert "Get-TrustedInstallMetadata" in uninstall
     assert "RemoveUserData" in uninstall
+    assert "Stop-RunningSelfSnapTray" in uninstall
+    assert "Get-InvokingTrayProcessId" in uninstall
+    assert "Stop-Process -Id $process.ProcessId -Force" in uninstall
 
 
 def test_readme_documents_pytest_hygiene_workflow() -> None:

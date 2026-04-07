@@ -16,9 +16,12 @@ from selfsnap.tray.app import (
     _latest_label,
     _open_report_issue,
     _open_settings,
+    _reinstall_selfsnap,
+    _restart_selfsnap,
     _run_high_frequency_scheduler,
 )
 from selfsnap.tray.settings_window import SettingsDialogResult
+from selfsnap.window_sizing import DEFAULT_SETTINGS_WINDOW_HEIGHT, DEFAULT_SETTINGS_WINDOW_WIDTH
 
 
 def _sample_record(record_id: str = "record-1") -> CaptureRecord:
@@ -99,7 +102,10 @@ def test_open_settings_ignores_duplicate_requests(temp_paths, monkeypatch) -> No
         "selfsnap.tray.app.show_settings_dialog",
         lambda _config, _paths: (
             dialog_calls.append("dialog")
-            or SettingsDialogResult(updated_config=None, window_size=(960, 760))
+            or SettingsDialogResult(
+                updated_config=None,
+                window_size=(DEFAULT_SETTINGS_WINDOW_WIDTH, DEFAULT_SETTINGS_WINDOW_HEIGHT),
+            )
         ),
     )
 
@@ -275,6 +281,121 @@ def test_report_issue_can_open_while_settings_is_open(temp_paths, monkeypatch) -
     assert report_calls == ["dialog"]
 
 
+def test_restart_selfsnap_schedules_relaunch_after_current_process_exits(temp_paths, monkeypatch) -> None:
+    exited: list[str] = []
+    monkeypatch.setattr(
+        "selfsnap.tray.app.schedule_tray_relaunch_after_exit",
+        lambda _paths, wait_for_process_id: wait_for_process_id > 0,
+    )
+    monkeypatch.setattr(
+        "selfsnap.tray.app._exit",
+        lambda _icon, _stop_event: exited.append("exit"),
+    )
+    monkeypatch.setattr("selfsnap.tray.app._show_error_dialog", lambda *_args: exited.append("error"))
+
+    _restart_selfsnap(temp_paths, icon=SimpleNamespace(), state=_state())
+
+    assert exited == ["exit"]
+
+
+def test_reinstall_selfsnap_runs_script_without_immediate_relaunch_and_exits_on_success(
+    temp_paths, monkeypatch
+) -> None:
+    prompts: list[str] = []
+    scheduled: list[int] = []
+    exits: list[str] = []
+    invocation_args: list[tuple[bool, bool]] = []
+
+    monkeypatch.setattr("selfsnap.tray.app._ask_confirmation", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        "selfsnap.tray.app.resolve_reinstall_invocation",
+        lambda _paths, update_source, relaunch_tray, target_tag=None: (
+            invocation_args.append((update_source, relaunch_tray)) or object()
+        ),
+    )
+    monkeypatch.setattr("selfsnap.tray.app.run_lifecycle_script_and_check", lambda _spec: True)
+    monkeypatch.setattr(
+        "selfsnap.tray.app.schedule_tray_relaunch_after_exit",
+        lambda _paths, wait_for_process_id: scheduled.append(wait_for_process_id) or True,
+    )
+    monkeypatch.setattr(
+        "selfsnap.tray.app._exit",
+        lambda _icon, _stop_event: exits.append("exit"),
+    )
+    monkeypatch.setattr(
+        "selfsnap.tray.app._show_error_dialog",
+        lambda title, message: prompts.append(f"{title}: {message}"),
+    )
+
+    _reinstall_selfsnap(temp_paths, icon=SimpleNamespace(), state=_state(), update_source=False)
+
+    assert invocation_args == [(False, False)]
+    assert len(scheduled) == 1
+    assert exits == ["exit"]
+    assert prompts == []
+
+
+def test_reinstall_selfsnap_keeps_current_tray_running_when_relaunch_schedule_fails(
+    temp_paths, monkeypatch
+) -> None:
+    prompts: list[str] = []
+    exits: list[str] = []
+
+    monkeypatch.setattr("selfsnap.tray.app._ask_confirmation", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr("selfsnap.tray.app.resolve_reinstall_invocation", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr("selfsnap.tray.app.run_lifecycle_script_and_check", lambda _spec: True)
+    monkeypatch.setattr(
+        "selfsnap.tray.app.schedule_tray_relaunch_after_exit",
+        lambda _paths, wait_for_process_id: False,
+    )
+    monkeypatch.setattr(
+        "selfsnap.tray.app._exit",
+        lambda _icon, _stop_event: exits.append("exit"),
+    )
+    monkeypatch.setattr(
+        "selfsnap.tray.app._show_error_dialog",
+        lambda title, message: prompts.append(f"{title}: {message}"),
+    )
+
+    _reinstall_selfsnap(temp_paths, icon=SimpleNamespace(), state=_state(), update_source=True)
+
+    assert exits == []
+    assert len(prompts) == 1
+
+
+def test_check_for_updates_schedules_relaunch_after_successful_install(temp_paths, monkeypatch) -> None:
+    invocation_args: list[tuple[bool, bool, str | None]] = []
+    scheduled: list[int] = []
+    exits: list[str] = []
+
+    monkeypatch.setattr(
+        "selfsnap.update_checker.fetch_latest_release_tag", lambda _repo: "v99.0.0"
+    )
+    monkeypatch.setattr("selfsnap.tray.app._ask_confirmation", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        "selfsnap.tray.app.resolve_reinstall_invocation",
+        lambda _paths, update_source, relaunch_tray, target_tag=None: (
+            invocation_args.append((update_source, relaunch_tray, target_tag)) or object()
+        ),
+    )
+    monkeypatch.setattr("selfsnap.tray.app.run_lifecycle_script_and_check", lambda _spec: True)
+    monkeypatch.setattr(
+        "selfsnap.tray.app.schedule_tray_relaunch_after_exit",
+        lambda _paths, wait_for_process_id: scheduled.append(wait_for_process_id) or True,
+    )
+    monkeypatch.setattr(
+        "selfsnap.tray.app._exit",
+        lambda _icon, _stop_event: exits.append("exit"),
+    )
+    monkeypatch.setattr("selfsnap.tray.app._show_error_dialog", lambda *_args, **_kwargs: None)
+
+    _check_for_updates(temp_paths, icon=SimpleNamespace(), state=_state())
+
+    assert invocation_args == [(True, False, "v99.0.0")]
+    assert len(scheduled) == 1
+    assert exits == ["exit"]
+
+
 def test_settings_can_open_while_report_issue_is_open(temp_paths, monkeypatch) -> None:
     settings_calls: list[str] = []
     monkeypatch.setattr(
@@ -288,7 +409,10 @@ def test_settings_can_open_while_report_issue_is_open(temp_paths, monkeypatch) -
         "selfsnap.tray.app.show_settings_dialog",
         lambda _config, _paths: (
             settings_calls.append("dialog")
-            or SettingsDialogResult(updated_config=None, window_size=(960, 760))
+            or SettingsDialogResult(
+                updated_config=None,
+                window_size=(DEFAULT_SETTINGS_WINDOW_WIDTH, DEFAULT_SETTINGS_WINDOW_HEIGHT),
+            )
         ),
     )
 

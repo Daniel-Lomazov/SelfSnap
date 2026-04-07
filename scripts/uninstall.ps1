@@ -199,6 +199,100 @@ function Get-TrustedInstallMetadata {
     return $meta
 }
 
+function Test-IsSelfSnapTrayProcess {
+    param(
+        $Process,
+        [string]$RepoRoot,
+        [string]$PythonPath,
+        [string]$PythonwPath
+    )
+
+    if (-not $Process) {
+        return $false
+    }
+
+    $name = [string]$Process.Name
+    $commandLine = [string]$Process.CommandLine
+    if (-not $commandLine) {
+        return $false
+    }
+
+    $isTrayCommand = (
+        $commandLine -match '(?i)(?:^|\s)-m\s+selfsnap\s+tray(?:\s|$)'
+    ) -or (
+        $commandLine -match '(?i)\bselfsnap(?:\.cmd|\.exe)?\b.*\btray\b'
+    )
+    if (-not $isTrayCommand) {
+        return $false
+    }
+
+    if ($RepoRoot -and $commandLine -like "*$RepoRoot*") {
+        return $true
+    }
+    if ($PythonPath -and $commandLine -like "*$PythonPath*") {
+        return $true
+    }
+    if ($PythonwPath -and $commandLine -like "*$PythonwPath*") {
+        return $true
+    }
+
+    return $name -match '^(?i)(python|pythonw|selfsnap)(\.exe)?$'
+}
+
+function Get-InvokingTrayProcessId {
+    param(
+        [string]$RepoRoot,
+        [string]$PythonPath,
+        [string]$PythonwPath
+    )
+
+    try {
+        $scriptProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $PID"
+    }
+    catch {
+        return $null
+    }
+
+    if (-not $scriptProcess -or -not $scriptProcess.ParentProcessId) {
+        return $null
+    }
+
+    try {
+        $parentProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $($scriptProcess.ParentProcessId)"
+    }
+    catch {
+        return $null
+    }
+
+    if (Test-IsSelfSnapTrayProcess -Process $parentProcess -RepoRoot $RepoRoot -PythonPath $PythonPath -PythonwPath $PythonwPath) {
+        return [int]$parentProcess.ProcessId
+    }
+
+    return $null
+}
+
+function Stop-RunningSelfSnapTray {
+    param(
+        [string]$RepoRoot,
+        [string]$PythonPath,
+        [string]$PythonwPath,
+        [int[]]$ExcludeProcessIds = @()
+    )
+
+    $trayProcesses = Get-CimInstance Win32_Process |
+        Where-Object {
+            $_.ProcessId -notin $ExcludeProcessIds -and
+            (Test-IsSelfSnapTrayProcess -Process $_ -RepoRoot $RepoRoot -PythonPath $PythonPath -PythonwPath $PythonwPath)
+        }
+
+    foreach ($process in $trayProcesses) {
+        Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+        Wait-Process -Id $process.ProcessId -Timeout 5 -ErrorAction SilentlyContinue
+    }
+
+    return @($trayProcesses).Count
+}
+
 function Get-UninstallPythonCandidates {
     param(
         [string]$RepoRoot,
@@ -263,6 +357,24 @@ $startupDir = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Star
 $shortcutPath = Join-Path $startupDir "SelfSnap Win11.lnk"
 $picturesRoot = Join-Path $env:USERPROFILE "Pictures\SelfSnap"
 $storageTargets = Get-StorageTargetsFromConfig -ConfigPath $configPath
+$trustedMeta = Get-TrustedInstallMetadata -MetaPath $metaPath -RepoRoot $repoRoot
+$knownPythonExe = if ($trustedMeta -and $trustedMeta.python_executable) {
+    [string]$trustedMeta.python_executable
+}
+else {
+    ""
+}
+$knownPythonwExe = if ($trustedMeta -and $trustedMeta.pythonw_executable) {
+    [string]$trustedMeta.pythonw_executable
+}
+else {
+    ""
+}
+$invokingTrayPid = Get-InvokingTrayProcessId -RepoRoot $repoRoot.Path -PythonPath $knownPythonExe -PythonwPath $knownPythonwExe
+$stoppedTrayCount = Stop-RunningSelfSnapTray -RepoRoot $repoRoot.Path -PythonPath $knownPythonExe -PythonwPath $knownPythonwExe -ExcludeProcessIds @($invokingTrayPid)
+if ($stoppedTrayCount -gt 0) {
+    Write-Host "Stopped $stoppedTrayCount running SelfSnap tray process(es)."
+}
 
 if (Test-Path $shortcutPath) {
     Remove-Item $shortcutPath -Force

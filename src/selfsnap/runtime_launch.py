@@ -204,6 +204,19 @@ def launch_background(spec: LaunchSpec) -> subprocess.Popen[str]:
     )
 
 
+def launch_hidden_background(spec: LaunchSpec) -> subprocess.Popen[str]:
+    """Launch a helper PowerShell/script process without creating a visible window."""
+    return subprocess.Popen(
+        spec.command(),
+        cwd=spec.working_directory,
+        creationflags=_script_creation_flags(),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL,
+        close_fds=False,
+    )
+
+
 def run_background_command(spec: LaunchSpec) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         spec.command(),
