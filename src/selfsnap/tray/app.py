@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 import tkinter as tk
@@ -86,7 +87,7 @@ def run_tray_app(paths: AppPaths | None = None) -> int:
     icon = pystray.Icon("selfsnap", _build_icon_image(Image, ImageDraw), "SelfSnap Win11")
 
     def refresh_menu() -> None:
-        icon.menu = pystray.Menu(*_build_menu_items(pystray, paths, icon, state))
+        icon.menu = pystray.Menu(*_build_menu_items(pystray, paths, icon, state, refresh_menu))
         icon.title = _icon_title(paths)
         icon.update_menu()
 
@@ -120,7 +121,13 @@ def _build_icon_image(image_module, draw_module):
     return image
 
 
-def _build_menu_items(pystray, paths: AppPaths, icon, state: TrayRuntimeState) -> list:
+def _build_menu_items(
+    pystray,
+    paths: AppPaths,
+    icon,
+    state: TrayRuntimeState,
+    refresh_menu: Callable[[], None] | None = None,
+) -> list:
     config = load_or_create_config(paths)
     items = []
     warning_label = _scheduler_warning_label(config)
@@ -133,14 +140,19 @@ def _build_menu_items(pystray, paths: AppPaths, icon, state: TrayRuntimeState) -
         [
             pystray.MenuItem(
                 "Report Issue",
-                lambda _icon, _item: _run_async(_open_report_issue, paths, icon, state),
+                lambda _icon, _item: _run_async(
+                    _open_report_issue, paths, icon, state, refresh_menu
+                ),
             ),
             pystray.MenuItem(
-                "Capture Now", lambda _icon, _item: _run_async(_capture_now, paths, icon, state)
+                "Capture Now",
+                lambda _icon, _item: _run_async(
+                    _capture_now, paths, icon, state, refresh_menu
+                ),
             ),
             pystray.MenuItem(
                 lambda _item: _toggle_enabled_label(config),
-                lambda _icon, _item: _toggle_enabled(paths, icon),
+                lambda _icon, _item: _toggle_enabled(paths, icon, refresh_menu),
             ),
             pystray.MenuItem(
                 "Open Capture Folder", lambda _icon, _item: _open_capture_folder(paths)
@@ -159,7 +171,9 @@ def _build_menu_items(pystray, paths: AppPaths, icon, state: TrayRuntimeState) -
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
                 "Settings",
-                lambda _icon, _item: _run_async(_open_settings, paths, icon, state),
+                lambda _icon, _item: _run_async(
+                    _open_settings, paths, icon, state, refresh_menu
+                ),
                 default=True,
             ),
             pystray.MenuItem(
@@ -204,7 +218,12 @@ def _run_async(func, *args) -> None:
     threading.Thread(target=func, args=args, daemon=True).start()
 
 
-def _capture_now(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
+def _capture_now(
+    paths: AppPaths,
+    icon,
+    state: TrayRuntimeState,
+    refresh_menu: Callable[[], None] | None = None,
+) -> None:
     config = load_or_create_config(paths)
     setup_logging(paths, config.log_level)
     suppress_ui_updates = _any_dialog_open(state)
@@ -225,10 +244,17 @@ def _capture_now(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
             icon, "SelfSnap", "Manual capture failed. Open logs or run selfsnap diag."
         )
     if not suppress_ui_updates:
-        icon.update_menu()
+        if refresh_menu is not None:
+            refresh_menu()
+        else:
+            icon.update_menu()
 
 
-def _toggle_enabled(paths: AppPaths, icon) -> None:
+def _toggle_enabled(
+    paths: AppPaths,
+    icon,
+    refresh_menu: Callable[[], None] | None = None,
+) -> None:
     config = load_or_create_config(paths)
     if config.app_enabled:
         config.app_enabled = False
@@ -236,17 +262,28 @@ def _toggle_enabled(paths: AppPaths, icon) -> None:
         if not config.first_run_completed:
             updated = show_first_run_dialog(config, paths)
             if updated is None:
-                icon.update_menu()
+                if refresh_menu is not None:
+                    refresh_menu()
+                else:
+                    icon.update_menu()
                 return
             config = updated
         else:
             config.app_enabled = True
     save_config(paths, config)
     sync_scheduler_from_config(paths, emit_console=False)
-    icon.update_menu()
+    if refresh_menu is not None:
+        refresh_menu()
+    else:
+        icon.update_menu()
 
 
-def _open_settings(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
+def _open_settings(
+    paths: AppPaths,
+    icon,
+    state: TrayRuntimeState,
+    refresh_menu: Callable[[], None] | None = None,
+) -> None:
     if not _begin_dialog(state, state.settings_dialog_open):
         return
     config = load_or_create_config(paths)
@@ -267,17 +304,28 @@ def _open_settings(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
     # Config was already written to disk by the settings dialog; apply side-effects only.
     _sync_startup_shortcut_safe(paths, updated, setup_logging(paths, updated.log_level))
     sync_scheduler_from_config(paths, emit_console=False)
-    icon.update_menu()
+    if refresh_menu is not None:
+        refresh_menu()
+    else:
+        icon.update_menu()
 
 
-def _open_report_issue(paths: AppPaths, icon, state: TrayRuntimeState) -> None:
+def _open_report_issue(
+    paths: AppPaths,
+    icon,
+    state: TrayRuntimeState,
+    refresh_menu: Callable[[], None] | None = None,
+) -> None:
     if not _begin_dialog(state, state.report_dialog_open):
         return
     try:
         show_report_issue_dialog(paths)
     finally:
         _end_dialog(state, state.report_dialog_open)
-    icon.update_menu()
+    if refresh_menu is not None:
+        refresh_menu()
+    else:
+        icon.update_menu()
 
 
 def _restart_selfsnap(paths: AppPaths, icon, state: TrayRuntimeState) -> None:

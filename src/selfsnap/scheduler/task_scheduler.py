@@ -8,6 +8,7 @@ import logging
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import xml.etree.ElementTree as ET
 
@@ -341,6 +342,7 @@ def _run_powershell(command: str, check: bool = True) -> subprocess.CompletedPro
         text=True,
         capture_output=True,
         check=False,
+        creationflags=_scheduler_creation_flags(),
     )
     if check and completed.returncode != 0:
         raise RuntimeError(completed.stderr or completed.stdout or "PowerShell task registration failed")
@@ -353,10 +355,17 @@ def _run_schtasks(arguments: list[str], check: bool = True) -> subprocess.Comple
         text=True,
         capture_output=True,
         check=False,
+        creationflags=_scheduler_creation_flags(),
     )
     if check and completed.returncode != 0:
         raise RuntimeError(completed.stderr or completed.stdout or "schtasks failed")
     return completed
+
+
+def _scheduler_creation_flags() -> int:
+    if sys.platform != "win32":
+        return 0
+    return getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
 def _persist_scheduler_sync_state(paths: AppPaths, config: AppConfig, logger: logging.Logger) -> None:
