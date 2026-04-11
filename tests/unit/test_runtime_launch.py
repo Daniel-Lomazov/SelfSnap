@@ -6,7 +6,9 @@ import subprocess
 import pytest
 
 from selfsnap.runtime_launch import (
+    INTERPRETER_REDIRECT_ENV,
     LaunchSpec,
+    ensure_local_repository_interpreter,
     launch_background,
     launch_hidden_background,
     resolve_background_working_directory,
@@ -17,6 +19,22 @@ from selfsnap.runtime_launch import (
     run_background_command,
     run_lifecycle_script,
 )
+
+
+def _create_repo_checkout(repo_root: Path) -> None:
+    (repo_root / "scripts").mkdir(parents=True, exist_ok=True)
+    (repo_root / "scripts" / "setup.ps1").write_text("", encoding="utf-8")
+    (repo_root / "pyproject.toml").write_text("[project]\nname='selfsnap-win11'\n", encoding="utf-8")
+
+
+def _create_local_venv(repo_root: Path) -> tuple[Path, Path]:
+    scripts_dir = repo_root / ".venv" / "Scripts"
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+    python_executable = scripts_dir / "python.exe"
+    pythonw_executable = scripts_dir / "pythonw.exe"
+    python_executable.write_text("", encoding="utf-8")
+    pythonw_executable.write_text("", encoding="utf-8")
+    return python_executable, pythonw_executable
 
 
 def test_resolve_background_python_executable_prefers_install_metadata(temp_paths) -> None:
@@ -38,6 +56,12 @@ def test_resolve_background_python_executable_prefers_install_metadata(temp_path
 
 
 def test_resolve_background_python_executable_ignores_stale_metadata(monkeypatch, temp_paths) -> None:
+    checkout_root = temp_paths.user_profile / "not-a-checkout"
+    checkout_root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(
+        "selfsnap.runtime_launch.resolve_source_repo_root",
+        lambda _paths=None: str(checkout_root),
+    )
     temp_paths.bin_dir.mkdir(parents=True, exist_ok=True)
     stale_pythonw = temp_paths.bin_dir / "stale-pythonw.exe"
     stale_pythonw.write_text("", encoding="utf-8")
@@ -100,7 +124,13 @@ def test_resolve_background_python_executable_uses_metadata_python_sibling_when_
     assert Path(result) == metadata_pythonw
 
 
-def test_resolve_background_python_executable_raises_without_pythonw(monkeypatch) -> None:
+def test_resolve_background_python_executable_raises_without_pythonw(monkeypatch, tmp_path) -> None:
+    checkout_root = tmp_path / "not-a-checkout"
+    checkout_root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(
+        "selfsnap.runtime_launch.resolve_source_repo_root",
+        lambda _paths=None: str(checkout_root),
+    )
     monkeypatch.setattr("selfsnap.runtime_launch.sys.executable", r"C:\Temp\python.exe")
 
     with pytest.raises(RuntimeError):
@@ -160,6 +190,66 @@ def test_resolve_foreground_python_executable_prefers_install_metadata(temp_path
     assert Path(result) == python_executable
 
 
+def test_resolve_foreground_python_executable_prefers_local_repo_venv_over_metadata(
+    temp_paths,
+) -> None:
+    repo_root = temp_paths.user_profile
+    _create_repo_checkout(repo_root)
+    local_python, _local_pythonw = _create_local_venv(repo_root)
+    temp_paths.bin_dir.mkdir(parents=True, exist_ok=True)
+    metadata_python = temp_paths.bin_dir / "python.exe"
+    metadata_python.write_text("", encoding="utf-8")
+    (temp_paths.bin_dir / "install-meta.json").write_text(
+        '{"python_executable": "'
+        + str(metadata_python).replace("\\", "\\\\")
+        + '", "repo_root": "'
+        + str(repo_root).replace("\\", "\\\\")
+        + '"}',
+        encoding="utf-8",
+    )
+
+    result = resolve_foreground_python_executable(temp_paths)
+
+    assert Path(result) == local_python
+
+
+def test_resolve_background_python_executable_prefers_local_repo_venv_over_metadata(
+    temp_paths,
+) -> None:
+    repo_root = temp_paths.user_profile
+    _create_repo_checkout(repo_root)
+    _local_python, local_pythonw = _create_local_venv(repo_root)
+    temp_paths.bin_dir.mkdir(parents=True, exist_ok=True)
+    metadata_pythonw = temp_paths.bin_dir / "pythonw.exe"
+    metadata_pythonw.write_text("", encoding="utf-8")
+    (temp_paths.bin_dir / "install-meta.json").write_text(
+        '{"pythonw_executable": "'
+        + str(metadata_pythonw).replace("\\", "\\\\")
+        + '", "repo_root": "'
+        + str(repo_root).replace("\\", "\\\\")
+        + '"}',
+        encoding="utf-8",
+    )
+
+    result = resolve_background_python_executable(temp_paths)
+
+    assert Path(result) == local_pythonw
+
+
+def test_resolve_foreground_python_executable_requires_local_setup_when_checkout_venv_missing(
+    monkeypatch, temp_paths,
+) -> None:
+    repo_root = temp_paths.user_profile
+    _create_repo_checkout(repo_root)
+    monkeypatch.setattr(
+        "selfsnap.runtime_launch.resolve_source_repo_root",
+        lambda _paths=None: str(repo_root),
+    )
+
+    with pytest.raises(RuntimeError, match="setup\\.ps1"):
+        resolve_foreground_python_executable(temp_paths)
+
+
 def test_resolve_source_repo_root_prefers_trusted_install_metadata(temp_paths) -> None:
     temp_paths.bin_dir.mkdir(parents=True, exist_ok=True)
     (temp_paths.bin_dir / "install-meta.json").write_text(
@@ -172,6 +262,60 @@ def test_resolve_source_repo_root_prefers_trusted_install_metadata(temp_paths) -
     result = resolve_source_repo_root(temp_paths)
 
     assert Path(result) == temp_paths.user_profile
+
+
+def test_ensure_local_repository_interpreter_reexecutes_console_process_into_local_venv(
+    monkeypatch, tmp_path
+) -> None:
+    repo_root = tmp_path / "repo"
+    _create_repo_checkout(repo_root)
+    local_python, _local_pythonw = _create_local_venv(repo_root)
+    wrong_python = tmp_path / "global-python.exe"
+    wrong_python.write_text("", encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr("selfsnap.runtime_launch.sys.executable", str(wrong_python))
+    monkeypatch.setattr("selfsnap.runtime_launch.sys.argv", [str(wrong_python), "doctor"])
+    monkeypatch.setattr(
+        "selfsnap.runtime_launch.resolve_source_repo_root",
+        lambda _paths=None: str(repo_root),
+    )
+
+    def fake_run(*args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return subprocess.CompletedProcess(args=args[0], returncode=0)
+
+    monkeypatch.setattr("selfsnap.runtime_launch.subprocess.run", fake_run)
+
+    result = ensure_local_repository_interpreter(["doctor"])
+
+    assert result == 0
+    assert captured["args"] == ([str(local_python), "-m", "selfsnap", "doctor"],)
+    kwargs = captured["kwargs"]
+    assert kwargs["cwd"] == str(repo_root)
+    assert kwargs["text"] is True
+    assert kwargs["env"][INTERPRETER_REDIRECT_ENV] == "1"
+
+
+def test_ensure_local_repository_interpreter_reports_setup_when_checkout_venv_is_missing(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    repo_root = tmp_path / "repo"
+    _create_repo_checkout(repo_root)
+    wrong_python = tmp_path / "global-python.exe"
+    wrong_python.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr("selfsnap.runtime_launch.sys.executable", str(wrong_python))
+    monkeypatch.setattr(
+        "selfsnap.runtime_launch.resolve_source_repo_root",
+        lambda _paths=None: str(repo_root),
+    )
+
+    result = ensure_local_repository_interpreter(["doctor"])
+
+    assert result == 1
+    assert "setup.ps1" in capsys.readouterr().err
 
 
 def test_launch_background_requests_text_mode(monkeypatch, temp_paths) -> None:

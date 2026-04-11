@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from selfsnap.cli import build_parser, handle_reinstall, handle_uninstall, handle_update
+from selfsnap.cli import build_parser, handle_reinstall, handle_uninstall, handle_update, main
 
 
 # ---------------------------------------------------------------------------
@@ -58,6 +58,24 @@ def test_parser_update_flags() -> None:
     args = parser.parse_args(["update", "--check-only", "--relaunch-tray"])
     assert args.check_only is True
     assert args.relaunch_tray is True
+
+
+def test_main_returns_interpreter_redirect_exit_code(monkeypatch) -> None:
+    parser_used = {"value": False}
+
+    monkeypatch.setattr(
+        "selfsnap.cli.ensure_local_repository_interpreter",
+        lambda _argv=None: 7,
+    )
+
+    def fake_build_parser():
+        parser_used["value"] = True
+        raise AssertionError("parser should not be constructed after redirect")
+
+    monkeypatch.setattr("selfsnap.cli.build_parser", fake_build_parser)
+
+    assert main(["doctor"]) == 7
+    assert parser_used["value"] is False
 
 
 # ---------------------------------------------------------------------------

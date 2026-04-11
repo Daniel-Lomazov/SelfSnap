@@ -2,11 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 from selfsnap.paths import AppPaths
+
+
+LOCAL_VENV_DIRNAME = ".venv"
+INTERPRETER_REDIRECT_ENV = "SELFSNAP_INTERPRETER_REDIRECTED"
 
 
 @dataclass(slots=True)
@@ -58,7 +63,122 @@ def resolve_source_repo_root(paths: AppPaths | None = None) -> str:
     return str(repo_root)
 
 
+def _resolve_checkout_repo_root(paths: AppPaths | None = None) -> Path | None:
+    repo_root = Path(resolve_source_repo_root(paths))
+    if not (repo_root / "pyproject.toml").exists():
+        return None
+    if not (repo_root / "scripts" / "setup.ps1").exists():
+        return None
+    return repo_root
+
+
+def _resolve_local_venv_python_executable(
+    paths: AppPaths | None = None,
+    *,
+    windowless: bool,
+) -> Path | None:
+    repo_root = _resolve_checkout_repo_root(paths)
+    if repo_root is None:
+        return None
+    executable = repo_root / LOCAL_VENV_DIRNAME / "Scripts" / (
+        "pythonw.exe" if windowless else "python.exe"
+    )
+    if executable.exists():
+        return executable
+    return None
+
+
+def _local_venv_setup_message(paths: AppPaths | None = None) -> str:
+    repo_root = _resolve_checkout_repo_root(paths)
+    if repo_root is None:
+        return "Run .\\scripts\\setup.ps1 from the repository root and retry."
+    setup_script = repo_root / "scripts" / "setup.ps1"
+    venv_root = repo_root / LOCAL_VENV_DIRNAME
+    return (
+        f"SelfSnap requires the repository-local virtual environment at {venv_root}. "
+        f"Run {setup_script} and retry."
+    )
+
+
+def _require_local_venv_python_executable(
+    paths: AppPaths | None = None,
+    *,
+    windowless: bool,
+) -> str | None:
+    executable = _resolve_local_venv_python_executable(paths, windowless=windowless)
+    if executable is not None:
+        return str(executable)
+    if _resolve_checkout_repo_root(paths) is not None:
+        raise RuntimeError(_local_venv_setup_message(paths))
+    return None
+
+
+def _normalized_executable_path(value: str | Path) -> str:
+    return os.path.normcase(str(Path(value).resolve(strict=False)))
+
+
+def ensure_local_repository_interpreter(
+    argv: list[str] | None = None,
+    *,
+    paths: AppPaths | None = None,
+) -> int | None:
+    if getattr(sys, "frozen", False):
+        return None
+
+    repo_root = _resolve_checkout_repo_root(paths)
+    if repo_root is None:
+        return None
+
+    current_executable = Path(sys.executable)
+    windowless = current_executable.name.lower() == "pythonw.exe"
+    expected_executable = _resolve_local_venv_python_executable(paths, windowless=windowless)
+    if expected_executable is None:
+        print(_local_venv_setup_message(paths), file=sys.stderr)
+        return 1
+
+    if _normalized_executable_path(current_executable) == _normalized_executable_path(
+        expected_executable
+    ):
+        return None
+
+    if os.environ.get(INTERPRETER_REDIRECT_ENV) == "1":
+        print(
+            f"SelfSnap could not switch to the repository-local interpreter {expected_executable}.",
+            file=sys.stderr,
+        )
+        return 1
+
+    redirected_argv = list(sys.argv[1:] if argv is None else argv)
+    command = [str(expected_executable), "-m", "selfsnap", *redirected_argv]
+    environment = os.environ.copy()
+    environment[INTERPRETER_REDIRECT_ENV] = "1"
+
+    if windowless:
+        subprocess.Popen(
+            command,
+            cwd=str(repo_root),
+            env=environment,
+            creationflags=_background_creation_flags(),
+            close_fds=False,
+            text=True,
+        )
+        return 0
+
+    completed = subprocess.run(
+        command,
+        cwd=str(repo_root),
+        env=environment,
+        check=False,
+        text=True,
+    )
+    return int(completed.returncode)
+
+
 def resolve_foreground_python_executable(paths: AppPaths | None = None) -> str:
+    local_executable = _require_local_venv_python_executable(paths, windowless=False)
+    if local_executable is not None:
+        return local_executable
+
     metadata_repo_root = _resolve_metadata_repo_root(paths)
     if paths is not None and metadata_repo_root is not None:
         metadata = read_install_metadata(paths)
@@ -80,6 +200,10 @@ def resolve_foreground_python_executable(paths: AppPaths | None = None) -> str:
 
 
 def resolve_background_python_executable(paths: AppPaths | None = None) -> str:
+    local_executable = _require_local_venv_python_executable(paths, windowless=True)
+    if local_executable is not None:
+        return local_executable
+
     if paths is not None:
         metadata = read_install_metadata(paths)
         pythonw_executable = metadata.get("pythonw_executable")

@@ -16,6 +16,7 @@ from selfsnap.lifecycle_actions import (
 from selfsnap.logging_setup import setup_logging
 from selfsnap.models import TriggerSource
 from selfsnap.paths import resolve_app_paths
+from selfsnap.runtime_launch import ensure_local_repository_interpreter
 from selfsnap.records import get_latest_record
 from selfsnap.runtime_probe import probe_runtime_dependencies
 from selfsnap.update_checker import compare_versions, fetch_latest_release_tag
@@ -245,6 +246,10 @@ def handle_doctor(_args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    redirected_exit_code = ensure_local_repository_interpreter(argv)
+    if redirected_exit_code is not None:
+        return redirected_exit_code
+
     parser = build_parser()
     args = parser.parse_args(argv)
     return int(args.handler(args))
