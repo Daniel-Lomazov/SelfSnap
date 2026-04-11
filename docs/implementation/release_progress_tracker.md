@@ -11,7 +11,7 @@ Complete the documentation overhaul for `ui/fluent-compact-tabs` before any merg
 - New internal behavior docs: complete
 - Archive/reclassification pass: complete
 - Version surface synchronization: complete (v1.1.0)
-- Final merge/tag sequencing: in progress
+- Final merge/tag sequencing: complete
 
 ## Completed deliverables
 
@@ -44,6 +44,23 @@ Complete the documentation overhaul for `ui/fluent-compact-tabs` before any merg
    - `README.md`: Current version: `v1.1.0` + updated release description
    - `CHANGELOG.md`: added comprehensive v1.1.0 entry with UI/runtime/docs justification
 
-## Remaining step
+## Completed steps (cont.)
 
-3. Finalize merge and tag runbook for eventual merge into `main`.
+3. ✓ Merge and tag execution:
+   - Merged `ui/fluent-compact-tabs` into `main` (commit `fc08fe0` now on main)
+   - Created annotated tag `v1.1.0` with comprehensive release notes
+   - Branch kept for reference; ready to delete later after stability verification
+   - Push to origin deferred per user preference
+
+---
+
+## Release Status
+
+**v1.1.0 is released.**
+
+- Code merged into `main`
+- Tag created and available locally
+- Ready for `git push origin main --tags` when ready to publish
+- Branch cleanup deferred until stability verified
+
+All documentation, versioning, and merge/tag sequencing complete. Ready for delivery.
