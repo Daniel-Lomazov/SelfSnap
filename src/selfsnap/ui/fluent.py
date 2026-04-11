@@ -150,7 +150,8 @@ def bind_dynamic_wrap(
     minimum: int = 280,
 ) -> None:
     def _update_wrap(_event=None) -> None:
-        wrap = max(container.winfo_width() - padding, minimum)
+        available_width = container.winfo_width() - padding
+        wrap = minimum if available_width <= 1 else max(available_width, 1)
         widget.configure(wraplength=wrap)
 
     container.bind("<Configure>", _update_wrap, add="+")

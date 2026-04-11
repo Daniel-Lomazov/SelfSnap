@@ -64,6 +64,7 @@ from selfsnap.ui.fluent import (
     create_inset_panel,
     create_page_header,
     create_scrollable_page,
+    SectionBlock,
     ScrollablePage,
 )
 from selfsnap.ui.presentation import (
@@ -94,12 +95,12 @@ from selfsnap.window_sizing import (
     SETTINGS_WINDOW_MIN_WIDTH,
     build_centered_window_geometry,
     clamp_settings_window_size,
-    resolve_initial_settings_window_size,
 )
 
 HISTORY_REFRESH_INTERVAL_MS = 5000
 CONFIG_POLL_INTERVAL_MS = 1000
 STACKED_COMPACT_LAYOUT_MAX_WIDTH = 660
+RESPONSIVE_CARD_SPLIT_MIN_WIDTH = 820
 
 SCHEDULE_TREE_COLUMN_SPECS: tuple[tuple[str, int, int, str], ...] = (
     ("label", 112, 3, "w"),
@@ -140,6 +141,10 @@ def use_stacked_schedule_layout(window_width: int) -> bool:
     return window_width <= STACKED_COMPACT_LAYOUT_MAX_WIDTH
 
 
+def use_stacked_settings_card_layout(window_width: int) -> bool:
+    return window_width < RESPONSIVE_CARD_SPLIT_MIN_WIDTH
+
+
 @dataclass(slots=True)
 class SettingsDialogResult:
     updated_config: AppConfig | None
@@ -151,10 +156,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     root = tk.Tk()
     root.title("SelfSnap Settings")
     root.update_idletasks()
-    window_width, window_height = resolve_initial_settings_window_size(
-        config.settings_window_width,
-        config.settings_window_height,
-    )
+    window_width, window_height = SETTINGS_WINDOW_MIN_WIDTH, SETTINGS_WINDOW_MIN_HEIGHT
     use_stacked_compact_layout = window_width <= STACKED_COMPACT_LAYOUT_MAX_WIDTH
     root.geometry(
         build_centered_window_geometry(
@@ -345,13 +347,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         format_text = image_format_label(preview.image_format)
         if preview.image_format in {"jpeg", "webp"}:
             format_text = f"{format_text} {preview.image_quality}%"
-        return " • ".join(
-            [
-                retention_text,
-                capture_mode_label(preview.capture_mode),
-                format_text,
-            ]
-        )
+        return "\n".join([retention_text, capture_mode_label(preview.capture_mode), format_text])
 
     def _general_status_details(preview: AppConfig) -> str:
         if not preview.first_run_completed:
@@ -364,7 +360,36 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             state_message = "SelfSnap is ready for scheduled background capture."
         else:
             state_message = "Scheduled captures are paused. Capture Now still works."
-        return f"{state_message}\n{schedules_summary_text(drafts)}"
+        return _multiline_summary_text(f"{state_message}\n{schedules_summary_text(drafts)}")
+
+    def _experience_summary(preview: AppConfig) -> str:
+        return _multiline_summary_text(
+            visibility_summary_text(
+                start_tray_on_login=preview.start_tray_on_login,
+                wake_for_scheduled_captures=preview.wake_for_scheduled_captures,
+                show_last_capture_status=preview.show_last_capture_status,
+                notify_on_failed_or_missed=preview.notify_on_failed_or_missed,
+                notify_on_every_capture=preview.notify_on_every_capture,
+                show_capture_overlay=preview.show_capture_overlay,
+            )
+        )
+
+    def _storage_overview_summary(preview: AppConfig) -> str:
+        return _multiline_summary_text(
+            storage_summary_text(
+                storage_preset=preview.storage_preset,
+                retention_mode=preview.retention_mode,
+                retention_days=preview.retention_days,
+                capture_mode=preview.capture_mode,
+                image_format=preview.image_format,
+                image_quality=preview.image_quality,
+                purge_enabled=preview.purge_enabled,
+                retention_grace_days=preview.retention_grace_days,
+            )
+        )
+
+    def _destinations_summary(preview: AppConfig) -> str:
+        return f"{storage_preset_label(preview.storage_preset)} preset\nCapture and archive destinations"
 
     def _set_preset_from_label(selected_label: str) -> None:
         internal_preset_update["active"] = True
@@ -414,6 +439,81 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     def _capture_size() -> tuple[int, int]:
         root.update_idletasks()
         return clamp_settings_window_size(root.winfo_width(), root.winfo_height())
+
+    def _multiline_summary_text(text: str) -> str:
+        normalized = text.replace(" • ", "\n").replace(" | ", "\n")
+        return "\n".join(line.strip() for line in normalized.splitlines() if line.strip())
+
+    def _configure_card_pair_layout(
+        container: tk.Misc,
+        primary_card: SectionBlock,
+        secondary_card: SectionBlock,
+        *,
+        stacked: bool,
+        uniform_group: str,
+        gap: int = 4,
+    ) -> None:
+        if stacked:
+            container.columnconfigure(0, weight=1, uniform="")
+            container.columnconfigure(1, weight=0, minsize=0, uniform="")
+            primary_card.frame.grid_configure(
+                row=0,
+                column=0,
+                sticky="ew",
+                padx=(0, 0),
+                pady=(0, 0),
+            )
+            secondary_card.frame.grid_configure(
+                row=1,
+                column=0,
+                sticky="ew",
+                padx=(0, 0),
+                pady=(gap, 0),
+            )
+            return
+
+        container.columnconfigure(0, weight=1, uniform=uniform_group)
+        container.columnconfigure(1, weight=1, minsize=0, uniform=uniform_group)
+        primary_card.frame.grid_configure(
+            row=0,
+            column=0,
+            sticky="nsew",
+            padx=(0, gap),
+            pady=(0, 0),
+        )
+        secondary_card.frame.grid_configure(
+            row=0,
+            column=1,
+            sticky="nsew",
+            padx=(0, 0),
+            pady=(0, 0),
+        )
+
+    def _configure_card_grid_layout(
+        container: tk.Misc,
+        cards: list[SectionBlock],
+        *,
+        stacked: bool,
+        uniform_group: str,
+        gap: int = 4,
+    ) -> None:
+        if stacked:
+            container.columnconfigure(0, weight=1, uniform="")
+            container.columnconfigure(1, weight=0, minsize=0, uniform="")
+        else:
+            container.columnconfigure(0, weight=1, uniform=uniform_group)
+            container.columnconfigure(1, weight=1, minsize=0, uniform=uniform_group)
+
+        for index, card in enumerate(cards):
+            row_index = index if stacked else index // 2
+            column_index = 0 if stacked else index % 2
+            card.frame.grid_configure(
+                row=row_index,
+                column=column_index,
+                sticky="nsew" if not stacked else "ew",
+                padx=(0, gap) if not stacked and column_index == 0 else (0, 0),
+                pady=(0, gap),
+            )
 
     header_text, header_tone = settings_header_status(config)
     header = create_page_header(
@@ -538,14 +638,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     experience_card = create_card(
         general_grid,
         title="Experience",
-        summary=visibility_summary_text(
-            start_tray_on_login=config.start_tray_on_login,
-            wake_for_scheduled_captures=config.wake_for_scheduled_captures,
-            show_last_capture_status=config.show_last_capture_status,
-            notify_on_failed_or_missed=config.notify_on_failed_or_missed,
-            notify_on_every_capture=config.notify_on_every_capture,
-            show_capture_overlay=config.show_capture_overlay,
-        ),
+        summary=_experience_summary(config),
         badge_text="General",
         tone="info",
     )
@@ -562,68 +655,18 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         ("Notify on every scheduled and manual capture", notify_on_every_capture_var),
         ("Show brief on-screen overlay after capture", show_capture_overlay_var),
     ]
-    if use_stacked_compact_layout:
-        experience_card.body.columnconfigure(0, weight=1)
-        experience_card.body.columnconfigure(1, weight=1)
-        for index, (label_text, variable) in enumerate(experience_options):
-            row_index = index // 2
-            column_index = index % 2
-            ttk.Checkbutton(
-                experience_card.body,
-                text=label_text,
-                variable=variable,
-            ).grid(
-                row=row_index,
-                column=column_index,
-                sticky="w",
-                padx=(0, 6) if column_index == 0 else (0, 0),
-                pady=(0, 4) if row_index == 0 else (4, 0),
-            )
-    else:
+    experience_card.body.columnconfigure(0, weight=1)
+    for index, (label_text, variable) in enumerate(experience_options):
         ttk.Checkbutton(
             experience_card.body,
-            text="Start tray on login",
-            variable=start_tray_on_login_var,
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Checkbutton(
-            experience_card.body,
-            text="Wake for scheduled captures when supported",
-            variable=wake_for_scheduled_captures_var,
-        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
-        ttk.Checkbutton(
-            experience_card.body,
-            text="Show latest capture status in tray menu",
-            variable=show_last_capture_status_var,
-        ).grid(row=2, column=0, sticky="w", pady=(4, 0))
-        ttk.Checkbutton(
-            experience_card.body,
-            text="Notify on failed or missed captures",
-            variable=notify_on_failed_or_missed_var,
-        ).grid(row=3, column=0, sticky="w", pady=(4, 0))
-        ttk.Checkbutton(
-            experience_card.body,
-            text="Notify on every scheduled and manual capture",
-            variable=notify_on_every_capture_var,
-        ).grid(row=4, column=0, sticky="w", pady=(4, 0))
-        ttk.Checkbutton(
-            experience_card.body,
-            text="Show brief on-screen overlay after capture",
-            variable=show_capture_overlay_var,
-        ).grid(row=5, column=0, sticky="w", pady=(4, 0))
+            text=label_text,
+            variable=variable,
+        ).grid(row=index, column=0, sticky="w", pady=(0, 0) if index == 0 else (4, 0))
 
     storage_overview_card = create_card(
         general_tab,
         title="Storage Overview",
-        summary=storage_summary_text(
-            storage_preset=config.storage_preset,
-            retention_mode=config.retention_mode,
-            retention_days=config.retention_days,
-            capture_mode=config.capture_mode,
-            image_format=config.image_format,
-            image_quality=config.image_quality,
-            purge_enabled=config.purge_enabled,
-            retention_grace_days=config.retention_grace_days,
-        ),
+        summary=_storage_overview_summary(config),
         badge_text="Storage",
         tone="accent",
     )
@@ -644,7 +687,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     destinations_card = create_card(
         storage_grid,
         title="Destinations",
-        summary="Preset-controlled roots for capture and archive output.",
+        summary=_destinations_summary(config),
         badge_text="Locations",
         tone="accent",
     )
@@ -696,7 +739,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     capture_settings_card = create_card(
         storage_grid,
         title="Capture Output",
-        summary="Retention, purge timing, image format, and monitor mode.",
+        summary=_capture_settings_summary(config),
         badge_text="Output",
         tone="info",
     )
@@ -1261,7 +1304,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     diagnostics_grid.columnconfigure(0, weight=1)
     diagnostics_grid.columnconfigure(1, weight=1)
 
-    diagnostic_cards: dict[str, tuple[object, tk.Label]] = {}
+    diagnostic_cards: dict[str, tuple[SectionBlock, tk.Label]] = {}
 
     def _make_diagnostic_card(
         key: str,
@@ -1295,6 +1338,14 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     _make_diagnostic_card("retention", "Retention", 1, 1)
     _make_diagnostic_card("notifications", "Notifications", 2, 0)
     _make_diagnostic_card("operations", "Operational Context", 2, 1)
+    diagnostic_card_order = [
+        diagnostic_cards["scheduler"][0],
+        diagnostic_cards["activity"][0],
+        diagnostic_cards["storage"][0],
+        diagnostic_cards["retention"][0],
+        diagnostic_cards["notifications"][0],
+        diagnostic_cards["operations"][0],
+    ]
 
     maintenance_card = create_card(
         maintenance_tab,
@@ -1356,6 +1407,76 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         style="Wide.TButton",
     ).grid(row=2, column=0, sticky="w", pady=(6, 0))
 
+    responsive_layout_job: str | None = None
+    general_layout_state = {"stacked": use_stacked_settings_card_layout(window_width)}
+    storage_layout_state = {"stacked": use_stacked_settings_card_layout(window_width)}
+    diagnostics_layout_state = {"stacked": use_stacked_settings_card_layout(window_width)}
+
+    def _apply_general_layout(current_width: int, *, force: bool = False) -> None:
+        stacked = use_stacked_settings_card_layout(current_width)
+        if not force and general_layout_state["stacked"] == stacked:
+            return
+        general_layout_state["stacked"] = stacked
+        _configure_card_pair_layout(
+            general_grid,
+            general_status_card,
+            experience_card,
+            stacked=stacked,
+            uniform_group="general_cards",
+        )
+
+    def _apply_storage_layout(current_width: int, *, force: bool = False) -> None:
+        stacked = use_stacked_settings_card_layout(current_width)
+        if not force and storage_layout_state["stacked"] == stacked:
+            return
+        storage_layout_state["stacked"] = stacked
+        _configure_card_pair_layout(
+            storage_grid,
+            destinations_card,
+            capture_settings_card,
+            stacked=stacked,
+            uniform_group="storage_cards",
+        )
+
+    def _apply_diagnostics_layout(current_width: int, *, force: bool = False) -> None:
+        stacked = use_stacked_settings_card_layout(current_width)
+        if not force and diagnostics_layout_state["stacked"] == stacked:
+            return
+        diagnostics_layout_state["stacked"] = stacked
+        _configure_card_grid_layout(
+            diagnostics_grid,
+            diagnostic_card_order,
+            stacked=stacked,
+            uniform_group="diagnostic_cards",
+        )
+
+    def _apply_responsive_settings_layouts(
+        event: tk.Event | None = None,
+        *,
+        force: bool = False,
+    ) -> None:
+        nonlocal responsive_layout_job
+        responsive_layout_job = None
+        current_width = (
+            root.winfo_width()
+            if event is None
+            else int(getattr(event, "width", root.winfo_width()))
+        )
+        _apply_general_layout(current_width, force=force)
+        _apply_storage_layout(current_width, force=force)
+        _apply_diagnostics_layout(current_width, force=force)
+
+    def _queue_responsive_settings_layouts(event: tk.Event | None = None) -> None:
+        nonlocal responsive_layout_job
+        if event is not None and event.widget is not root:
+            return
+        if responsive_layout_job is not None:
+            try:
+                root.after_cancel(responsive_layout_job)
+            except tk.TclError:
+                pass
+        responsive_layout_job = root.after(75, _apply_responsive_settings_layouts)
+
     def _set_diagnostic_card(key: str, summary: DiagnosticSummary) -> None:
         card, detail_label = diagnostic_cards[key]
         tone_map = {"good": "accent", "warn": "warning", "neutral": "info"}
@@ -1371,31 +1492,9 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         _set_badge(general_status_card.badge_label, status_text, status_tone)
         general_status_card.summary_label.configure(text=latest_capture_var.get())
         general_details_var.set(_general_status_details(preview))
-        experience_card.summary_label.configure(
-            text=visibility_summary_text(
-                start_tray_on_login=preview.start_tray_on_login,
-                wake_for_scheduled_captures=preview.wake_for_scheduled_captures,
-                show_last_capture_status=preview.show_last_capture_status,
-                notify_on_failed_or_missed=preview.notify_on_failed_or_missed,
-                notify_on_every_capture=preview.notify_on_every_capture,
-                show_capture_overlay=preview.show_capture_overlay,
-            )
-        )
-        storage_overview_card.summary_label.configure(
-            text=storage_summary_text(
-                storage_preset=preview.storage_preset,
-                retention_mode=preview.retention_mode,
-                retention_days=preview.retention_days,
-                capture_mode=preview.capture_mode,
-                image_format=preview.image_format,
-                image_quality=preview.image_quality,
-                purge_enabled=preview.purge_enabled,
-                retention_grace_days=preview.retention_grace_days,
-            )
-        )
-        destinations_card.summary_label.configure(
-            text=f"{storage_preset_label(preview.storage_preset)} preset • Capture and archive destinations"
-        )
+        experience_card.summary_label.configure(text=_experience_summary(preview))
+        storage_overview_card.summary_label.configure(text=_storage_overview_summary(preview))
+        destinations_card.summary_label.configure(text=_destinations_summary(preview))
         capture_settings_card.summary_label.configure(text=_capture_settings_summary(preview))
         scheduler_notice_label.configure(text=scheduler_status_detail(preview) or "")
         _set_diagnostic_card("scheduler", scheduler_sync_summary(preview))
@@ -1522,7 +1621,9 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     )
     capture_root_var.trace_add("write", _mark_custom)
     archive_root_var.trace_add("write", _mark_custom)
+    root.bind("<Configure>", _queue_responsive_settings_layouts, add="+")
     _update_path_state()
+    _apply_responsive_settings_layouts(force=True)
     _refresh_dynamic_content()
     _poll_external_config_changes()
     root.protocol("WM_DELETE_WINDOW", _cancel)
