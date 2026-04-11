@@ -10,6 +10,10 @@ from selfsnap.paths import AppPaths
 from selfsnap.storage import infer_storage_preset, normalize_storage_config
 
 
+_MIN_SETTINGS_WINDOW_WIDTH = 960
+_MIN_SETTINGS_WINDOW_HEIGHT = 760
+
+
 def default_config(paths: AppPaths) -> AppConfig:
     config = AppConfig(
         app_enabled=False,
@@ -35,6 +39,20 @@ def load_config(paths: AppPaths) -> AppConfig:
         data["capture_storage_root"] = str(paths.default_capture_root)
     if not data.get("archive_storage_root"):
         data["archive_storage_root"] = str(paths.default_archive_root)
+    # Backward-compatible migration for older saved geometry values that predate
+    # current minimum window constraints.
+    try:
+        data["settings_window_width"] = max(
+            int(data.get("settings_window_width", _MIN_SETTINGS_WINDOW_WIDTH)),
+            _MIN_SETTINGS_WINDOW_WIDTH,
+        )
+        data["settings_window_height"] = max(
+            int(data.get("settings_window_height", _MIN_SETTINGS_WINDOW_HEIGHT)),
+            _MIN_SETTINGS_WINDOW_HEIGHT,
+        )
+    except (TypeError, ValueError):
+        data["settings_window_width"] = _MIN_SETTINGS_WINDOW_WIDTH
+        data["settings_window_height"] = _MIN_SETTINGS_WINDOW_HEIGHT
     return normalize_storage_config(paths, AppConfig.from_dict(data), validate=False)
 
 

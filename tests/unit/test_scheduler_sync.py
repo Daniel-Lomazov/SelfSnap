@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from datetime import datetime, timezone
+from types import SimpleNamespace
 import xml.etree.ElementTree as ET
 
 from selfsnap.config_store import load_or_create_config, save_config
@@ -12,6 +13,7 @@ from selfsnap.scheduler.task_scheduler import (
     build_task_action,
     resolve_worker_invocation,
 )
+import selfsnap.scheduler.task_scheduler as task_scheduler
 
 
 def test_build_task_action_includes_schedule_id(temp_paths) -> None:
@@ -137,3 +139,37 @@ def test_build_task_xml_preserves_wake_and_exec_settings(temp_paths) -> None:
     assert root.findtext(".//t:Exec/t:Arguments", namespaces=namespace) == invocation.argument_string()
     assert root.findtext(".//t:Exec/t:WorkingDirectory", namespaces=namespace) == invocation.working_directory
     assert root.findtext(".//t:Settings/t:WakeToRun", namespaces=namespace) == "true"
+
+
+def test_run_powershell_uses_no_window_creation_flags_on_windows(monkeypatch) -> None:
+    seen_kwargs: list[dict[str, object]] = []
+
+    def fake_run(*_args, **kwargs):
+        seen_kwargs.append(kwargs)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(task_scheduler.sys, "platform", "win32")
+    monkeypatch.setattr(task_scheduler.subprocess, "run", fake_run)
+    monkeypatch.setattr(task_scheduler.subprocess, "CREATE_NO_WINDOW", 0x08000000, raising=False)
+
+    task_scheduler._run_powershell("Write-Output 'ok'")
+
+    assert seen_kwargs
+    assert seen_kwargs[0]["creationflags"] == 0x08000000
+
+
+def test_run_schtasks_uses_no_window_creation_flags_on_windows(monkeypatch) -> None:
+    seen_kwargs: list[dict[str, object]] = []
+
+    def fake_run(*_args, **kwargs):
+        seen_kwargs.append(kwargs)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(task_scheduler.sys, "platform", "win32")
+    monkeypatch.setattr(task_scheduler.subprocess, "run", fake_run)
+    monkeypatch.setattr(task_scheduler.subprocess, "CREATE_NO_WINDOW", 0x08000000, raising=False)
+
+    task_scheduler._run_schtasks(["/Query", "/FO", "CSV", "/NH"])
+
+    assert seen_kwargs
+    assert seen_kwargs[0]["creationflags"] == 0x08000000

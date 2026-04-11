@@ -19,6 +19,7 @@ from selfsnap.tray.app import (
     _reinstall_selfsnap,
     _restart_selfsnap,
     _run_high_frequency_scheduler,
+    _toggle_enabled,
 )
 from selfsnap.tray.settings_window import SettingsDialogResult
 from selfsnap.window_sizing import DEFAULT_SETTINGS_WINDOW_HEIGHT, DEFAULT_SETTINGS_WINDOW_WIDTH
@@ -473,6 +474,61 @@ def test_tray_menu_contains_restart_reinstall_and_uninstall_before_exit(temp_pat
         "Keep User Data",
         "Remove All User Data",
     ]
+
+
+def test_toggle_enabled_uses_refresh_menu_callback(temp_paths, monkeypatch) -> None:
+    config = AppConfig(
+        capture_storage_root=str(temp_paths.default_capture_root),
+        archive_storage_root=str(temp_paths.default_archive_root),
+        app_enabled=False,
+        first_run_completed=True,
+    )
+    refresh_calls: list[str] = []
+    icon_updates: list[str] = []
+    sync_calls: list[str] = []
+
+    monkeypatch.setattr("selfsnap.tray.app.load_or_create_config", lambda _paths: config)
+    monkeypatch.setattr("selfsnap.tray.app.save_config", lambda _paths, _config: None)
+    monkeypatch.setattr(
+        "selfsnap.tray.app.sync_scheduler_from_config",
+        lambda _paths, emit_console=False: sync_calls.append("sync"),
+    )
+
+    icon = SimpleNamespace(update_menu=lambda: icon_updates.append("menu"))
+    _toggle_enabled(temp_paths, icon, refresh_menu=lambda: refresh_calls.append("refresh"))
+
+    assert config.app_enabled is True
+    assert sync_calls == ["sync"]
+    assert refresh_calls == ["refresh"]
+    assert icon_updates == []
+
+
+def test_toggle_enabled_first_run_cancel_uses_refresh_menu_callback(temp_paths, monkeypatch) -> None:
+    config = AppConfig(
+        capture_storage_root=str(temp_paths.default_capture_root),
+        archive_storage_root=str(temp_paths.default_archive_root),
+        app_enabled=False,
+        first_run_completed=False,
+    )
+    refresh_calls: list[str] = []
+    icon_updates: list[str] = []
+    sync_calls: list[str] = []
+
+    monkeypatch.setattr("selfsnap.tray.app.load_or_create_config", lambda _paths: config)
+    monkeypatch.setattr("selfsnap.tray.app.show_first_run_dialog", lambda _config, _paths: None)
+    monkeypatch.setattr("selfsnap.tray.app.save_config", lambda _paths, _config: None)
+    monkeypatch.setattr(
+        "selfsnap.tray.app.sync_scheduler_from_config",
+        lambda _paths, emit_console=False: sync_calls.append("sync"),
+    )
+
+    icon = SimpleNamespace(update_menu=lambda: icon_updates.append("menu"))
+    _toggle_enabled(temp_paths, icon, refresh_menu=lambda: refresh_calls.append("refresh"))
+
+    assert config.app_enabled is False
+    assert sync_calls == []
+    assert refresh_calls == ["refresh"]
+    assert icon_updates == []
 
 
 def test_check_for_updates_when_installed_is_newer_shows_installed_as_latest(

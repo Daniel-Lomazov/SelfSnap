@@ -122,6 +122,31 @@ def test_load_or_create_returns_existing_config(temp_paths) -> None:
     assert second.settings_window_width == 1234
 
 
+def test_load_config_clamps_legacy_settings_window_geometry(temp_paths) -> None:
+    temp_paths.ensure_dirs()
+    temp_paths.config_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 3,
+                "app_enabled": False,
+                "first_run_completed": True,
+                "storage_preset": "local_pictures",
+                "capture_storage_root": str(temp_paths.default_capture_root),
+                "archive_storage_root": str(temp_paths.default_archive_root),
+                "settings_window_width": 420,
+                "settings_window_height": 520,
+                "schedules": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = load_config(temp_paths)
+
+    assert loaded.settings_window_width == 960
+    assert loaded.settings_window_height == 760
+
+
 # ---------------------------------------------------------------------------
 # save_config — atomic write (temp file is cleaned up)
 # ---------------------------------------------------------------------------
