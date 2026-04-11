@@ -893,14 +893,14 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         schedule_layout_state["stacked"] = stacked
 
         if stacked:
-            schedules_body.columnconfigure(0, weight=1)
-            schedules_body.columnconfigure(1, weight=0, minsize=0)
+            schedules_body.columnconfigure(0, weight=1, uniform="")
+            schedules_body.columnconfigure(1, weight=0, minsize=0, uniform="")
             list_panel.frame.grid_configure(row=0, column=0, sticky="ew", padx=(0, 0), pady=(0, 0))
             editor_panel.frame.grid_configure(row=1, column=0, sticky="ew", padx=(0, 0), pady=(4, 0))
             schedule_tree.configure(height=4)
         else:
-            schedules_body.columnconfigure(0, weight=1)
-            schedules_body.columnconfigure(1, weight=1, minsize=0)
+            schedules_body.columnconfigure(0, weight=1, uniform="schedule_panels")
+            schedules_body.columnconfigure(1, weight=1, uniform="schedule_panels")
             list_panel.frame.grid_configure(row=0, column=0, sticky="nsew", padx=(0, 4), pady=(0, 0))
             editor_panel.frame.grid_configure(row=0, column=1, sticky="nsew", padx=(0, 0), pady=(0, 0))
             schedule_tree.configure(height=5)
