@@ -56,6 +56,18 @@ SelfSnap should not ship as `1.0.0` until all of the following are true:
 6. The validation checklist passes on real Windows 11 environments, including multi-monitor and sleep/resume scenarios.
 7. Browser-based issue reporting remains safe and does not attach screenshots, logs, or local paths automatically.
 
+## Current branch merge-release readiness addendum
+
+The UI branch introduces material UX/runtime changes beyond the original 1.0 baseline.
+Before merging `ui/fluent-compact-tabs` into `main`, all of the following branch-specific checks must be closed:
+
+1. Fluent-style Settings behavior is documented and validated for narrow and wide layouts.
+2. Schedule list/editor reflow and column autofit behavior is validated against recent regressions.
+3. Tray menu hierarchy and wording are reflected accurately in public docs and troubleshooting docs.
+4. Local `.venv` interpreter enforcement behavior is documented and validated for both valid and missing-venv scenarios.
+5. State-sync protections for scheduled-capture enable/disable toggles are validated against external config polling.
+6. Diagnostics and issue-reporting flows remain user-controlled and privacy-safe.
+
 ## Out of scope for 1.0
 
 - Cross-platform expansion

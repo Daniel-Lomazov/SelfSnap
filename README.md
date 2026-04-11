@@ -186,9 +186,24 @@ SelfSnap diag
 
 ## Docs layout
 
-- `docs/customer_baseline/`: original customer baseline documents that should change rarely
-- `docs/implementation/`: implementation-facing PRD, architecture, QA/privacy, and validation docs
 - `docs/README.md`: documentation index
+- `docs/INSTALL_AND_UPDATE.md`: setup, install, update, reinstall, and uninstall guidance
+- `docs/CLI_REFERENCE.md`: full command-line reference
+- `docs/TROUBLESHOOTING.md`: common failures and recovery steps
+- `docs/CONFIG_REFERENCE.md`: configuration keys, schedule schema, and storage settings
+- `docs/WORKFLOWS.md`: common end-user flows through the tray and Settings UI
+- `docs/implementation/`: implementation-facing PRD, architecture, QA/privacy, validation, behavior notes, and release progress tracking
+- `docs/archive/`: historical customer baseline, starter-kit, and older release-note references
+
+## Further documentation
+
+If you are using the current source checkout rather than reading historical design material, start with:
+
+- `docs/INSTALL_AND_UPDATE.md`
+- `docs/CLI_REFERENCE.md`
+- `docs/TROUBLESHOOTING.md`
+- `docs/CONFIG_REFERENCE.md`
+- `docs/WORKFLOWS.md`
 
 ## Commands
 

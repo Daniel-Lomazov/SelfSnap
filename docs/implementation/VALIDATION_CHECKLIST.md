@@ -13,6 +13,7 @@
 ## Post-v1 release checks
 
 - Confirm no console window appears during tray startup, scheduled capture, or reconcile activity.
+- Confirm launching from a non-local interpreter redirects or blocks with guidance to create/use `.venv`.
 - Confirm storage preset selection updates both capture and archive roots together.
 - Confirm the preset mapping is correct:
   - `Local Pictures` -> `%USERPROFILE%\Pictures\SelfSnap\...`
@@ -21,11 +22,15 @@
 - Confirm `Reset Capture History` requires a destructive warning before it clears SelfSnap user data.
 - Confirm reset removes capture files, archive files, DB history, logs, config, startup shortcut, and scheduled tasks, then relaunches first run.
 - Confirm the settings window can be resized in both directions and content widens without cropping.
+- Confirm card layouts reflow between stacked and split modes around responsive thresholds without overlap.
 - Confirm a manual capture does not resize an open settings window and that reopening returns to the stable minimum size.
+- Confirm the Schedules tab reflows list/editor panels correctly at narrow widths.
+- Confirm schedule list columns auto-fit label/recurrence/start/status text without truncation regressions.
 - Confirm reinstall keeps user data and settings by default.
 - Confirm the Settings window repeats the local-only / not-encrypted-at-rest warning.
 - Confirm `Report Issue` never attaches screenshots, logs, or local file paths automatically.
 - Confirm `Report Issue` opens only a browser page and does not submit anything silently from the app.
+- Confirm global and per-schedule enable/disable changes remain consistent under external config polling.
 - If one tray launch shows both a parent `.venv` `pythonw.exe` and a child `uv`-backed `pythonw.exe` in Task Manager, do not treat that alone as a failure. Only treat it as a bug if duplicate tray icons, duplicate notifications, or duplicate Settings windows appear.
 
 ## Manual capture

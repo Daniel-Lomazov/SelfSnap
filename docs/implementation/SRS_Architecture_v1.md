@@ -1,30 +1,30 @@
-# SelfSnap Win11 v1 SRS and Architecture
+# SelfSnap Win11 SRS and Architecture
 
 ## Runtime shape
 
-- `selfsnap tray`: long-running tray agent with first-run setup, fine-grained recurrence checks, scheduler sync, retention housekeeping, and reconcile loop
-- `selfsnap capture`: one-shot manual or scheduled capture worker
-- Windows Task Scheduler: one one-shot task per enabled coarse schedule entry (`hours` and above)
-- Tray runtime scheduler: `seconds` and `minutes` schedules while the tray is running
-- Tray `Capture Now` launches the one-shot capture worker out of process so capture-side DPI or monitor state cannot mutate tray UI geometry.
-- Tray `Report Issue` opens a dedicated report dialog and always routes the result into a browser-opened prefilled GitHub issue page.
+- `selfsnap tray`: long-running tray agent handling first-run UX, scheduler sync, high-frequency recurrence checks, reconciliation kickoff, and maintenance actions.
+- `selfsnap capture`: one-shot worker process for manual and scheduled capture.
+- Windows Task Scheduler: one one-shot task per enabled coarse schedule entry (`hours` and above).
+- Tray-side runtime scheduler: `seconds` and `minutes` schedules while tray is running.
+- Tray `Capture Now` launches capture out-of-process to isolate tray UI state from capture engine side effects.
+- Tray `Report Issue` opens a browser-mediated prefilled GitHub issue flow.
 
 ## Current operational constraints
 
-- Tray and worker background execution does not open a visible console window.
-- Normal runtime is offline by default.
-- Storage presets map to local Pictures, OneDrive Pictures, or a custom path.
-- Reset capture history is a deliberate destructive operation with explicit user confirmation.
-- Settings UI supports resizing and content-aware layout, but it does not auto-persist incidental geometry changes from capture activity.
-- Reinstall is non-destructive by default and preserves user data and configuration unless cleanup is requested separately.
-- A separate elevated cleanup script removes stale ACL-poisoned pytest folders when needed.
-- GitHub issue intake is handled by repository workflows, not by long-running local services.
+- Tray and worker background execution remains console-free.
+- Runtime is offline by default.
+- Source-based launches are constrained to checkout-local `.venv` interpreter policy.
+- Storage presets map to local Pictures, OneDrive Pictures, or user-selected custom roots.
+- Settings UI is resizable with responsive card/panel layout transitions.
+- Schedule list/editor behavior supports narrow-width stacked mode and wider split mode.
+- Reset capture history is destructive, explicit, and user-confirmed.
+- Reinstall is non-destructive by default unless cleanup is explicitly requested.
 
 ## Trust boundary
 
-- SelfSnap is local-first: no telemetry, no cloud sync, and no silent upload during normal runtime.
-- `Report Issue` and `Check for Updates` are user-triggered only.
-- v1 does not encrypt captures at rest; use only on a machine and storage location the user controls.
+- SelfSnap is local-first: no telemetry, no cloud sync, and no silent upload in normal runtime.
+- `Report Issue` and `Check for Updates` are explicit user-triggered actions.
+- Capture files are not encrypted at rest in current release scope.
 
 ## Capture contracts
 
@@ -62,12 +62,25 @@ If `%OneDrive%` is unavailable, resolution falls back to `%USERPROFILE%\OneDrive
 ## Scheduler semantics
 
 - Global disable removes all SelfSnap scheduled capture tasks.
-- Individual disabled schedules are not kept active in Task Scheduler.
-- A scheduler sync failure leaves config saved, marks sync state failed, blocks scheduled capture, and keeps manual capture available.
-- Wake-for-scheduled-captures is an optional best-effort setting, default OFF.
-- Recurrences are anchored to explicit local start date and start time values.
-- `months` and `years` skip invalid calendar dates instead of rolling to the last valid day.
-- High-frequency schedules are tray-managed; coarse schedules are Task Scheduler-backed and re-register the next one-shot occurrence after each run.
+- Disabled individual schedules are not registered as active Task Scheduler tasks.
+- Scheduler sync failure preserves saved config, marks sync status failed, blocks scheduled capture, and keeps manual capture available.
+- Wake-for-scheduled-captures remains optional and best-effort.
+- Recurrence anchors are explicit local start date and start time.
+- `months` and `years` skip invalid calendar dates rather than rolling forward/backward implicitly.
+- Coarse schedules re-register the next one-shot occurrence after each run.
+
+## UI architecture notes
+
+- Fluent styling primitives are centralized in `src/selfsnap/ui/fluent.py`.
+- `src/selfsnap/tray/settings_window.py` uses responsive thresholds for stacked/split card layouts.
+- Schedule editor/list composition dynamically changes layout based on window width.
+- Diagnostics data is summarized in UI-specific presentation helpers under `src/selfsnap/ui/diagnostics.py`.
+
+## Interpreter policy
+
+- Source launches must resolve and use local `.venv` runtime.
+- Missing local `.venv` is treated as a setup fault with explicit guidance.
+- Foreground and background launch helpers align around the same local interpreter contract.
 
 ## Reset semantics
 

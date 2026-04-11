@@ -1,51 +1,49 @@
-# SelfSnap Win11 v1 PRD
+# SelfSnap Win11 PRD (Current Branch Contract)
 
 ## Goal
 
-Deliver a Windows 11 local-first utility for privacy-minded power users that captures desktop screenshots on recurring schedules and stores them locally with honest metadata.
+Ship a Windows 11-only, local-first screenshot utility that is transparent, user-controlled, and reliable for recurring desktop capture workflows.
+
+## Product principles
+
+- Local-first by default: captures and metadata remain on local storage unless the user explicitly chooses network-driven actions.
+- Honest status: success, failure, missed, and skipped outcomes are surfaced consistently in UI, logs, and DB metadata.
+- User control over automation: users can globally pause scheduling, pause individual schedules, and review diagnostics before changing state.
+- Predictable operations: install/update/reinstall/uninstall/reset flows are explicit and reversible where possible.
 
 ## Must-have behavior
 
-- Manual capture works from CLI and tray.
-- Recurring schedules are supported for seconds, minutes, hours, days, weeks, months, and years.
-- A scheduled trigger that does not run because of sleep or unavailability is recorded later as a missed slot.
-- Global disable stops scheduled task runs entirely until re-enabled.
-- First-run setup must be completed before scheduled capture becomes active.
-- Output is local only.
-- Capture output supports composite mode by default and optional per-monitor output.
-- Image output supports `png`, `jpeg`, and `webp`, with quality control for `jpeg` and `webp`.
-- Tray UI exposes capture now, enable or disable, open folder, open latest, settings, report issue, check for updates, reinstall, uninstall, restart, and exit.
-- Layered visibility controls are supported:
-  - latest status in tray menu
-  - failed or missed notifications
-  - every-capture notifications
-  - on-screen overlay after capture
+- Manual capture works from tray and CLI.
+- Recurring schedules support `seconds`, `minutes`, `hours`, `days`, `weeks`, `months`, and `years`.
+- High-frequency schedules are tray-managed; coarse schedules are Windows Task Scheduler-backed.
+- Missed scheduled slots are represented honestly in metadata/reconciliation behavior.
+- Scheduled capture remains blocked until first-run completion.
+- Capture output supports composite and per-monitor modes.
+- Image output supports `png`, `jpeg`, and `webp`; quality controls apply to `jpeg` and `webp`.
+- Settings exposes storage, retention, capture output, schedules, diagnostics, and maintenance controls.
+- Tray actions cover capture, settings, diagnostics-related flows, lifecycle actions, and issue reporting.
 
-## Current shipped scope additions
+## Current branch-level scope additions
 
-- Background tray and worker operations are console-free.
-- Storage presets are explicit choices: `Local Pictures`, `OneDrive Pictures`, and `Custom Folder`.
-- Reset capture history is a destructive clean-reset action with a permanent warning and returns the app to first-run state.
-- Settings window is resizable and opens at a stable minimum size so capture activity does not perturb its geometry.
-- Tray issue reporting opens a browser-prepared GitHub issue without attaching screenshots automatically.
-- Recent captures and statistics windows provide lightweight in-tray review without requiring a full history browser.
-- Capture mode and image format are configurable from Settings.
-- Reinstall preserves user data and settings by default unless cleanup is requested separately.
-- A dedicated elevated cleanup script is available for stale ACL-poisoned pytest folders from older runs.
-- Schedule editing uses a structured builder with `Add`, `Save`, `Cancel`, `Delete`, and multi-select delete-only behavior.
-- Recurrence anchors are explicit local start date and start time values.
+- Fluent-style Settings surface with responsive card and panel behavior.
+- Schedule editor/list layout tuning with auto-fit columns and narrow-width stacking behavior.
+- Expanded diagnostics surface and clearer supportability signals in Settings/tray.
+- Runtime launch hardening for source installs through checkout-local `.venv` interpreter enforcement.
+- Better state sync protections to avoid clobbering unsaved local Settings edits.
+- Console-free background launch behavior for tray/worker flows.
+- Browser-mediated issue reporting with safe diagnostics and no automatic sensitive attachments.
 
 ## Reset scope
 
-- Removes SelfSnap-managed capture files and archive files
-- Clears DB history, logs, and config
-- Removes startup shortcut and SelfSnap scheduled tasks
-- Relaunches into first-run setup
-- Does not uninstall the app or delete repo files
+- Deletes SelfSnap-managed captures and archive files.
+- Clears config, DB history, and logs under `%LOCALAPPDATA%\SelfSnap`.
+- Removes startup shortcut and SelfSnap scheduled capture tasks.
+- Returns runtime to first-run onboarding.
+- Does not uninstall the app package or repository checkout.
 
-## Deferred
+## Deferred / non-goals
 
-- Full history browser and search-focused review UX
-- Cross-platform support
-- Encryption at rest
-- Cloud sync
+- Full history browser and search UI.
+- Cross-platform support.
+- Encryption at rest.
+- Cloud sync and remote telemetry.
