@@ -4,7 +4,7 @@ import tkinter as tk
 from dataclasses import dataclass, replace
 from tkinter import filedialog, messagebox, ttk
 
-from selfsnap.config_store import save_config
+from selfsnap.config_store import load_or_create_config, save_config
 from selfsnap.db import connect, ensure_database
 from selfsnap.models import AppConfig, CaptureRecord, ConfigValidationError, StoragePreset
 from selfsnap.paths import AppPaths
@@ -98,6 +98,7 @@ from selfsnap.window_sizing import (
 )
 
 HISTORY_REFRESH_INTERVAL_MS = 5000
+CONFIG_POLL_INTERVAL_MS = 1000
 STACKED_COMPACT_LAYOUT_MAX_WIDTH = 660
 
 SCHEDULE_TREE_COLUMN_SPECS: tuple[tuple[str, int, int, str], ...] = (
@@ -206,6 +207,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     ]
     selected_indices: list[int] = []
     history_refresh_job: str | None = None
+    config_poll_job: str | None = None
 
     def _load_latest_record() -> CaptureRecord | None:
         if not paths.db_path.exists():
@@ -1043,6 +1045,25 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
                 pass
             history_refresh_job = None
 
+    def _cancel_config_poll() -> None:
+        nonlocal config_poll_job
+        if config_poll_job is not None:
+            try:
+                root.after_cancel(config_poll_job)
+            except tk.TclError:
+                pass
+            config_poll_job = None
+
+    def _poll_external_config_changes() -> None:
+        nonlocal config_poll_job
+        try:
+            disk_config = load_or_create_config(paths)
+            if disk_config.app_enabled != app_enabled_var.get():
+                app_enabled_var.set(disk_config.app_enabled)
+        except Exception:
+            pass
+        config_poll_job = root.after(CONFIG_POLL_INTERVAL_MS, _poll_external_config_changes)
+
     def _poll_history() -> None:
         nonlocal history_refresh_job
         if len(selected_indices) == 1:
@@ -1308,6 +1329,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         if not confirmed:
             return
         _cancel_history_poll()
+        _cancel_config_poll()
         result.window_size = _capture_size()
         result.requested_reset = True
         root.destroy()
@@ -1448,6 +1470,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
 
     def _cancel() -> None:
         _cancel_history_poll()
+        _cancel_config_poll()
         result.window_size = _capture_size()
         root.destroy()
 
@@ -1486,6 +1509,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     archive_root_var.trace_add("write", _mark_custom)
     _update_path_state()
     _refresh_dynamic_content()
+    _poll_external_config_changes()
     root.protocol("WM_DELETE_WINDOW", _cancel)
     root.mainloop()
     return result
