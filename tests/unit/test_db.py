@@ -59,6 +59,20 @@ def test_managed_connection_does_not_suppress_exception(temp_paths) -> None:
             raise ValueError("intentional")
 
 
+def test_connect_returns_managed_connection_with_expected_pragmas(temp_paths) -> None:
+    conn = connect(temp_paths.db_path)
+    try:
+        assert isinstance(conn, ManagedConnection)
+        assert conn.row_factory is sqlite3.Row
+        busy_timeout = conn.execute("PRAGMA busy_timeout").fetchone()[0]
+        journal_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+    finally:
+        conn.close()
+
+    assert busy_timeout == 30000
+    assert str(journal_mode).lower() == "wal"
+
+
 # ---------------------------------------------------------------------------
 # _ensure_column — ADD COLUMN path
 # ---------------------------------------------------------------------------

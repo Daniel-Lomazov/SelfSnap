@@ -33,7 +33,8 @@ _SCHEDULER_SYNC_STATE_LABELS = {
 def local_privacy_notice() -> str:
     return (
         "SelfSnap stores captures locally, stays offline by default, and does not encrypt "
-        "screenshots at rest in v1. Use only on a machine and storage location you control."
+        "screenshots. "
+        "Use only on a machine and storage location you control."
     )
 
 

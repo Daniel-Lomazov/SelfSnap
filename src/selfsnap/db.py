@@ -2,10 +2,17 @@ from __future__ import annotations
 
 from pathlib import Path
 import sqlite3
+from types import TracebackType
+from typing import Literal
 
 
 class ManagedConnection(sqlite3.Connection):
-    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> Literal[False]:
         try:
             if exc_type is None:
                 self.commit()

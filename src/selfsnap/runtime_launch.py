@@ -201,6 +201,7 @@ def launch_background(spec: LaunchSpec) -> subprocess.Popen[str]:
         cwd=spec.working_directory,
         creationflags=_background_creation_flags(),
         close_fds=False,
+        text=True,
     )
 
 
@@ -213,6 +214,7 @@ def launch_hidden_background(spec: LaunchSpec) -> subprocess.Popen[str]:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         stdin=subprocess.DEVNULL,
+        text=True,
         close_fds=False,
     )
 
@@ -223,6 +225,7 @@ def run_background_command(spec: LaunchSpec) -> subprocess.CompletedProcess[str]
         cwd=spec.working_directory,
         creationflags=_background_creation_flags(),
         check=False,
+        text=True,
     )
 
 
@@ -236,4 +239,5 @@ def run_lifecycle_script(spec: LaunchSpec) -> subprocess.CompletedProcess[str]:
         stderr=subprocess.DEVNULL,
         stdin=subprocess.DEVNULL,
         check=False,
+        text=True,
     )

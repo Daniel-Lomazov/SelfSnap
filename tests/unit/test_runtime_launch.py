@@ -1,15 +1,21 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 
 import pytest
 
 from selfsnap.runtime_launch import (
+    LaunchSpec,
+    launch_background,
+    launch_hidden_background,
     resolve_background_working_directory,
     resolve_background_python_executable,
     resolve_foreground_python_executable,
     resolve_manual_capture_background_invocation,
     resolve_source_repo_root,
+    run_background_command,
+    run_lifecycle_script,
 )
 
 
@@ -166,3 +172,97 @@ def test_resolve_source_repo_root_prefers_trusted_install_metadata(temp_paths) -
     result = resolve_source_repo_root(temp_paths)
 
     assert Path(result) == temp_paths.user_profile
+
+
+def test_launch_background_requests_text_mode(monkeypatch, temp_paths) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_popen(*args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return object()
+
+    monkeypatch.setattr("selfsnap.runtime_launch.subprocess.Popen", fake_popen)
+    spec = LaunchSpec(
+        executable="pythonw.exe",
+        arguments=["-m", "selfsnap", "tray"],
+        working_directory=str(temp_paths.root),
+    )
+
+    launch_background(spec)
+
+    assert captured["args"] == (spec.command(),)
+    kwargs = captured["kwargs"]
+    assert kwargs["cwd"] == spec.working_directory
+    assert kwargs["text"] is True
+    assert kwargs["close_fds"] is False
+
+
+def test_launch_hidden_background_suppresses_stdio_and_requests_text_mode(
+    monkeypatch, temp_paths
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_popen(*args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return object()
+
+    monkeypatch.setattr("selfsnap.runtime_launch.subprocess.Popen", fake_popen)
+    spec = LaunchSpec(
+        executable="powershell.exe",
+        arguments=["-File", "script.ps1"],
+        working_directory=str(temp_paths.root),
+    )
+
+    launch_hidden_background(spec)
+
+    kwargs = captured["kwargs"]
+    assert kwargs["cwd"] == spec.working_directory
+    assert kwargs["stdout"] is subprocess.DEVNULL
+    assert kwargs["stderr"] is subprocess.DEVNULL
+    assert kwargs["stdin"] is subprocess.DEVNULL
+    assert kwargs["text"] is True
+    assert kwargs["close_fds"] is False
+
+
+@pytest.mark.parametrize(
+    ("runner_name", "expected_stdio"),
+    [
+        ("run_background_command", {}),
+        (
+            "run_lifecycle_script",
+            {
+                "stdout": subprocess.DEVNULL,
+                "stderr": subprocess.DEVNULL,
+                "stdin": subprocess.DEVNULL,
+            },
+        ),
+    ],
+)
+def test_run_helpers_request_text_mode(monkeypatch, temp_paths, runner_name, expected_stdio) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(*args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return subprocess.CompletedProcess(args=args[0], returncode=0)
+
+    monkeypatch.setattr("selfsnap.runtime_launch.subprocess.run", fake_run)
+    spec = LaunchSpec(
+        executable="python.exe",
+        arguments=["-m", "selfsnap", "capture"],
+        working_directory=str(temp_paths.root),
+    )
+
+    if runner_name == "run_background_command":
+        run_background_command(spec)
+    else:
+        run_lifecycle_script(spec)
+
+    assert captured["args"] == (spec.command(),)
+    kwargs = captured["kwargs"]
+    assert kwargs["cwd"] == spec.working_directory
+    assert kwargs["text"] is True
+    for key, value in expected_stdio.items():
+        assert kwargs[key] is value

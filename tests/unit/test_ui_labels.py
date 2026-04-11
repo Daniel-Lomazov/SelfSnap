@@ -71,7 +71,9 @@ def test_local_privacy_notice_matches_public_trust_boundary() -> None:
 
     assert "stores captures locally" in notice
     assert "offline by default" in notice
-    assert "does not encrypt screenshots at rest in v1" in notice
+    assert "does not encrypt screenshots." in notice
+    assert "Use only on a machine and storage location you control." in notice
+    assert "at rest in v1" not in notice
 
 
 def test_storage_preset_labels_returns_list() -> None:
