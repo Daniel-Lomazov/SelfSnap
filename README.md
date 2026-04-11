@@ -2,14 +2,14 @@
 
 SelfSnap Win11 is a Windows 11-only, local-first screenshot utility for personal use. It captures screenshots of all connected monitors on recurring schedules, stores them locally, and records honest metadata about what happened.
 
-Current version: `v1.0.0`. Technical release history lives in `CHANGELOG.md`.
+Current version: `v1.1.0`. Technical release history lives in `CHANGELOG.md`.
 
 SelfSnap is offline by default. The only user-triggered network actions are opening a browser for `Report Issue` and using `Check for Updates`, which queries the GitHub Releases API and optionally fetches the new release tag.
 There is no telemetry or silent upload in normal runtime.
 
 ## Project status
 
-- Public `v1.0.0` Windows 11 utility focused on local scheduled screenshot capture
+- Public `v1.1.0` Windows 11 utility with Fluent-style UI, responsive design, and enhanced runtime hardening
 - Stable for personal-use iteration, with versioned releases and CI validation
 - Source-based install is the primary supported path
 - Public release posture is focused on privacy-minded Windows power users
@@ -21,12 +21,13 @@ This repository is public for visibility and issue tracking, but the code remain
 
 ## Current release
 
-`v1.0.0` is the first public trust-grade baseline release.
+`v1.1.0` is a stable minor update with comprehensive UI/UX refinement and runtime hardening.
 
-- **Stable 1.0 contract and scope lock.** Public contract, release gate, known limitations, and implementation baseline are explicitly documented.
-- **Trust boundary is aligned across docs and runtime.** First-run, Settings, and README consistently state local-only behavior, offline-by-default operation, and no encryption at rest in v1.
-- **Scheduler reliability hardening.** DST-sensitive scheduler test behavior was stabilized and coarse schedule registration fallback now uses a Task Scheduler-compatible XML encoding.
-- **Supportability baseline for public users.** Troubleshooting guidance, diagnostics path (`selfsnap doctor`/`selfsnap diag`), and browser-mediated issue reporting flow are in place.
+- **Fluent-style Settings redesign.** Complete visual refresh with responsive card/panel layouts that adapt to window width, improved text wrapping, and accessible keyboard navigation.
+- **Enhanced diagnostics and observability.** New diagnostics surface in Settings shows scheduler sync status, storage metrics, retention policy, and operational context in real-time.
+- **Responsive schedule editor.** Schedule list and editor panels reflow between stacked (narrow) and side-by-side (wide) layouts with auto-fit column widths to prevent truncation.
+- **Runtime hardening.** Local `.venv` interpreter enforcement ensures source launches use the correct Python environment. Settings state-sync protection prevents unsaved edits from being clobbered by external config changes.
+- **Expanded internal documentation.** New focused docs for UI patterns, tray menu evolution, interpreter policy, settings polling behavior, and scheduler edge cases preserve iteration history and support maintainability.
 
 For the full implementation-facing release history, see [`CHANGELOG.md`](CHANGELOG.md).
 

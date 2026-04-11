@@ -1,5 +1,36 @@
 # Changelog
 
+## v1.1.0 - 2026-04-12
+
+Why: Comprehensive UI/UX redesign with runtime hardening and documentation overhaul to establish the branch as stable minor release before merging into main.
+
+**UI and UX (Feature and Fix)**
+
+- **Feat — Fluent-style Settings redesign.** Complete visual refresh of `settings_window.py` (+1480 lines) with Fluent styling primitives (`src/selfsnap/ui/fluent.py`), responsive card layouts, improved text wrapping, and polished visual hierarchy. Settings window now gracefully adapts layout between narrow (stacked) and wide (split) modes without cropping or hidden controls.
+- **Feat — Responsive schedule editor.** Schedule list and editor panels dynamically reflow around responsive width thresholds (660px stacked / 820px split). Schedule tree columns auto-fit to content width using font-based measurement + heading/cell expansion, eliminating truncation regressions when adding/saving schedules.
+- **Feat — Enhanced diagnostics surface.** New `src/selfsnap/ui/diagnostics.py` module surfaces real-time operational state in Settings: scheduler sync status, storage metrics, retention policy, capture history summary, and operational context. Diagnostics tab replaces opaque tray-only visibility.
+- **Fix — Settings state-sync protection.** Polled external config changes no longer clobber unsaved local edits. Added dirty-state tracking so toggling `app_enabled` in Settings stays local until Save is clicked, preventing the concurrent polling loop from overwriting the unsaved change.
+- **Fix — Schedule editor / list interaction.** Fixed tree refresh jitter, column autofit regressions after add/save/delete, and history panel state consistency under rapid widget changes.
+
+**Runtime Hardening**
+
+- **Feat — Local `.venv` interpreter enforcement.** Source-based launches now prefer and enforce the checkout-local `.venv` interpreter. Missing or unavailable `.venv` triggers explicit user guidance to run setup. Prevents drift between globally installed Python and project dependencies.
+- **Fix — Tray single-instance guard.** Added named Windows mutex enforcement so duplicate tray icons and duplicate notifications are eliminated. Tray startup checks for existing instance and exits gracefully if already running.
+
+**Documentation and Release Readiness**
+
+- **Docs — complete overhaul.** Rewrote public product docs (install/update, CLI reference, troubleshooting, config reference, workflows). Refreshed canonical implementation contracts (PRD, SRS, release criteria, QA/privacy, validation, issue reporting). Added five focused internal behavior docs: UI patterns & responsive layout, tray menu structure & evolution, interpreter enforcement & venv policy, settings window state sync & polling, scheduler & DST edge cases.
+- **Docs — archive and consolidation.** Moved historical customer baseline, starter-kit, and legacy planning docs to `docs/archive/`. Replaced four overlapping planning files with a single `release_progress_tracker.md`. Updated docs index and links for clarity.
+- **Release versioning decision.** Locked release at `v1.1.0` per semantic versioning: backward-compatible minor release with additive UI/UX improvements and runtime hardening, not a patch (too significant) and not a major release (backward-compatible).
+
+**Test Coverage and Quality**
+
+- **Test — new `test_ui_fluent.py`, `test_ui_diagnostics.py`, `test_ui_presentation.py`.** Cover Fluent styling primitives, diagnostics card building, and presentation helper functions.
+- **Test — new `test_settings_window_layout.py`, `test_window_sizing.py`.** Cover responsive layout thresholds and window geometry clamping behavior.
+- **Test — extended `test_runtime_launch.py`.** Added 246 lines covering local `.venv` enforcement, missing-venv remediation path, and interpreter policy validation.
+- **Test — extended `test_tray_app.py`.** Added 268 lines covering single-instance mutex behavior, tray relaunch sequencing, and menu state consistency.
+- **Test — extended `test_schedule_editor.py`, `test_scheduler_sync.py`, `test_settings_window_layout.py`.** Cover tree refresh behavior, column autofit, and narrow/wide layout transitions.
+
 ## v1.0.2 - 2026-04-04
 
 Why: Expanded unit test coverage from 87% to 89% (+39 tests, +2.25 pp) by targeting previously untested branches, new modules, and dead-code confirmation.

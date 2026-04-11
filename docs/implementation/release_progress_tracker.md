@@ -10,8 +10,8 @@ Complete the documentation overhaul for `ui/fluent-compact-tabs` before any merg
 - Canonical implementation docs refresh: complete
 - New internal behavior docs: complete
 - Archive/reclassification pass: complete
-- Version surface synchronization: pending decision
-- Final merge/tag sequencing: pending decision
+- Version surface synchronization: complete (v1.1.0)
+- Final merge/tag sequencing: in progress
 
 ## Completed deliverables
 
@@ -35,8 +35,15 @@ Complete the documentation overhaul for `ui/fluent-compact-tabs` before any merg
   - `docs/implementation/SETTINGS_WINDOW_STATE_SYNC_AND_POLLING.md`
   - `docs/implementation/SCHEDULER_AND_DST_EDGE_CASES.md`
 
-## Remaining release blockers
+## Completed steps
 
-1. Choose target release version for the UI branch integration.
-2. Synchronize all version surfaces (`pyproject.toml`, `src/selfsnap/version.py`, `README.md`, `CHANGELOG.md`).
-3. Finalize merge and tag runbook when version is locked.
+1. ✓ Version decision: `v1.1.0` locked as stable minor release for backward-compatible UI/UX improvements and runtime hardening.
+2. ✓ Version surface synchronization: all surfaces now consistent at `1.1.0`:
+   - `pyproject.toml`: version = "1.1.0"
+   - `src/selfsnap/version.py`: __version__ = "1.1.0"
+   - `README.md`: Current version: `v1.1.0` + updated release description
+   - `CHANGELOG.md`: added comprehensive v1.1.0 entry with UI/runtime/docs justification
+
+## Remaining step
+
+3. Finalize merge and tag runbook for eventual merge into `main`.
