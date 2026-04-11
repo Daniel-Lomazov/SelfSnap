@@ -1,0 +1,179 @@
+name: PR Plan
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  generate-plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate and post PR plan
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+            });
+
+            // ── Categorise changed files ──────────────────────────────────────
+            const cats = {
+              tray:      { label: "Tray / UI",          files: [] },
+              scheduler: { label: "Scheduler",           files: [] },
+              worker:    { label: "Capture / Worker",    files: [] },
+              db:        { label: "Database",            files: [] },
+              storage:   { label: "Storage / Retention", files: [] },
+              config:    { label: "Config / Models",     files: [] },
+              paths:     { label: "Paths",               files: [] },
+              tests:     { label: "Tests",               files: [] },
+              ci:        { label: "CI / DevOps",         files: [] },
+              deps:      { label: "Dependencies",        files: [] },
+              docs:      { label: "Docs",                files: [] },
+              other:     { label: "Other",               files: [] },
+            };
+
+            for (const f of files) {
+              const p = f.filename;
+              if      (p.startsWith("src/selfsnap/tray/"))                      cats.tray.files.push(f);
+              else if (p.startsWith("src/selfsnap/scheduler/"))                 cats.scheduler.files.push(f);
+              else if (/src\/selfsnap\/(worker|runtime_launch|runtime_probe)/.test(p)) cats.worker.files.push(f);
+              else if (/src\/selfsnap\/(db|records)\.py/.test(p))               cats.db.files.push(f);
+              else if (/src\/selfsnap\/(storage|retention)\.py/.test(p))        cats.storage.files.push(f);
+              else if (/src\/selfsnap\/(config_store|models|recurrence)\.py/.test(p)) cats.config.files.push(f);
+              else if (p.includes("src/selfsnap/paths.py"))                     cats.paths.files.push(f);
+              else if (p.startsWith("tests/"))                                   cats.tests.files.push(f);
+              else if (p.startsWith(".github/"))                                 cats.ci.files.push(f);
+              else if (/pyproject\.toml|requirements/.test(p))                  cats.deps.files.push(f);
+              else if (/\.(md|rst|txt)$/.test(p) || p.startsWith("docs/"))      cats.docs.files.push(f);
+              else                                                                cats.other.files.push(f);
+            }
+
+            const affected = Object.entries(cats).filter(([, v]) => v.files.length > 0);
+
+            // ── Summary line ─────────────────────────────────────────────────
+            const totalAdded   = files.reduce((s, f) => s + f.additions, 0);
+            const totalRemoved = files.reduce((s, f) => s + f.deletions, 0);
+
+            // ── Changed-files table ──────────────────────────────────────────
+            const fileRows = files.slice(0, 40).map(f => {
+              const icon = f.status === "added" ? "➕" : f.status === "removed" ? "➖" : "✏️";
+              return `| ${icon} \`${f.filename}\` | +${f.additions} / -${f.deletions} |`;
+            }).join("\n");
+            const truncNote = files.length > 40 ? `\n> _…and ${files.length - 40} more files_` : "";
+
+            // ── Impact breakdown ─────────────────────────────────────────────
+            const impactLines = affected.map(([, v]) =>
+              `- **${v.label}** — ${v.files.length} file${v.files.length > 1 ? "s" : ""}`
+            ).join("\n");
+
+            // ── Dynamic checklist ────────────────────────────────────────────
+            const checks = [];
+
+            // Always
+            checks.push("- [ ] CI passes (`compile`, `test (3.11)`, `test (3.12)`)");
+            checks.push("- [ ] No stray debug statements or TODO left in");
+
+            if (cats.db.files.length > 0) {
+              checks.push("- [ ] DB schema changes are backwards-compatible or migration path documented");
+              checks.push("- [ ] SQLite WAL / busy-timeout behaviour unaffected");
+            }
+            if (cats.config.files.length > 0) {
+              checks.push("- [ ] `AppConfig.validate()` covers new/changed fields");
+              checks.push("- [ ] `from_dict()` / `to_dict()` round-trip tested");
+            }
+            if (cats.scheduler.files.length > 0) {
+              checks.push("- [ ] High-freq (tray) vs coarse (Task Scheduler) boundary intact");
+              checks.push("- [ ] Missed-slot reconcile logic unaffected");
+            }
+            if (cats.worker.files.length > 0) {
+              checks.push("- [ ] Capture subprocess isolation preserved (not run in-process)");
+              checks.push("- [ ] `CaptureBackendError` path still exits with code 1");
+            }
+            if (cats.storage.files.length > 0) {
+              checks.push("- [ ] Image path template (`YYYY/MM/DD/`) unchanged or migration added");
+              checks.push("- [ ] Retention policy respected");
+            }
+            if (cats.paths.files.length > 0) {
+              checks.push("- [ ] `AppPaths` dataclass changes don't break existing installations");
+            }
+            if (cats.deps.files.length > 0) {
+              checks.push("- [ ] New dependencies pinned appropriately in `pyproject.toml`");
+              checks.push("- [ ] Windows-only deps marked with `; sys_platform == 'win32'` if needed");
+            }
+            if (cats.tray.files.length > 0) {
+              checks.push("- [ ] Tray icon renders on Windows 11 (test manually if feasible)");
+              checks.push("- [ ] No new blocking calls on pystray/tkinter UI thread");
+            }
+            if (cats.ci.files.length > 0) {
+              checks.push("- [ ] Workflow changes reviewed for secrets exposure");
+              checks.push("- [ ] No new `pull-requests: write` or `contents: write` permissions without justification");
+            }
+            if (cats.tests.files.length === 0 && (
+              cats.tray.files.length + cats.scheduler.files.length + cats.worker.files.length +
+              cats.db.files.length + cats.storage.files.length + cats.config.files.length > 0
+            )) {
+              checks.push("- [ ] ⚠️ **No test files changed** — confirm new behaviour is covered");
+            }
+
+            // ── Risk flags ───────────────────────────────────────────────────
+            const risks = [];
+            if (cats.db.files.length > 0)      risks.push("🔴 **Database** changes — data-loss risk if schema alter is wrong");
+            if (cats.paths.files.length > 0)    risks.push("🟠 **Paths** changed — may break existing user installations");
+            if (cats.deps.files.length > 0)     risks.push("🟡 **Dependency** changes — verify Windows compatibility");
+            if (cats.scheduler.files.length > 0) risks.push("🟡 **Scheduler** changes — validate Windows Task Scheduler interaction");
+            if (cats.ci.files.length > 0)       risks.push("🟡 **CI/DevOps** changes — review workflow permissions");
+
+            const riskSection = risks.length > 0
+              ? `\n### ⚠️ Risk Flags\n${risks.join("\n")}`
+              : "\n### ✅ Risk Assessment\nNo high-risk areas detected.";
+
+            // ── Compose comment ──────────────────────────────────────────────
+            const body = `## 📋 PR Plan — \`${pr.head.ref}\` → \`main\`
+
+> Auto-generated by **PR Plan** workflow · ${new Date().toISOString().slice(0, 10)}
+
+### 📊 Summary
+| | |
+|---|---|
+| **Files changed** | ${files.length} |
+| **Lines added** | +${totalAdded} |
+| **Lines removed** | -${totalRemoved} |
+| **Author** | @${pr.user.login} |
+| **Branch** | \`${pr.head.ref}\` |
+
+### 🗂️ Impact Areas
+${impactLines || "_No source files changed_"}
+${riskSection}
+
+### 🗃️ Changed Files
+| File | Δ |
+|---|---|
+${fileRows}${truncNote}
+
+### ✅ Review Checklist
+${checks.join("\n")}
+
+---
+_Merge is blocked until CI passes. Update this checklist in a follow-up comment if needed._`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body,
+            });
