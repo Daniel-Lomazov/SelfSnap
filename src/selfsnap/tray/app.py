@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ctypes
 import logging
 import os
 import threading
@@ -62,7 +63,29 @@ class TrayRuntimeState:
     last_announced_record_id: str | None = None
 
 
+_TRAY_MUTEX_NAME = "Local\\SelfSnap_TrayInstance"
+
+
+def _acquire_tray_mutex() -> int | None:
+    """Try to create a named Windows mutex for single-instance enforcement.
+
+    Returns the raw handle to keep alive, or None if another tray is already
+    running (ERROR_ALREADY_EXISTS == 183).
+    """
+    handle = ctypes.windll.kernel32.CreateMutexW(None, True, _TRAY_MUTEX_NAME)  # type: ignore[attr-defined]
+    if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS  # type: ignore[attr-defined]
+        if handle:
+            ctypes.windll.kernel32.CloseHandle(handle)  # type: ignore[attr-defined]
+        return None
+    return handle
+
+
 def run_tray_app(paths: AppPaths | None = None) -> int:
+    _mutex_handle = _acquire_tray_mutex()
+    if _mutex_handle is None:
+        print("SelfSnap tray is already running.")
+        return 1
+
     probe = probe_runtime_dependencies()
     if not probe.ok:
         print(f"Tray runtime check failed: {probe.summary}")
