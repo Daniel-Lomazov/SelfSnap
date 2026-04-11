@@ -145,6 +145,20 @@ def use_stacked_settings_card_layout(window_width: int) -> bool:
     return window_width < RESPONSIVE_CARD_SPLIT_MIN_WIDTH
 
 
+def should_sync_polled_app_enabled(
+    *,
+    current_ui_value: bool,
+    saved_value: bool,
+    disk_value: bool,
+    local_dirty: bool,
+) -> bool:
+    if disk_value == current_ui_value:
+        return False
+    if local_dirty and current_ui_value != saved_value:
+        return False
+    return True
+
+
 @dataclass(slots=True)
 class SettingsDialogResult:
     updated_config: AppConfig | None
@@ -210,6 +224,8 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     selected_indices: list[int] = []
     history_refresh_job: str | None = None
     config_poll_job: str | None = None
+    saved_app_enabled_value = {"value": config.app_enabled}
+    app_enabled_dirty = {"value": False}
 
     def _load_latest_record() -> CaptureRecord | None:
         if not paths.db_path.exists():
@@ -416,6 +432,9 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         capture_browse.configure(state="normal")
         archive_browse.configure(state="normal")
 
+    def _mark_app_enabled_dirty() -> None:
+        app_enabled_dirty["value"] = app_enabled_var.get() != saved_app_enabled_value["value"]
+
     def _refresh_latest_capture_status() -> None:
         nonlocal latest_record
         latest_record = _load_latest_record()
@@ -618,6 +637,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         general_status_card.body,
         text="Scheduled captures enabled",
         variable=app_enabled_var,
+        command=_mark_app_enabled_dirty,
     )
     general_toggle.grid(row=1, column=0, sticky="w", pady=(8, 0))
     if not config.first_run_completed:
@@ -1113,11 +1133,19 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             config_poll_job = None
 
     def _poll_external_config_changes() -> None:
-        nonlocal config_poll_job
+        nonlocal config, config_poll_job
         try:
             disk_config = load_or_create_config(paths)
-            if disk_config.app_enabled != app_enabled_var.get():
+            if should_sync_polled_app_enabled(
+                current_ui_value=app_enabled_var.get(),
+                saved_value=saved_app_enabled_value["value"],
+                disk_value=disk_config.app_enabled,
+                local_dirty=app_enabled_dirty["value"],
+            ):
                 app_enabled_var.set(disk_config.app_enabled)
+                saved_app_enabled_value["value"] = disk_config.app_enabled
+                app_enabled_dirty["value"] = False
+                config = replace(config, app_enabled=disk_config.app_enabled)
         except Exception:
             pass
         config_poll_job = root.after(CONFIG_POLL_INTERVAL_MS, _poll_external_config_changes)
@@ -1519,6 +1547,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     action_row.grid(row=1, column=0, sticky="ew")
 
     def _apply_settings() -> None:
+        nonlocal config
         if len(selected_indices) == 1:
             try:
                 drafts[selected_indices[0]] = _draft_from_schedule_form(
@@ -1576,6 +1605,9 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         except Exception as exc:
             messagebox.showerror("Save Failed", f"Could not save settings:\n{exc}", parent=root)
             return
+        config = updated
+        saved_app_enabled_value["value"] = updated.app_enabled
+        app_enabled_dirty["value"] = False
         result.updated_config = updated
         result.window_size = _capture_size()
         _refresh_tree(select=selected_indices[:1] if selected_indices else [])
