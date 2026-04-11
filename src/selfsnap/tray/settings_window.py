@@ -1020,6 +1020,8 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
         _update_selection_from_tree()
         _refresh_schedule_summary()
         root.after_idle(_autofit_tree_columns)
+
+    def _refresh_history(schedule_id: str | None) -> None:
         history_list.configure(state="normal")
         history_list.delete(0, "end")
         if schedule_id is None:
