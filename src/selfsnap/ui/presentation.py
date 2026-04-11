@@ -75,18 +75,16 @@ def maintenance_summary_text() -> str:
 
 def tray_state_label(config: AppConfig) -> str:
     if not config.first_run_completed:
-        return "State: setup required"
+        return "Setup required"
     if not config.app_enabled:
-        return "State: disabled"
-    if config.scheduler_sync_failed():
-        return "State: enabled, scheduler sync failed"
-    return "State: enabled"
+        return "Scheduled captures paused"
+    return "Scheduled captures on"
 
 
 def tray_warning_label(config: AppConfig) -> str | None:
     if not config.scheduler_sync_failed():
         return None
-    return "Warning: scheduler sync failed - open Settings"
+    return "Scheduler needs attention - open Settings"
 
 
 def tray_icon_title(config: AppConfig) -> str:
@@ -98,11 +96,17 @@ def tray_icon_title(config: AppConfig) -> str:
 
 
 def tray_toggle_enabled_label(app_enabled: bool) -> str:
-    return "Disable Scheduled Captures" if app_enabled else "Enable Scheduled Captures"
+    return "Pause Scheduled Captures" if app_enabled else "Resume Scheduled Captures"
 
 
 def latest_capture_label(outcome_code: str, timestamp_local: str) -> str:
-    return f"Latest: {outcome_code} at {timestamp_local}"
+    return f"Last capture: {_humanize_outcome_code(outcome_code)} at {timestamp_local}"
+
+
+def tray_status_summary_label(state_text: str, latest_text: str | None = None) -> str:
+    if latest_text:
+        return f"{state_text} • {latest_text}"
+    return state_text
 
 
 def record_message(outcome_code: str, schedule_id: str | None) -> str:
@@ -115,6 +119,12 @@ def _safe_storage_label(value: str) -> str:
         return storage_preset_label(value)
     except Exception:
         return value
+
+
+def _humanize_outcome_code(value: str) -> str:
+    if value == "capture_saved":
+        return "Saved"
+    return value.replace("_", " ").capitalize()
 
 
 def _retention_summary(value: str, days: int | str | None) -> str:

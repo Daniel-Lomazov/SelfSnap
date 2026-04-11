@@ -64,6 +64,10 @@ def _state() -> TrayRuntimeState:
     )
 
 
+def _menu_label(item) -> str:
+    return item.text(None) if callable(item.text) else item.text
+
+
 def test_open_settings_does_not_persist_window_size_on_cancel(temp_paths, monkeypatch) -> None:
     saved_configs: list[AppConfig] = []
 
@@ -250,7 +254,7 @@ def test_latest_label_prefers_started_utc_when_present(temp_paths, monkeypatch) 
     label = _latest_label(temp_paths)
 
     assert seen == ["2026-04-03T14:03:00+00:00"]
-    assert label == "Latest: capture_saved at LOCAL_TIME"
+    assert label == "Last capture: Saved at LOCAL_TIME"
 
 
 def test_report_issue_ignores_duplicate_requests(temp_paths, monkeypatch) -> None:
@@ -436,7 +440,7 @@ def test_any_dialog_open_is_true_when_either_dialog_is_open() -> None:
     assert _any_dialog_open(state) is True
 
 
-def test_tray_menu_contains_restart_reinstall_and_uninstall_before_exit(temp_paths, monkeypatch) -> None:
+def test_tray_menu_groups_browse_and_app_actions_under_submenus(temp_paths, monkeypatch) -> None:
     class FakeMenu(list):
         SEPARATOR = None
 
@@ -455,6 +459,7 @@ def test_tray_menu_contains_restart_reinstall_and_uninstall_before_exit(temp_pat
         lambda _paths: AppConfig(
             capture_storage_root=str(temp_paths.default_capture_root),
             archive_storage_root=str(temp_paths.default_archive_root),
+            first_run_completed=True,
         ),
     )
 
@@ -463,17 +468,78 @@ def test_tray_menu_contains_restart_reinstall_and_uninstall_before_exit(temp_pat
         SimpleNamespace(MenuItem=FakeMenuItem, Menu=FakeMenu), temp_paths, SimpleNamespace(), state
     )
 
-    labels = [item.text for item in items if item is not None and not callable(item.text)]
-    assert labels[-5:] == ["Reinstall", "Check for Updates", "Uninstall", "Restart", "Exit"]
+    labels = [_menu_label(item) for item in items if item is not None]
+    assert labels == [
+        "Scheduled captures paused • Last capture: none yet",
+        "Capture Now",
+        "Resume Scheduled Captures",
+        "Settings",
+        "Browse",
+        "App",
+    ]
 
-    submenu_by_label = {item.text: item.action for item in items if item is not None and not callable(item.text)}
-    # Reinstall is now a flat button (action is callable, not a submenu)
-    assert callable(submenu_by_label["Reinstall"])
-    assert callable(submenu_by_label["Check for Updates"])
-    assert [item.text for item in submenu_by_label["Uninstall"]] == [
+    submenu_by_label = {_menu_label(item): item.action for item in items if item is not None}
+
+    browse_labels = [_menu_label(item) for item in submenu_by_label["Browse"]]
+    assert browse_labels == [
+        "Open Last Capture",
+        "Open Capture Folder",
+        "Recent Captures",
+        "Statistics",
+    ]
+
+    app_labels = [_menu_label(item) for item in submenu_by_label["App"]]
+    assert app_labels == [
+        "Check for Updates",
+        "Report Issue",
+        "Repair or Reinstall",
+        "Restart",
+        "Uninstall",
+        "Exit",
+    ]
+
+    uninstall_submenu = {
+        _menu_label(item): item.action for item in submenu_by_label["App"] if item is not None
+    }["Uninstall"]
+    assert [_menu_label(item) for item in uninstall_submenu] == [
         "Keep User Data",
         "Remove All User Data",
     ]
+
+
+def test_tray_menu_status_row_omits_latest_when_preference_disabled(temp_paths, monkeypatch) -> None:
+    class FakeMenu(list):
+        SEPARATOR = None
+
+        def __init__(self, *items):
+            super().__init__(items)
+
+    class FakeMenuItem:
+        def __init__(self, text, action, enabled=True, default=False):
+            self.text = text
+            self.action = action
+            self.enabled = enabled
+            self.default = default
+
+    monkeypatch.setattr(
+        "selfsnap.tray.app.load_or_create_config",
+        lambda _paths: AppConfig(
+            capture_storage_root=str(temp_paths.default_capture_root),
+            archive_storage_root=str(temp_paths.default_archive_root),
+            first_run_completed=True,
+            show_last_capture_status=False,
+        ),
+    )
+
+    items = _build_menu_items(
+        SimpleNamespace(MenuItem=FakeMenuItem, Menu=FakeMenu),
+        temp_paths,
+        SimpleNamespace(),
+        _state(),
+    )
+
+    labels = [_menu_label(item) for item in items if item is not None]
+    assert labels[0] == "Scheduled captures paused"
 
 
 def test_toggle_enabled_uses_refresh_menu_callback(temp_paths, monkeypatch) -> None:

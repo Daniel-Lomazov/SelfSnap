@@ -46,6 +46,7 @@ from selfsnap.ui.presentation import (
     record_message,
     tray_icon_title,
     tray_state_label,
+    tray_status_summary_label,
     tray_toggle_enabled_label,
     tray_warning_label,
 )
@@ -165,17 +166,15 @@ def _build_menu_items(
     warning_label = _scheduler_warning_label(config)
     if warning_label:
         items.append(pystray.MenuItem(warning_label, None, enabled=False))
-    items.append(pystray.MenuItem(lambda _item: _state_label(config), None, enabled=False))
-    if config.show_last_capture_status:
-        items.append(pystray.MenuItem(lambda _item: _latest_label(paths), None, enabled=False))
+    items.append(
+        pystray.MenuItem(
+            lambda _item: _status_summary_label(paths, config),
+            None,
+            enabled=False,
+        )
+    )
     items.extend(
         [
-            pystray.MenuItem(
-                "Report Issue",
-                lambda _icon, _item: _run_async(
-                    _open_report_issue, paths, icon, state, refresh_menu
-                ),
-            ),
             pystray.MenuItem(
                 "Capture Now",
                 lambda _icon, _item: _run_async(
@@ -187,60 +186,83 @@ def _build_menu_items(
                 lambda _icon, _item: _toggle_enabled(paths, icon, refresh_menu),
             ),
             pystray.MenuItem(
-                "Open Capture Folder", lambda _icon, _item: _open_capture_folder(paths)
-            ),
-            pystray.MenuItem(
-                "Open Latest Capture", lambda _icon, _item: _open_latest_capture(paths)
-            ),
-            pystray.MenuItem(
-                "Recent Captures",
-                lambda _icon, _item: _run_async(show_recent_captures_window, paths),
-            ),
-            pystray.MenuItem(
-                "Statistics",
-                lambda _icon, _item: _run_async(show_statistics_window, paths),
-            ),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem(
                 "Settings",
                 lambda _icon, _item: _run_async(
                     _open_settings, paths, icon, state, refresh_menu
                 ),
                 default=True,
             ),
+            pystray.Menu.SEPARATOR,
             pystray.MenuItem(
-                "Reinstall",
-                lambda _icon, _item: _run_async(
-                    _reinstall_selfsnap, paths, icon, state, False
-                ),
-            ),
-            pystray.MenuItem(
-                "Check for Updates",
-                lambda _icon, _item: _run_async(
-                    _check_for_updates, paths, icon, state
-                ),
-            ),
-            pystray.MenuItem(
-                "Uninstall",
+                "Browse",
                 pystray.Menu(
                     pystray.MenuItem(
-                        "Keep User Data",
-                        lambda _icon, _item: _run_async(
-                            _uninstall_selfsnap, paths, icon, state, False
-                        ),
+                        "Open Last Capture",
+                        lambda _icon, _item: _open_latest_capture(paths),
                     ),
                     pystray.MenuItem(
-                        "Remove All User Data",
-                        lambda _icon, _item: _run_async(
-                            _uninstall_selfsnap, paths, icon, state, True
-                        ),
+                        "Open Capture Folder",
+                        lambda _icon, _item: _open_capture_folder(paths),
+                    ),
+                    pystray.MenuItem(
+                        "Recent Captures",
+                        lambda _icon, _item: _run_async(show_recent_captures_window, paths),
+                    ),
+                    pystray.MenuItem(
+                        "Statistics",
+                        lambda _icon, _item: _run_async(show_statistics_window, paths),
                     ),
                 ),
             ),
+            pystray.Menu.SEPARATOR,
             pystray.MenuItem(
-                "Restart", lambda _icon, _item: _run_async(_restart_selfsnap, paths, icon, state)
+                "App",
+                pystray.Menu(
+                    pystray.MenuItem(
+                        "Check for Updates",
+                        lambda _icon, _item: _run_async(
+                            _check_for_updates, paths, icon, state
+                        ),
+                    ),
+                    pystray.MenuItem(
+                        "Report Issue",
+                        lambda _icon, _item: _run_async(
+                            _open_report_issue, paths, icon, state, refresh_menu
+                        ),
+                    ),
+                    pystray.MenuItem(
+                        "Repair or Reinstall",
+                        lambda _icon, _item: _run_async(
+                            _reinstall_selfsnap, paths, icon, state, False
+                        ),
+                    ),
+                    pystray.MenuItem(
+                        "Restart",
+                        lambda _icon, _item: _run_async(_restart_selfsnap, paths, icon, state),
+                    ),
+                    pystray.MenuItem(
+                        "Uninstall",
+                        pystray.Menu(
+                            pystray.MenuItem(
+                                "Keep User Data",
+                                lambda _icon, _item: _run_async(
+                                    _uninstall_selfsnap, paths, icon, state, False
+                                ),
+                            ),
+                            pystray.MenuItem(
+                                "Remove All User Data",
+                                lambda _icon, _item: _run_async(
+                                    _uninstall_selfsnap, paths, icon, state, True
+                                ),
+                            ),
+                        ),
+                    ),
+                    pystray.MenuItem(
+                        "Exit",
+                        lambda _icon, _item: _exit(icon, state.stop_event),
+                    ),
+                ),
             ),
-            pystray.MenuItem("Exit", lambda _icon, _item: _exit(icon, state.stop_event)),
         ]
     )
     return items
@@ -513,10 +535,15 @@ def _latest_label(paths: AppPaths) -> str:
     with connect(paths.db_path) as connection:
         latest = get_latest_record(connection)
     if latest is None:
-        return "Latest: none"
+        return "Last capture: none yet"
     timestamp_utc = latest.started_utc or latest.created_utc
     timestamp_local = _format_local_timestamp(timestamp_utc)
     return latest_capture_label(latest.outcome_code, timestamp_local)
+
+
+def _status_summary_label(paths: AppPaths, config: AppConfig) -> str:
+    latest_label = _latest_label(paths) if config.show_last_capture_status else None
+    return tray_status_summary_label(_state_label(config), latest_label)
 
 
 def _format_local_timestamp(utc_text: str) -> str:

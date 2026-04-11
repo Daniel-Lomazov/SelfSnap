@@ -12,6 +12,7 @@ from selfsnap.ui.presentation import (
     storage_summary_text,
     tray_icon_title,
     tray_state_label,
+    tray_status_summary_label,
     tray_toggle_enabled_label,
     tray_warning_label,
     visibility_summary_text,
@@ -85,14 +86,19 @@ def test_tray_presentation_helpers_preserve_existing_labels() -> None:
     base = _config()
     failed = replace(base, app_enabled=True, scheduler_sync_state="failed")
 
-    assert tray_state_label(base) == "State: disabled"
-    assert tray_state_label(failed) == "State: enabled, scheduler sync failed"
+    assert tray_state_label(base) == "Scheduled captures paused"
+    assert tray_state_label(failed) == "Scheduled captures on"
     assert tray_warning_label(base) is None
-    assert tray_warning_label(failed) == "Warning: scheduler sync failed - open Settings"
+    assert tray_warning_label(failed) == "Scheduler needs attention - open Settings"
     assert tray_icon_title(base) == "SelfSnap Win11"
     assert tray_icon_title(failed) == "SelfSnap Win11 - scheduler sync failed"
-    assert tray_toggle_enabled_label(True) == "Disable Scheduled Captures"
-    assert tray_toggle_enabled_label(False) == "Enable Scheduled Captures"
-    assert latest_capture_label("capture_saved", "LOCAL") == "Latest: capture_saved at LOCAL"
+    assert tray_toggle_enabled_label(True) == "Pause Scheduled Captures"
+    assert tray_toggle_enabled_label(False) == "Resume Scheduled Captures"
+    assert latest_capture_label("capture_saved", "LOCAL") == "Last capture: Saved at LOCAL"
+    assert tray_status_summary_label("Scheduled captures on") == "Scheduled captures on"
+    assert tray_status_summary_label(
+        "Scheduled captures on",
+        "Last capture: Saved at LOCAL",
+    ) == "Scheduled captures on • Last capture: Saved at LOCAL"
     assert record_message("capture_saved", "sched_1") == "capture_saved (sched_1)"
     assert maintenance_summary_text().startswith("Reset capture history")
