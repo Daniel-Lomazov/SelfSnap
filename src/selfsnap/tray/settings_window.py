@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import tkinter as tk
 from dataclasses import dataclass, replace
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, font as tk_font, messagebox, ttk
 
 from selfsnap.config_store import load_or_create_config, save_config
 from selfsnap.db import connect, ensure_database
@@ -867,19 +867,33 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     tree_scrollbar_x.grid(row=1, column=0, sticky="ew", pady=(4, 0))
     schedule_tree.configure(yscrollcommand=tree_scrollbar.set, xscrollcommand=tree_scrollbar_x.set)
 
-    def _resize_schedule_tree_columns(event: tk.Event | None = None) -> None:
-        available_width = schedule_tree.winfo_width() if event is None else int(event.width)
-        if available_width <= 1:
-            return
-        column_widths = resolve_schedule_tree_column_widths(available_width)
-        for column_name, minimum_width, _weight, anchor in SCHEDULE_TREE_COLUMN_SPECS:
+    _heading_font = tk_font.Font(family="Segoe UI", size=10, weight="bold")
+    _cell_font = tk_font.Font(family="Segoe UI", size=10)
+    _COL_PAD = 16  # horizontal padding per column
+
+    def _autofit_tree_columns(event: tk.Event | None = None) -> None:
+        headings = {"label": "Label", "recurrence": "Recurrence", "start": "Start", "enabled": "Status"}
+        widths: dict[str, int] = {
+            col: _heading_font.measure(text) + _COL_PAD
+            for col, text in headings.items()
+        }
+        for iid in schedule_tree.get_children():
+            vals = schedule_tree.item(iid, "values")
+            for col, val in zip(("label", "recurrence", "start", "enabled"), vals):
+                w = _cell_font.measure(str(val)) + _COL_PAD
+                if w > widths[col]:
+                    widths[col] = w
+        for col_name, _min, _weight, anchor in SCHEDULE_TREE_COLUMN_SPECS:
             schedule_tree.column(
-                column_name,
-                width=column_widths[column_name],
-                minwidth=minimum_width,
+                col_name,
+                width=widths[col_name],
+                minwidth=widths[col_name],
                 anchor=anchor,
                 stretch=False,
             )
+
+    def _resize_schedule_tree_columns(event: tk.Event | None = None) -> None:
+        _autofit_tree_columns(event)
 
     schedule_layout_job: str | None = None
 
@@ -1005,8 +1019,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             schedule_tree.see(str(select[0]))
         _update_selection_from_tree()
         _refresh_schedule_summary()
-
-    def _refresh_history(schedule_id: str | None) -> None:
+        root.after_idle(_autofit_tree_columns)
         history_list.configure(state="normal")
         history_list.delete(0, "end")
         if schedule_id is None:
@@ -1231,11 +1244,11 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     schedule_tree.bind("<Button-1>", _on_enabled_click, add="+")
     schedule_tree.bind("<Motion>", _on_treeview_motion)
     schedule_tree.bind("<<TreeviewSelect>>", _update_selection_from_tree)
-    schedule_tree.bind("<Configure>", _resize_schedule_tree_columns, add="+")
+    schedule_tree.bind("<Configure>", _autofit_tree_columns, add="+")
     root.bind("<Configure>", _queue_schedule_panel_layout, add="+")
     _apply_schedule_panel_layout(force=True)
     _refresh_tree([])
-    root.after_idle(_resize_schedule_tree_columns)
+    root.after_idle(_autofit_tree_columns)
     _load_draft_to_form(_new_default_draft())
     _set_editor_state(selection_state(0))
     editor_panel.summary_label.configure(text=editor_selection_summary(0))
