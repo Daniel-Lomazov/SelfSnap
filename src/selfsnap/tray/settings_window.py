@@ -899,8 +899,8 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             editor_panel.frame.grid_configure(row=1, column=0, sticky="ew", padx=(0, 0), pady=(4, 0))
             schedule_tree.configure(height=4)
         else:
-            schedules_body.columnconfigure(0, weight=3)
-            schedules_body.columnconfigure(1, weight=2, minsize=0)
+            schedules_body.columnconfigure(0, weight=1)
+            schedules_body.columnconfigure(1, weight=1, minsize=0)
             list_panel.frame.grid_configure(row=0, column=0, sticky="nsew", padx=(0, 4), pady=(0, 0))
             editor_panel.frame.grid_configure(row=0, column=1, sticky="nsew", padx=(0, 0), pady=(0, 0))
             schedule_tree.configure(height=5)
