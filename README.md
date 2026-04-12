@@ -383,7 +383,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\cleanup_repo_artifacts.ps1 -L
 # Remove all artifacts
 powershell -ExecutionPolicy Bypass -File .\scripts\cleanup_repo_artifacts.ps1
 
-# Attempt UAC-elevated ACL repair for locked folders, then remove
+# Attempt ACL repair (relaunches elevated via UAC), then remove
 powershell -ExecutionPolicy Bypass -File .\scripts\cleanup_repo_artifacts.ps1 -RepairAcl
 
 # Exclude specific paths from removal

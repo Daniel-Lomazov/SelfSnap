@@ -1,13 +1,33 @@
 param(
     [switch]$ListOnly,
     [switch]$RepairAcl,
-    [string[]]$Exclude = @()
+    [string[]]$Exclude = @(),
+    [switch]$RelaunchedElevated
 )
 
 $ErrorActionPreference = "Stop"
 $PSNativeCommandUseErrorActionPreference = $true
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+
+function Test-Administrator {
+    $identity  = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = [Security.Principal.WindowsPrincipal]::new($identity)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Get-RelaunchArgumentList {
+    $arguments = @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", $PSCommandPath
+    )
+    if ($RepairAcl)  { $arguments += "-RepairAcl" }
+    if ($ListOnly)   { $arguments += "-ListOnly" }
+    if ($Exclude.Count -gt 0) { $arguments += "-Exclude"; $arguments += $Exclude }
+    $arguments += "-RelaunchedElevated"
+    return $arguments
+}
 
 # ── What this script removes ─────────────────────────────────────────────────
 #
@@ -110,15 +130,29 @@ function Get-ArtifactCandidates {
         Add-Candidate -FullPath (Join-Path $RepoRoot $rel) -Label 'explicit'
     }
 
-    # Pass 3: recursive directory sweep
+    # Pass 3: recursive directory sweep (skip protected top-level roots)
+    $searchRoots = @(
+        Get-ChildItem -Path $RepoRoot -Directory -Force -ErrorAction SilentlyContinue |
+            Where-Object { -not $ProtectedTopLevel.Contains($_.Name) }
+    )
     foreach ($dirName in $RecursiveDirNames) {
-        Get-ChildItem -Path $RepoRoot -Filter $dirName -Recurse -Directory -Force -ErrorAction SilentlyContinue |
-            ForEach-Object { Add-Candidate -FullPath $_.FullName -Label 'recursive-dir' }
+        foreach ($root in $searchRoots) {
+            Get-ChildItem -Path $root.FullName -Filter $dirName -Recurse -Directory -Force -ErrorAction SilentlyContinue |
+                ForEach-Object { Add-Candidate -FullPath $_.FullName -Label 'recursive-dir' }
+        }
+        # searchRoots only recurses *inside* top-level dirs, so a matching dir
+        # sitting directly at repo root (e.g., $RepoRoot\__pycache__) would be
+        # missed; catch it here as a safety net.
+        Add-Candidate -FullPath (Join-Path $RepoRoot $dirName) -Label 'recursive-dir'
     }
 
-    # Pass 4: recursive file sweep
+    # Pass 4: recursive file sweep (skip protected top-level roots)
     foreach ($pattern in $RecursiveFilePatterns) {
-        Get-ChildItem -Path $RepoRoot -Filter $pattern -Recurse -File -Force -ErrorAction SilentlyContinue |
+        foreach ($root in $searchRoots) {
+            Get-ChildItem -Path $root.FullName -Filter $pattern -Recurse -File -Force -ErrorAction SilentlyContinue |
+                ForEach-Object { Add-Candidate -FullPath $_.FullName -Label 'recursive-file' }
+        }
+        Get-ChildItem -Path $RepoRoot -Filter $pattern -File -Force -ErrorAction SilentlyContinue |
             ForEach-Object { Add-Candidate -FullPath $_.FullName -Label 'recursive-file' }
     }
 
@@ -142,6 +176,9 @@ function Remove-Artifact {
     catch {
         if (-not $RepairAcl) {
             return [pscustomobject]@{ Path = $Item.RelativePath; Status = 'failed'; Note = $_.Exception.Message }
+        }
+        if (-not (Test-Administrator)) {
+            return [pscustomobject]@{ Path = $Item.RelativePath; Status = 'failed'; Note = 'ACL repair requires an elevated session.' }
         }
         try {
             $null = takeown /F $Item.FullPath /R /D Y 2>&1
@@ -177,6 +214,23 @@ if ($ListOnly) {
     exit 0
 }
 
+# ── Elevation for ACL repair ──────────────────────────────────────────────────
+
+if ($RepairAcl -and -not (Test-Administrator) -and -not $RelaunchedElevated) {
+    $relaunchArgs = Get-RelaunchArgumentList
+    Write-Host "Relaunching with elevation for ACL repair under $repoRoot..."
+    try {
+        $process = Start-Process -FilePath "powershell.exe" -Verb RunAs -WorkingDirectory $repoRoot -ArgumentList $relaunchArgs -Wait -PassThru
+    }
+    catch {
+        Write-Warning "Elevation was not completed. Cleanup was not performed."
+        exit 2
+    }
+    exit $process.ExitCode
+}
+
+# ── Removal ───────────────────────────────────────────────────────────────────
+
 $results = foreach ($c in $candidates) { Remove-Artifact -Item $c }
 
 $results | Format-Table Path, Status, Note -AutoSize | Out-String | Write-Host
@@ -184,6 +238,11 @@ $results | Format-Table Path, Status, Note -AutoSize | Out-String | Write-Host
 $failed = @($results | Where-Object { $_.Status -eq 'failed' })
 if ($failed.Count -gt 0) {
     Write-Warning "$($failed.Count) item(s) could not be removed. Run with -RepairAcl to attempt ACL repair."
+    if ($RepairAcl) {
+        exit 2
+    }
+    exit 1
 }
 
 Write-Host "Repo artifact cleanup complete."
+exit 0
