@@ -1,0 +1,122 @@
+name: Dev Branch PR
+
+on:
+  push:
+    branches:
+      - dev/lomazov
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  open-or-update-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create or update PR for dev/lomazov
+        uses: actions/github-script@v7
+        env:
+          BASE_BRANCH: main
+          HEAD_BRANCH: dev/lomazov
+          ASSIGNEE: Daniel-Lomazov
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const base = process.env.BASE_BRANCH;
+            const headBranch = process.env.HEAD_BRANCH;
+            const assignee = process.env.ASSIGNEE;
+            const head = `${owner}:${headBranch}`;
+
+            const { data: pulls } = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: "open",
+              base,
+              head,
+              per_page: 100,
+            });
+
+            const compare = await github.rest.repos.compareCommits({
+              owner,
+              repo,
+              base,
+              head: headBranch,
+            });
+
+            const commits = compare.data.commits || [];
+            const files = compare.data.files || [];
+            const latest = commits[commits.length - 1];
+            const title = latest?.commit?.message?.split("\n")[0] || `${headBranch} -> ${base}`;
+
+            const body = [
+              "## Auto-opened development PR",
+              "",
+              `This PR was opened automatically from \`${headBranch}\` into \`${base}\`.`,
+              "",
+              "### Recent commits",
+              ...(commits.length
+                ? commits.slice(-10).map((commit) => {
+                    const subject = commit.commit.message.split("\n")[0];
+                    return `- ${commit.sha.slice(0, 7)} ${subject}`;
+                  })
+                : ["- No commit metadata available"]),
+              "",
+              "### Changed files",
+              ...(files.length
+                ? files.slice(0, 50).map(
+                    (file) => `- ${file.filename} (+${file.additions} / -${file.deletions})`
+                  )
+                : ["- No file diff metadata available"]),
+              ...(files.length > 50 ? [`- ...and ${files.length - 50} more files`] : []),
+              "",
+              "### Review flow",
+              `- Assignee: @${assignee}`,
+              `- Base branch: \`${base}\``,
+              "- PR plan comment is maintained by the PR Plan workflow.",
+              "- GitHub Copilot review is expected via repository rulesets on pull requests targeting `main`.",
+              "- Final approval is expected from the required code owner review.",
+            ].join("\n");
+
+            let pr;
+
+            if (pulls.length === 0) {
+              const created = await github.rest.pulls.create({
+                owner,
+                repo,
+                title,
+                head: headBranch,
+                base,
+                body,
+                maintainer_can_modify: true,
+              });
+              pr = created.data;
+            } else {
+              pr = pulls[0];
+              await github.rest.pulls.update({
+                owner,
+                repo,
+                pull_number: pr.number,
+                title,
+                body,
+              });
+            }
+
+            await github.rest.issues.addAssignees({
+              owner,
+              repo,
+              issue_number: pr.number,
+              assignees: [assignee],
+            });
+
+            try {
+              await github.rest.pulls.requestReviewers({
+                owner,
+                repo,
+                pull_number: pr.number,
+                reviewers: [assignee],
+              });
+            } catch (error) {
+              core.warning(`Could not request reviewer ${assignee}: ${error.message}`);
+            }

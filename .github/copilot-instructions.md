@@ -103,3 +103,9 @@ Schedule identifiers must match `^[a-z0-9_]+$` (lowercase alphanumeric + undersc
 ### Scripts
 
 Dev/install automation lives in `scripts/` as PowerShell `.ps1` files. Use `scripts/setup.ps1` to bootstrap a fresh dev environment. Do not add shell scripts (`.sh`) — Windows PowerShell only.
+
+## Branch Workflow
+
+- Development happens on `dev/lomazov` and lands in `main` through a pull request.
+- Avoid direct pushes to `main`; pushes to `dev/lomazov` are expected to drive the automated PR flow.
+- Keep PRs merge-ready so repository rulesets and GitHub Copilot review can act on them.
