@@ -3,22 +3,17 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def test_pytest_artifact_cleanup_script_targets_acl_poisoned_folders() -> None:
-    script = Path("scripts/cleanup_pytest_artifacts.ps1").read_text(encoding="utf-8")
+def test_repo_artifact_cleanup_script_targets_acl_poisoned_folders() -> None:
+    script = Path("scripts/cleanup_repo_artifacts.ps1").read_text(encoding="utf-8")
 
-    assert "takeown.exe" in script
-    assert "icacls.exe" in script
-    assert "pytest-cache-files-*" in script
+    assert "takeown" in script
+    assert "icacls" in script
     assert ".pytest_cache" in script
-    assert "Test-Administrator" in script
+    assert "cov_annotate" in script
     assert "RepairAcl" in script
-    assert "Start-Process" in script
-    assert "RunAs" in script
-    assert "Elevation returned, but pytest artifact targets still remain." in script
-    assert '-WorkingDirectory $repoRoot' in script
-    assert '"-NoProfile"' in script
-    assert 'Get-AllTargets -RepoRoot $repoRoot' in script
-    assert 'No pytest artifact directories were found under $repoRoot.' in script
+    assert "Get-ArtifactCandidates" in script
+    assert "Remove-Artifact" in script
+    assert "Remove-Item" in script
 
 
 def test_install_and_uninstall_scripts_support_interpreter_overrides() -> None:
@@ -39,14 +34,14 @@ def test_install_and_uninstall_scripts_support_interpreter_overrides() -> None:
     assert "Stop-Process -Id $process.ProcessId -Force" in uninstall
 
 
-def test_readme_documents_pytest_hygiene_workflow() -> None:
+def test_readme_documents_cleanup_workflow() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 
-    assert "cleanup_pytest_artifacts.ps1" in readme
+    assert "cleanup_repo_artifacts.ps1" in readme
     assert "pytest-cache-files-*" in readme
     assert "pytest cache provider is disabled" in readme.lower()
     assert "-RepairAcl" in readme
-    assert "legacy leftovers" in readme
+    assert "cov_annotate" in readme
 
 
 def test_pytest_config_keeps_temp_output_out_of_repo() -> None:
