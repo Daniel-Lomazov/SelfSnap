@@ -99,7 +99,8 @@ function Get-ArtifactCandidates {
         if ($line.Length -lt 4) { continue }
         $code = $line.Substring(0, 2)
         if ($code -ne '!!' -and $code -ne '??') { continue }
-        $rel  = $line.Substring(3).Trim().TrimEnd('/').Replace('/', '\')
+        # git quotes paths that contain spaces or special characters — strip those quotes
+        $rel  = $line.Substring(3).Trim().Trim('"').TrimEnd('/').Replace('/', '\')
         $lbl  = if ($code -eq '!!') { 'git-ignored' } else { 'untracked' }
         Add-Candidate -FullPath (Join-Path $RepoRoot $rel) -Label $lbl
     }
