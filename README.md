@@ -100,28 +100,67 @@ powershell -ExecutionPolicy Bypass -File .\scripts\reinstall.ps1
 
 Or from the tray menu: **Reinstall**.
 
-### Running without installing
+### Run from source (no install required)
 
 ```powershell
 # Activate the venv first
 .venv\Scripts\Activate.ps1
 
-# Then run directly
+# Start the tray
 python -m selfsnap tray
+
+# Take a manual capture
 python -m selfsnap capture --trigger manual
+
+# Run a scheduled capture for a specific schedule
+python -m selfsnap capture --trigger scheduled --schedule-id morning
+
+# Sync Windows Task Scheduler tasks from config
+python -m selfsnap sync-scheduler
+
+# Catch up missed schedule slots (run on startup to reconcile gaps)
+python -m selfsnap reconcile
+
+# Run diagnostics
+python -m selfsnap doctor
+python -m selfsnap diag
+
+# Print the installed version
+python -m selfsnap --version
 ```
 
-### Start the tray (after install)
+### Run after install
+
+Once `install.ps1` has been run, the `SelfSnap` wrapper is on your `PATH`:
 
 ```powershell
+# Start the tray
 SelfSnap tray
-```
 
-### Run diagnostics
+# Take a manual capture
+SelfSnap capture --trigger manual
 
-```powershell
+# Run a scheduled capture
+SelfSnap capture --trigger scheduled --schedule-id morning
+
+# Sync Task Scheduler
+SelfSnap sync-scheduler
+
+# Reconcile missed slots
+SelfSnap reconcile
+
+# Diagnostics
 SelfSnap doctor
 SelfSnap diag
+
+# Check for updates without installing
+SelfSnap update --check-only
+
+# Reinstall from current checkout
+SelfSnap reinstall
+
+# Uninstall (prompts for confirmation)
+SelfSnap uninstall
 ```
 
 ## Runtime storage
@@ -205,33 +244,6 @@ If you are using the current source checkout rather than reading historical desi
 - `docs/TROUBLESHOOTING.md`
 - `docs/CONFIG_REFERENCE.md`
 - `docs/WORKFLOWS.md`
-
-## Commands
-
-```powershell
-selfsnap tray
-selfsnap capture --trigger manual
-selfsnap capture --trigger scheduled --schedule-id morning
-selfsnap reconcile
-selfsnap sync-scheduler
-selfsnap reinstall [--relaunch-tray]
-selfsnap uninstall [--remove-user-data] [--yes]
-selfsnap update    [--check-only] [--relaunch-tray]
-selfsnap diag
-selfsnap doctor
-```
-
-`reinstall`, `uninstall`, and `update` mirror the tray menu actions but are usable from any terminal — useful when the tray is not running or for scripted management.
-
-- `selfsnap update --check-only` prints whether a newer release is available without installing anything.
-- `selfsnap uninstall` prompts `Uninstall SelfSnap? [y/N]` unless `--yes` is passed.
-
-If `scripts/install.ps1` has been run, the wrapper command is:
-
-```powershell
-$env:LOCALAPPDATA\SelfSnap\bin\SelfSnap.cmd tray
-$env:LOCALAPPDATA\SelfSnap\bin\SelfSnap.cmd capture --trigger manual
-```
 
 ## Report Issue
 
@@ -353,17 +365,30 @@ mypy src
 
 Pytest temp directories are intentionally kept out of the repo under `%LOCALAPPDATA%\SelfSnap\pytest\tmp`, and the pytest cache provider is disabled to avoid `.pytest_cache` and `pytest-cache-files-*` clutter in the workspace.
 
-If `.pytest_tmp` or `.pytest-work` still exist in the repo root with old timestamps, treat them as legacy leftovers from earlier runs. Current pytest configuration should not recreate them.
+Use `scripts/cleanup_repo_artifacts.ps1` to remove all local artifact and cache folders. It covers:
 
-If stale pytest artifact folders remain from older runs and normal deletion fails, use the dedicated cleanup script:
+- Coverage data: `cov_annotate/`, `.coverage`, `coverage.xml`
+- Bytecode caches: `__pycache__/` (recursive), `*.pyc` / `*.pyo` / `*.pyd`
+- Test caches: `.pytest_cache/`, `.pytest_tmp/`, `.pytest-work/`, `pytest-cache-files-*/`
+- Tool caches: `.ruff_cache/`, `.mypy_cache/`, `.hypothesis/`, `.uv-cache/`
+- Build outputs: `build/`, `dist/`, `*.egg-info/`
+- Any other git-ignored or untracked file
+
+`.venv/` and `.git/` are always protected.
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\cleanup_pytest_artifacts.ps1 -ListOnly
-powershell -ExecutionPolicy Bypass -File .\scripts\cleanup_pytest_artifacts.ps1
-powershell -ExecutionPolicy Bypass -File .\scripts\cleanup_pytest_artifacts.ps1 -RepairAcl
-```
+# Preview what would be removed
+powershell -ExecutionPolicy Bypass -File .\scripts\cleanup_repo_artifacts.ps1 -ListOnly
 
-`-RepairAcl` attempts a UAC-elevated ownership repair for legacy ACL-poisoned folders. Add `-IncludeLocalAppData` only if you also want to remove `%LOCALAPPDATA%\SelfSnap\pytest`.
+# Remove all artifacts
+powershell -ExecutionPolicy Bypass -File .\scripts\cleanup_repo_artifacts.ps1
+
+# Attempt UAC-elevated ACL repair for locked folders, then remove
+powershell -ExecutionPolicy Bypass -File .\scripts\cleanup_repo_artifacts.ps1 -RepairAcl
+
+# Exclude specific paths from removal
+powershell -ExecutionPolicy Bypass -File .\scripts\cleanup_repo_artifacts.ps1 -Exclude ".coverage","coverage.xml"
+```
 
 The setup script prefers a uv-managed Python 3.12 interpreter when `uv` is installed, then falls back to a normal `python` or `py` launcher on PATH. If you need to force a specific interpreter, pass it explicitly:
 
