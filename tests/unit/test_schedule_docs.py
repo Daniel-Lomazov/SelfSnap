@@ -2,12 +2,21 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
+
+
+def _read_project_version() -> str:
+    pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
+    match = re.search(r'^version = "([^"]+)"$', pyproject, re.MULTILINE)
+    assert match is not None
+    return match.group(1)
 
 
 def test_readme_describes_recurring_schedule_setup() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
+    version = _read_project_version()
 
-    assert "Current version: `v1.0.0`" in readme
+    assert f"Current version: `v{version}`" in readme
     assert "CHANGELOG.md" in readme
     assert "RELEASE_CRITERIA_1_0.md" in readme
     assert "High-frequency schedules such as `seconds` and `minutes` are tray-managed" in readme
@@ -36,18 +45,19 @@ def test_sample_config_uses_recurring_schedule_schema() -> None:
     assert "local_time" not in config["schedules"][0]
 
 
-def test_version_files_are_aligned_to_1_0_1() -> None:
+def test_version_files_are_aligned() -> None:
+    version = _read_project_version()
     pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
     version_file = Path("src/selfsnap/version.py").read_text(encoding="utf-8")
     changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert 'version = "1.0.1"' in pyproject
-    assert '__version__ = "1.0.1"' in version_file
-    assert "## v1.0.1" in changelog
+    assert f'version = "{version}"' in pyproject
+    assert f'__version__ = "{version}"' in version_file
+    assert f"## v{version}" in changelog
 
 
 def test_product_release_notes_exist_for_v0_8_0() -> None:
-    release_notes = Path("docs/releases/v0.8.0.md").read_text(encoding="utf-8")
+    release_notes = Path("docs/archive/releases/v0.8.0.md").read_text(encoding="utf-8")
 
     assert "Every N seconds" in release_notes
     assert "minutes" in release_notes
@@ -86,7 +96,7 @@ def test_release_criteria_doc_describes_public_1_0_contract() -> None:
 
 
 def test_baseline_benchmark_doc_tracks_current_1_0_starting_point() -> None:
-    benchmark = Path("docs/implementation/BENCHMARK_1_0_BASELINE.md").read_text(
+    benchmark = Path("docs/archive/implementation_legacy/BENCHMARK_1_0_BASELINE.md").read_text(
         encoding="utf-8"
     )
     docs_index = Path("docs/README.md").read_text(encoding="utf-8")
@@ -96,5 +106,5 @@ def test_baseline_benchmark_doc_tracks_current_1_0_starting_point() -> None:
     assert "Windows 11-only" in benchmark
     assert "source-based install" in benchmark
     assert "Scheduler correctness at DST and timezone boundaries" in benchmark
-    assert "BENCHMARK_1_0_BASELINE.md" in docs_index
+    assert "archive/implementation_legacy/BENCHMARK_1_0_BASELINE.md" in docs_index
     assert "Or from the tray menu: **Reinstall**." in readme
