@@ -168,7 +168,7 @@ ${fileRows}${truncNote}
 ### ✅ Review Checklist
 ${checks.join("\n")}
 
----
+* * *
 _Merge is blocked until CI passes. Update this checklist in a follow-up comment if needed._`;
 
             await github.rest.issues.createComment({
