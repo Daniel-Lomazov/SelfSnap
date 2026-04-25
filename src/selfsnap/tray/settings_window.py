@@ -161,6 +161,32 @@ def should_sync_polled_app_enabled(
     return True
 
 
+def capture_record_visual_state(record: CaptureRecord | None) -> tuple[object, ...] | None:
+    if record is None:
+        return None
+    return (
+        record.record_id,
+        record.trigger_source,
+        record.schedule_id,
+        record.started_utc,
+        record.created_utc,
+        record.outcome_category,
+        record.outcome_code,
+        record.file_present,
+        record.error_code,
+    )
+
+
+def should_refresh_polled_latest_record(
+    *,
+    current_record: CaptureRecord | None,
+    disk_record: CaptureRecord | None,
+) -> bool:
+    return capture_record_visual_state(current_record) != capture_record_visual_state(
+        disk_record
+    )
+
+
 @dataclass(slots=True)
 class SettingsDialogResult:
     updated_config: AppConfig | None
@@ -1132,7 +1158,7 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
             config_poll_job = None
 
     def _poll_external_config_changes() -> None:
-        nonlocal config, config_poll_job
+        nonlocal config, config_poll_job, latest_record
         try:
             disk_config = load_or_create_config(paths)
             if should_sync_polled_app_enabled(
@@ -1145,6 +1171,14 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
                 saved_app_enabled_value["value"] = disk_config.app_enabled
                 app_enabled_dirty["value"] = False
                 config = replace(config, app_enabled=disk_config.app_enabled)
+            disk_latest_record = _load_latest_record()
+            if should_refresh_polled_latest_record(
+                current_record=latest_record,
+                disk_record=disk_latest_record,
+            ):
+                latest_record = disk_latest_record
+                latest_capture_var.set(_latest_capture_summary(latest_record))
+                _refresh_dynamic_content()
         except Exception:
             pass
         config_poll_job = root.after(CONFIG_POLL_INTERVAL_MS, _poll_external_config_changes)
