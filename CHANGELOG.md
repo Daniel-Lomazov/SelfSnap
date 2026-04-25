@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Build and release automation — Windows distribution lane added.** CI now includes `ruff` and `mypy`, successful `main` pushes can publish downloadable Windows artifacts, and tagged releases attach the same portable zip, MSI, and setup EXE outputs built from `scripts/developer/package_windows.ps1`.
+
 ## v1.3.1 - 2026-04-25
 
 Why: Follow up the initial stable `v1.3.0` cut with a version-alignment release so the polished public `main` branch, package metadata, and latest tag all point at the same GitHub-facing state.

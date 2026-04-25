@@ -7,6 +7,8 @@ Historical execution evidence and retired release-specific QA notes live under `
 
 - Run `pytest`, `ruff check .`, and `mypy src` from the repo root.
 - Confirm the full `pytest` suite passes with the configured 90% coverage gate.
+- When packaging or release automation changes, run `scripts/developer/package_windows.ps1` and confirm it emits a portable zip, MSI, and setup EXE under `artifacts/windows/`.
+- Confirm the compiled worker smoke path still succeeds by running `artifacts/windows/portable/SelfSnapWorker.exe --help` or by checking the packaging script output.
 - Confirm pytest temp output stays under `%LOCALAPPDATA%\SelfSnap\pytest\tmp` and that repo-local cache or temp folders such as `.pytest_cache`, `.pytest_tmp`, `.pytest-work`, and `pytest-cache-files-*` are treated as cleanup-only artifacts, not committed output.
 
 ## First run
@@ -84,6 +86,9 @@ Historical execution evidence and retired release-specific QA notes live under `
 ## Packaging and install
 
 - Run `scripts/user/install.ps1`.
+- Run `scripts/developer/package_windows.ps1` when validating Windows distribution automation.
+- Confirm the latest successful `package-main` workflow run on `main` exposes downloadable `portable.zip`, `.msi`, and `-setup.exe` artifacts.
+- Confirm tagged releases attach the same `portable.zip`, `.msi`, and `-setup.exe` assets.
 - Use tray `Reinstall` and confirm the app reinstalls, closes, relaunches, and preserves user data.
 - Use tray `Check for Updates` on both an up-to-date checkout and a newer tagged release, and confirm it only mutates the local checkout when a newer release exists.
 - If `pythonw.exe` is nonstandard, confirm `scripts/user/install.ps1 -PythonwExe ...` resolves it correctly.

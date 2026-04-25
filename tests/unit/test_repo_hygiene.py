@@ -23,6 +23,7 @@ def test_install_and_uninstall_scripts_support_interpreter_overrides() -> None:
     setup = Path("scripts/user/setup.ps1").read_text(encoding="utf-8")
     uninstall = Path("scripts/user/uninstall.ps1").read_text(encoding="utf-8")
     build = Path("scripts/developer/build.ps1").read_text(encoding="utf-8")
+    package = Path("scripts/developer/package_windows.ps1").read_text(encoding="utf-8")
     smoke = Path("scripts/developer/smoke_test.ps1").read_text(encoding="utf-8")
     scripts_readme = Path("scripts/README.md").read_text(encoding="utf-8")
     user_readme = Path("scripts/user/README.md").read_text(encoding="utf-8")
@@ -36,6 +37,7 @@ def test_install_and_uninstall_scripts_support_interpreter_overrides() -> None:
     assert "..\\shared\\_selfsnap_script_helpers.ps1" in setup
     assert "..\\shared\\_selfsnap_script_helpers.ps1" in uninstall
     assert "..\\shared\\_selfsnap_script_helpers.ps1" in build
+    assert "..\\shared\\_selfsnap_script_helpers.ps1" in package
     assert "..\\shared\\_selfsnap_script_helpers.ps1" in smoke
     assert "PythonwExe" in install
     assert "Get-InstalledSchemaSupport" in install
@@ -65,14 +67,21 @@ def test_install_and_uninstall_scripts_support_interpreter_overrides() -> None:
     assert "Get-InvokingTrayProcessId" in uninstall
     assert "Stop-Process -Id $process.ProcessId -Force" in uninstall
     assert build.lstrip().startswith("param(")
+    assert package.lstrip().startswith("param(")
+    assert "wix314-binaries.zip" in package
+    assert "SelfSnapWorker portable smoke test" in package
+    assert "windows-x64.msi" in package
+    assert "windows-x64-setup.exe" in package
     assert "SkipInstall" in smoke
     assert "scripts/user/setup.ps1" in scripts_readme
     assert "scripts/developer/cleanup_repo_artifacts.ps1" in scripts_readme
+    assert "scripts/developer/package_windows.ps1" in scripts_readme
     assert "scripts/user/README.md" in scripts_readme
     assert "scripts/developer/README.md" in scripts_readme
     assert "scripts/user/setup.ps1" in user_readme
     assert "scripts/user/install.ps1" in user_readme
     assert "scripts/developer/build.ps1" in developer_readme
+    assert "scripts/developer/package_windows.ps1" in developer_readme
     assert "scripts/developer/cleanup_repo_artifacts.ps1" in developer_readme
 
 
@@ -189,11 +198,21 @@ def test_pytest_config_keeps_temp_output_out_of_repo() -> None:
 
 def test_repo_contains_github_automation_for_ci_and_issue_intake() -> None:
     ci = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    package_main = Path(".github/workflows/package-main.yml").read_text(encoding="utf-8")
+    release = Path(".github/workflows/release.yml").read_text(encoding="utf-8")
     intake = Path(".github/workflows/issue-intake.yml").read_text(encoding="utf-8")
 
     assert "windows-latest" in ci
     assert "compileall src tests" in ci
+    assert "ruff check ." in ci
+    assert "mypy src" in ci
     assert "pytest -q" in ci
+    assert "workflow_run" in package_main
+    assert "package_windows.ps1" in package_main
+    assert "upload-artifact@v4" in package_main
+    assert "windows-release-assets" in release
+    assert "gh release upload" in release
+    assert "package_windows.ps1" in release
     assert "actions/github-script" in intake
     assert "ready-for-local-planning" in intake
     assert "selfsnap-planning-intake" in intake
@@ -207,3 +226,5 @@ def test_readme_documents_issue_reporting_and_github_workflows() -> None:
     assert "offline by default" in readme.lower()
     assert "no telemetry" in readme.lower()
     assert "issue-intake" in readme
+    assert "package-main.yml" in readme
+    assert "scripts/developer/package_windows.ps1" in readme

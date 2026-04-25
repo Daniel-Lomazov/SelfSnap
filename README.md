@@ -32,6 +32,7 @@ Use this table as the main jump surface. Every linked README below links back to
 - Windows 11 only, local-first, and offline by default
 - Hybrid tray plus Windows Task Scheduler model for recurring capture
 - Source-based install with a checkout-local `.venv` is the primary supported path
+- Successful `main` builds now publish downloadable Windows artifacts automatically through GitHub Actions
 - Current trust and release posture is summarized in this README, first-run, Settings, and the product docs; archived v1 release-gate notes now live in `docs/archive/releases/common.release-readiness-criteria-v1.0.md`
 
 ## License
@@ -452,17 +453,25 @@ Optional next-step packaging:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\developer\build.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\developer\package_windows.ps1
 ```
 
-This optional build is prepared to create:
+`scripts/developer/build.ps1` creates the raw compiled tray and worker executables:
 
 - `SelfSnapTray.exe` as a windowless tray executable
 - `SelfSnapWorker.exe` as a windowless scheduled worker executable
 
+`scripts/developer/package_windows.ps1` creates the Windows distribution artifacts under `artifacts/windows/`:
+
+- `SelfSnap-<version>-portable.zip` with the compiled tray and worker executables
+- `SelfSnap-<version>-windows-x64.msi` as a per-user Windows installer
+- `SelfSnap-<version>-windows-x64-setup.exe` as a setup bootstrapper for the same MSI
+
 ## GitHub automation
 
-- `.github/workflows/ci.yml` keeps the repo healthy on pushes and pull requests with Windows-based compile smoke checks and `pytest`.
-- `.github/workflows/release.yml` creates GitHub releases automatically for future version tags and can also be run manually for existing historical tags.
+- `.github/workflows/ci.yml` keeps the repo healthy on pushes and pull requests with Windows-based compile smoke checks, `ruff`, `mypy`, and `pytest`.
+- `.github/workflows/package-main.yml` runs after a successful `CI` push to `main` and uploads downloadable Windows artifacts (`portable.zip`, `.msi`, `-setup.exe`) to the workflow run.
+- `.github/workflows/release.yml` creates GitHub releases automatically for future version tags, can be run manually for existing historical tags, and attaches the Windows artifacts to the tagged release.
 - `.github/workflows/issue-intake.yml` preprocesses new issues, applies managed labels, and posts a planning starter comment for maintainer triage.
 - `.github/ISSUE_TEMPLATE/report_issue.md` is the template used by the in-app issue reporting flow.
 - `scripts/developer/publish_github_metadata.ps1` updates the repo description/topics and can publish historical releases once `gh auth login` is valid.

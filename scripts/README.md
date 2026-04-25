@@ -21,6 +21,7 @@ User-facing automation:
 Developer-only automation:
 
 - `scripts/developer/build.ps1`
+- `scripts/developer/package_windows.ps1`
 - `scripts/developer/smoke_test.ps1`
 - `scripts/developer/cleanup_pytest_artifacts.ps1`
 - `scripts/developer/cleanup_repo_artifacts.ps1`
