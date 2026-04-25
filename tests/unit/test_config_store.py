@@ -77,10 +77,50 @@ def test_load_config_migrates_legacy_schedule_shape(temp_paths) -> None:
 
     loaded = load_config(temp_paths)
 
-    assert loaded.schema_version == 3
+    assert loaded.schema_version == 4
     assert loaded.schedules[0].interval_value == 1
     assert loaded.schedules[0].interval_unit == "day"
     assert loaded.schedules[0].start_time_local == "08:15:00"
+
+
+def test_load_and_save_preserves_schema_4_extraction_fields(temp_paths) -> None:
+    temp_paths.ensure_dirs()
+    payload = {
+        "schema_version": 4,
+        "app_enabled": False,
+        "first_run_completed": True,
+        "storage_preset": "local_pictures",
+        "capture_storage_root": str(temp_paths.default_capture_root),
+        "archive_storage_root": str(temp_paths.default_archive_root),
+        "settings_window_width": 960,
+        "settings_window_height": 760,
+        "schedules": [
+            {
+                "schedule_id": "night",
+                "label": "Night",
+                "interval_value": 1,
+                "interval_unit": "minute",
+                "start_date_local": "2026-03-25",
+                "start_time_local": "01:30:00",
+                "enabled": True,
+                "extraction_profile_id": "profile_night",
+            }
+        ],
+        "extraction_profiles": [{"profile_id": "profile_night", "label": "Night profile"}],
+    }
+    temp_paths.config_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    loaded = load_config(temp_paths)
+
+    assert loaded.schema_version == 4
+    assert loaded.schedules[0].extraction_profile_id == "profile_night"
+    assert loaded.extraction_profiles == payload["extraction_profiles"]
+
+    save_config(temp_paths, loaded)
+    persisted = json.loads(temp_paths.config_path.read_text(encoding="utf-8"))
+    assert persisted["schema_version"] == 4
+    assert persisted["schedules"][0]["extraction_profile_id"] == "profile_night"
+    assert persisted["extraction_profiles"] == payload["extraction_profiles"]
 
 
 # ---------------------------------------------------------------------------

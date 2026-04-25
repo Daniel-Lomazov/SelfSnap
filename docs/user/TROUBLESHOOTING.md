@@ -55,6 +55,8 @@ This repository tracks a preview build, not a stable release. That means your ex
 
 When that happens, `scripts/user/install.ps1` still completes the wrapper install but skips scheduler sync and startup shortcut updates so it does not rewrite a newer config with an older preview build.
 
+Current builds in this repository support the schema-4 extraction-related config fields, so this warning now points to a checkout/config mismatch beyond that supported schema.
+
 If you need full install integration again:
 
 1. use a checkout that supports your current config schema,

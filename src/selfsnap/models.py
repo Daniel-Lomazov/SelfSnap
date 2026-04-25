@@ -14,7 +14,7 @@ from selfsnap.window_sizing import (
 )
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 SCHEDULE_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
 LOCAL_TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d$")
 LEGACY_LOCAL_TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
@@ -102,6 +102,7 @@ class Schedule:
     start_date_local: str
     start_time_local: str
     enabled: bool = True
+    extraction_profile_id: str | None = None
 
     def validate(self) -> None:
         if not self.schedule_id or not SCHEDULE_ID_PATTERN.match(self.schedule_id):
@@ -155,6 +156,11 @@ class Schedule:
             start_date_local=str(data["start_date_local"]),
             start_time_local=normalize_time_string(str(data["start_time_local"])),
             enabled=bool(data.get("enabled", True)),
+            extraction_profile_id=(
+                None
+                if data.get("extraction_profile_id") is None
+                else str(data.get("extraction_profile_id"))
+            ),
         )
         schedule.validate()
         return schedule
@@ -194,6 +200,7 @@ class AppConfig:
     image_format: str = ImageFormat.PNG.value
     image_quality: int = 85
     schedules: list[Schedule] = field(default_factory=list)
+    extraction_profiles: list[dict[str, Any]] = field(default_factory=list)
 
     def validate(self) -> None:
         if self.schema_version != SCHEMA_VERSION:
@@ -237,6 +244,9 @@ class AppConfig:
             raise ConfigValidationError("image_quality must be between 1 and 100")
         if self.retention_grace_days < 1:
             raise ConfigValidationError("retention_grace_days must be >= 1")
+        for extraction_profile in self.extraction_profiles:
+            if not isinstance(extraction_profile, dict):
+                raise ConfigValidationError("extraction_profiles must contain objects")
         seen_ids: set[str] = set()
         for schedule in self.schedules:
             schedule.validate()
@@ -264,10 +274,16 @@ class AppConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AppConfig":
         raw_schema_version = int(data.get("schema_version", SCHEMA_VERSION))
-        if raw_schema_version not in {1, 2, SCHEMA_VERSION}:
+        if raw_schema_version not in {1, 2, 3, SCHEMA_VERSION}:
             raise ConfigValidationError(
-                f"schema_version must be 1, 2, or {SCHEMA_VERSION}, got {raw_schema_version}"
+                f"schema_version must be 1, 2, 3, or {SCHEMA_VERSION}, got {raw_schema_version}"
             )
+
+        raw_extraction_profiles = data.get("extraction_profiles", [])
+        if raw_extraction_profiles is None:
+            raw_extraction_profiles = []
+        if not isinstance(raw_extraction_profiles, list):
+            raise ConfigValidationError("extraction_profiles must be a list")
 
         config = cls(
             schema_version=SCHEMA_VERSION,
@@ -300,6 +316,7 @@ class AppConfig:
             image_format=str(data.get("image_format", ImageFormat.PNG.value)),
             image_quality=int(data.get("image_quality", 85)),
             schedules=[Schedule.from_dict(item) for item in data.get("schedules", [])],
+            extraction_profiles=[item for item in raw_extraction_profiles],
         )
         config.validate()
         return config

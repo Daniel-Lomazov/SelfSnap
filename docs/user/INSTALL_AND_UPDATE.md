@@ -185,6 +185,8 @@ This preview checkout can lag behind a config written by another preview build.
 
 If `scripts/user/install.ps1` warns that your config schema is newer than the current checkout supports, the source install itself still completed. What was skipped is the config-mutating integration work: scheduler sync and startup shortcut updates.
 
+Current builds in this repository support the schema-4 extraction-related config fields, so this warning now indicates a genuinely newer preview checkout/config mismatch.
+
 Use one of these recovery paths:
 
 1. switch back to a checkout that supports that newer config schema,

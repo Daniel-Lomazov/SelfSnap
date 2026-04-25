@@ -85,6 +85,33 @@ def test_legacy_schedule_dict_migrates_to_daily_recurrence() -> None:
     assert schedule.start_time_local == "09:15:00"
 
 
+def test_app_config_from_dict_accepts_schema_4_and_preserves_extraction_fields() -> None:
+    config = AppConfig.from_dict(
+        {
+            "schema_version": 4,
+            "capture_storage_root": "C:\\captures",
+            "archive_storage_root": "C:\\archive",
+            "schedules": [
+                {
+                    "schedule_id": "night",
+                    "label": "Night",
+                    "interval_value": 1,
+                    "interval_unit": "minute",
+                    "start_date_local": "2026-03-25",
+                    "start_time_local": "01:30:00",
+                    "enabled": True,
+                    "extraction_profile_id": "profile_night",
+                }
+            ],
+            "extraction_profiles": [{"profile_id": "profile_night", "label": "Night profile"}],
+        }
+    )
+
+    assert config.schema_version == 4
+    assert config.schedules[0].extraction_profile_id == "profile_night"
+    assert config.extraction_profiles == [{"profile_id": "profile_night", "label": "Night profile"}]
+
+
 # ---------------------------------------------------------------------------
 # AppConfig validation — uncovered branches
 # ---------------------------------------------------------------------------

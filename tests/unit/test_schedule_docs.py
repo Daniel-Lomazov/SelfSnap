@@ -37,12 +37,14 @@ def test_readme_describes_recurring_schedule_setup() -> None:
 def test_user_config_example_uses_recurring_schedule_schema() -> None:
     config = json.loads(Path("docs/user/config.example.json").read_text(encoding="utf-8"))
 
-    assert config["schema_version"] == 3
+    assert config["schema_version"] == 4
     assert config["schedules"][0]["interval_value"] == 1
     assert config["schedules"][0]["interval_unit"] == "day"
     assert config["schedules"][0]["start_date_local"] == "2026-03-23"
     assert config["schedules"][0]["start_time_local"] == "09:00:00"
+    assert config["schedules"][0]["extraction_profile_id"] is None
     assert config["schedules"][1]["interval_unit"] == "minute"
+    assert config["extraction_profiles"] == []
     assert "local_time" not in config["schedules"][0]
 
 

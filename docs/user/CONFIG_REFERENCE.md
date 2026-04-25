@@ -12,7 +12,7 @@ See [config.example.json](config.example.json) for a complete example.
 
 | Key | Meaning | Notes |
 |---|---|---|
-| `schema_version` | config schema version | Current example uses `3` |
+| `schema_version` | config schema version | Current example uses `4` |
 | `app_enabled` | master scheduled-capture enable/disable switch | Manual capture remains available even when false |
 | `first_run_completed` | whether initial setup has been completed | Controls whether some UI/settings are unlocked |
 | `storage_preset` | storage mode | `local_pictures`, `onedrive_pictures`, or `custom` |
@@ -38,6 +38,7 @@ See [config.example.json](config.example.json) for a complete example.
 | `settings_window_height` | last stored settings height | UI persistence detail |
 | `slot_match_tolerance_seconds` | reconciliation tolerance | Internal scheduling behavior |
 | `schedules` | recurring schedule list | See schedule object below |
+| `extraction_profiles` | stored extraction-profile metadata | Preserved with the config for schema compatibility |
 
 ## Storage Presets
 
@@ -84,8 +85,11 @@ Each item in `schedules` includes:
 | `interval_unit` | recurrence unit: `second`, `minute`, `hour`, `day`, `week`, `month`, or `year` |
 | `start_date_local` | local anchor date |
 | `start_time_local` | local anchor time |
+| `extraction_profile_id` | optional linked extraction profile id | `null` when the schedule has no linked extraction profile |
 
 Schedule identifiers are expected to use lowercase letters, digits, and underscores.
+
+`extraction_profiles` is stored at the top level and preserved across config writes even when the current checkout is not actively editing extraction data.
 
 ## Recommended Editing Approach
 

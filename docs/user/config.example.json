@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "app_enabled": false,
   "first_run_completed": false,
   "storage_preset": "local_pictures",
@@ -32,7 +32,8 @@
       "interval_value": 1,
       "interval_unit": "day",
       "start_date_local": "2026-03-23",
-      "start_time_local": "09:00:00"
+      "start_time_local": "09:00:00",
+      "extraction_profile_id": null
     },
     {
       "schedule_id": "sched_workbreak01",
@@ -41,7 +42,9 @@
       "interval_value": 5,
       "interval_unit": "minute",
       "start_date_local": "2026-03-23",
-      "start_time_local": "14:30:00"
+      "start_time_local": "14:30:00",
+      "extraction_profile_id": null
     }
-  ]
+  ],
+  "extraction_profiles": []
 }
