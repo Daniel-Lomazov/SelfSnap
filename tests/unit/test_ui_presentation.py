@@ -42,7 +42,9 @@ def test_settings_header_status_tracks_manual_enabled_and_warning_states() -> No
 
 
 def test_scheduler_status_detail_prefers_saved_message() -> None:
-    failed = replace(_config(), scheduler_sync_state="failed", scheduler_sync_message="Access denied")
+    failed = replace(
+        _config(), scheduler_sync_state="failed", scheduler_sync_message="Access denied"
+    )
 
     assert scheduler_status_detail(failed) == "Task Scheduler last reported an issue: Access denied"
     assert scheduler_status_detail(_config()) is None
@@ -61,8 +63,7 @@ def test_storage_summary_text_formats_retention_capture_and_purge() -> None:
     )
 
     assert text == (
-        "Custom Folder • Archives after 45 days • Per Monitor JPEG 92% • "
-        "Purges after 14-day grace"
+        "Custom Folder • Archives after 45 days • Per Monitor JPEG 92% • Purges after 14-day grace"
     )
 
 
@@ -96,9 +97,12 @@ def test_tray_presentation_helpers_preserve_existing_labels() -> None:
     assert tray_toggle_enabled_label(False) == "Resume Scheduled Captures"
     assert latest_capture_label("capture_saved", "LOCAL") == "Last capture: Saved at LOCAL"
     assert tray_status_summary_label("Scheduled captures on") == "Scheduled captures on"
-    assert tray_status_summary_label(
-        "Scheduled captures on",
-        "Last capture: Saved at LOCAL",
-    ) == "Scheduled captures on • Last capture: Saved at LOCAL"
+    assert (
+        tray_status_summary_label(
+            "Scheduled captures on",
+            "Last capture: Saved at LOCAL",
+        )
+        == "Scheduled captures on • Last capture: Saved at LOCAL"
+    )
     assert record_message("capture_saved", "sched_1") == "capture_saved (sched_1)"
     assert maintenance_summary_text().startswith("Reset capture history")

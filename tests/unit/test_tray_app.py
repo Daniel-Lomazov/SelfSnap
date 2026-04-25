@@ -7,8 +7,8 @@ from types import SimpleNamespace
 from selfsnap.models import AppConfig, CaptureRecord, Schedule
 from selfsnap.tray.app import (
     TrayRuntimeState,
-    _any_dialog_open,
     _announce_record,
+    _any_dialog_open,
     _build_menu_items,
     _capture_now,
     _check_for_updates,
@@ -216,7 +216,9 @@ def test_settings_menu_item_is_default_action(temp_paths, monkeypatch) -> None:
     )
 
     settings_items = [
-        item for item in items if item is not None and not callable(item.text) and item.text == "Settings"
+        item
+        for item in items
+        if item is not None and not callable(item.text) and item.text == "Settings"
     ]
     assert len(settings_items) == 1
     assert settings_items[0].default is True
@@ -286,7 +288,9 @@ def test_report_issue_can_open_while_settings_is_open(temp_paths, monkeypatch) -
     assert report_calls == ["dialog"]
 
 
-def test_restart_selfsnap_schedules_relaunch_after_current_process_exits(temp_paths, monkeypatch) -> None:
+def test_restart_selfsnap_schedules_relaunch_after_current_process_exits(
+    temp_paths, monkeypatch
+) -> None:
     exited: list[str] = []
     monkeypatch.setattr(
         "selfsnap.tray.app.schedule_tray_relaunch_after_exit",
@@ -296,7 +300,9 @@ def test_restart_selfsnap_schedules_relaunch_after_current_process_exits(temp_pa
         "selfsnap.tray.app._exit",
         lambda _icon, _stop_event: exited.append("exit"),
     )
-    monkeypatch.setattr("selfsnap.tray.app._show_error_dialog", lambda *_args: exited.append("error"))
+    monkeypatch.setattr(
+        "selfsnap.tray.app._show_error_dialog", lambda *_args: exited.append("error")
+    )
 
     _restart_selfsnap(temp_paths, icon=SimpleNamespace(), state=_state())
 
@@ -347,7 +353,9 @@ def test_reinstall_selfsnap_keeps_current_tray_running_when_relaunch_schedule_fa
     exits: list[str] = []
 
     monkeypatch.setattr("selfsnap.tray.app._ask_confirmation", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr("selfsnap.tray.app.resolve_reinstall_invocation", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(
+        "selfsnap.tray.app.resolve_reinstall_invocation", lambda *_args, **_kwargs: object()
+    )
     monkeypatch.setattr("selfsnap.tray.app.run_lifecycle_script_and_check", lambda _spec: True)
     monkeypatch.setattr(
         "selfsnap.tray.app.schedule_tray_relaunch_after_exit",
@@ -368,14 +376,14 @@ def test_reinstall_selfsnap_keeps_current_tray_running_when_relaunch_schedule_fa
     assert len(prompts) == 1
 
 
-def test_check_for_updates_schedules_relaunch_after_successful_install(temp_paths, monkeypatch) -> None:
+def test_check_for_updates_schedules_relaunch_after_successful_install(
+    temp_paths, monkeypatch
+) -> None:
     invocation_args: list[tuple[bool, bool, str | None]] = []
     scheduled: list[int] = []
     exits: list[str] = []
 
-    monkeypatch.setattr(
-        "selfsnap.update_checker.fetch_latest_release_tag", lambda _repo: "v99.0.0"
-    )
+    monkeypatch.setattr("selfsnap.update_checker.fetch_latest_release_tag", lambda _repo: "v99.0.0")
     monkeypatch.setattr("selfsnap.tray.app._ask_confirmation", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
         "selfsnap.tray.app.resolve_reinstall_invocation",
@@ -507,7 +515,9 @@ def test_tray_menu_groups_browse_and_app_actions_under_submenus(temp_paths, monk
     ]
 
 
-def test_tray_menu_status_row_omits_latest_when_preference_disabled(temp_paths, monkeypatch) -> None:
+def test_tray_menu_status_row_omits_latest_when_preference_disabled(
+    temp_paths, monkeypatch
+) -> None:
     class FakeMenu(list):
         SEPARATOR = None
 
@@ -569,7 +579,9 @@ def test_toggle_enabled_uses_refresh_menu_callback(temp_paths, monkeypatch) -> N
     assert icon_updates == []
 
 
-def test_toggle_enabled_first_run_cancel_uses_refresh_menu_callback(temp_paths, monkeypatch) -> None:
+def test_toggle_enabled_first_run_cancel_uses_refresh_menu_callback(
+    temp_paths, monkeypatch
+) -> None:
     config = AppConfig(
         capture_storage_root=str(temp_paths.default_capture_root),
         archive_storage_root=str(temp_paths.default_archive_root),
@@ -604,9 +616,7 @@ def test_check_for_updates_when_installed_is_newer_shows_installed_as_latest(
 
     shown: list[tuple[str, str]] = []
 
-    monkeypatch.setattr(
-        "selfsnap.update_checker.fetch_latest_release_tag", lambda _repo: "v1.0.0"
-    )
+    monkeypatch.setattr("selfsnap.update_checker.fetch_latest_release_tag", lambda _repo: "v1.0.0")
     monkeypatch.setattr("selfsnap.tray.app._show_info_dialog", lambda t, m: shown.append((t, m)))
     monkeypatch.setattr("selfsnap.tray.app._show_error_dialog", lambda *_args, **_kwargs: None)
 
@@ -651,7 +661,9 @@ def test_run_high_frequency_scheduler_launches_due_occurrences(temp_paths, monke
         "selfsnap.tray.app.launch_background", lambda spec: launched.append(spec.command())
     )
 
-    logger = SimpleNamespace(debug=lambda *args, **kwargs: None, exception=lambda *args, **kwargs: None)
+    logger = SimpleNamespace(
+        debug=lambda *args, **kwargs: None, exception=lambda *args, **kwargs: None
+    )
     state = _state()
     state.last_high_frequency_check = datetime(2026, 3, 23, 10, 0, 0, tzinfo=UTC)
 

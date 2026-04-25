@@ -12,8 +12,8 @@ from selfsnap.ui_labels import (
     notification_mode_label,
     on_off_label,
     retention_mode_label,
-    retention_policy_label,
     retention_mode_value,
+    retention_policy_label,
     scheduler_sync_state_label,
     storage_preset_label,
     storage_preset_value,
@@ -78,6 +78,7 @@ def test_local_privacy_notice_matches_public_trust_boundary() -> None:
 
 def test_storage_preset_labels_returns_list() -> None:
     from selfsnap.ui_labels import storage_preset_labels
+
     labels = storage_preset_labels()
     assert "Local Pictures" in labels
     assert "OneDrive Pictures" in labels
@@ -86,6 +87,7 @@ def test_storage_preset_labels_returns_list() -> None:
 
 def test_retention_mode_labels_returns_list() -> None:
     from selfsnap.ui_labels import retention_mode_labels
+
     labels = retention_mode_labels()
     assert "Keep Forever" in labels
     assert "Archive After N Days" in labels

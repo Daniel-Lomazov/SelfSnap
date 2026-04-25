@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -11,8 +11,8 @@ from selfsnap.runtime_launch import (
     ensure_local_repository_interpreter,
     launch_background,
     launch_hidden_background,
-    resolve_background_working_directory,
     resolve_background_python_executable,
+    resolve_background_working_directory,
     resolve_foreground_python_executable,
     resolve_manual_capture_background_invocation,
     resolve_source_repo_root,
@@ -24,7 +24,9 @@ from selfsnap.runtime_launch import (
 def _create_repo_checkout(repo_root: Path) -> None:
     (repo_root / "scripts").mkdir(parents=True, exist_ok=True)
     (repo_root / "scripts" / "setup.ps1").write_text("", encoding="utf-8")
-    (repo_root / "pyproject.toml").write_text("[project]\nname='selfsnap-win11'\n", encoding="utf-8")
+    (repo_root / "pyproject.toml").write_text(
+        "[project]\nname='selfsnap-win11'\n", encoding="utf-8"
+    )
 
 
 def _create_local_venv(repo_root: Path) -> tuple[Path, Path]:
@@ -55,7 +57,9 @@ def test_resolve_background_python_executable_prefers_install_metadata(temp_path
     assert Path(result) == pythonw
 
 
-def test_resolve_background_python_executable_ignores_stale_metadata(monkeypatch, temp_paths) -> None:
+def test_resolve_background_python_executable_ignores_stale_metadata(
+    monkeypatch, temp_paths
+) -> None:
     checkout_root = temp_paths.user_profile / "not-a-checkout"
     checkout_root.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(
@@ -237,7 +241,8 @@ def test_resolve_background_python_executable_prefers_local_repo_venv_over_metad
 
 
 def test_resolve_foreground_python_executable_requires_local_setup_when_checkout_venv_missing(
-    monkeypatch, temp_paths,
+    monkeypatch,
+    temp_paths,
 ) -> None:
     repo_root = temp_paths.user_profile
     _create_repo_checkout(repo_root)
@@ -253,9 +258,7 @@ def test_resolve_foreground_python_executable_requires_local_setup_when_checkout
 def test_resolve_source_repo_root_prefers_trusted_install_metadata(temp_paths) -> None:
     temp_paths.bin_dir.mkdir(parents=True, exist_ok=True)
     (temp_paths.bin_dir / "install-meta.json").write_text(
-        '{"repo_root": "'
-        + str(temp_paths.user_profile).replace("\\", "\\\\")
-        + '"}',
+        '{"repo_root": "' + str(temp_paths.user_profile).replace("\\", "\\\\") + '"}',
         encoding="utf-8",
     )
 
@@ -384,7 +387,9 @@ def test_launch_hidden_background_suppresses_stdio_and_requests_text_mode(
         ),
     ],
 )
-def test_run_helpers_request_text_mode(monkeypatch, temp_paths, runner_name, expected_stdio) -> None:
+def test_run_helpers_request_text_mode(
+    monkeypatch, temp_paths, runner_name, expected_stdio
+) -> None:
     captured: dict[str, object] = {}
 
     def fake_run(*args, **kwargs):

@@ -1,14 +1,49 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 
+import selfsnap.scheduler.task_scheduler as task_scheduler
 from selfsnap.config_store import load_or_create_config
 from selfsnap.models import Schedule
+from selfsnap.runtime_launch import LaunchSpec
 from selfsnap.scheduler.backends import InMemoryTaskSchedulerBackend
 from selfsnap.scheduler.task_scheduler import TASK_PREFIX, build_desired_tasks, sync_tasks
-import logging
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _fake_worker_background_invocation(
+    _paths, schedule_id: str, planned_local_ts: str | None = None
+) -> LaunchSpec:
+    arguments = [
+        "-m",
+        "selfsnap",
+        "capture",
+        "--trigger",
+        "scheduled",
+        "--schedule-id",
+        schedule_id,
+    ]
+    if planned_local_ts is not None:
+        arguments.extend(["--planned-local-ts", planned_local_ts])
+    return LaunchSpec(
+        executable=str(REPO_ROOT / ".venv" / "Scripts" / "pythonw.exe"),
+        arguments=arguments,
+        working_directory=str(REPO_ROOT),
+    )
+
+
+@pytest.fixture(autouse=True)
+def _stub_worker_background_invocation(monkeypatch) -> None:
+    monkeypatch.setattr(
+        task_scheduler,
+        "resolve_worker_background_invocation",
+        _fake_worker_background_invocation,
+    )
 
 
 def _make_logger() -> logging.Logger:
@@ -37,7 +72,9 @@ def test_sync_tasks_creates_task_for_enabled_coarse_schedule(temp_paths) -> None
     # build_desired_tasks is deterministic; patch now_local via the desired dict
     desired = build_desired_tasks(temp_paths, config, now_local=now)
     for task_name, spec in desired.items():
-        backend.create_or_replace(task_name, spec["run_at_local"], spec["invocation"], bool(spec["wake"]))  # type: ignore[arg-type]
+        backend.create_or_replace(
+            task_name, spec["run_at_local"], spec["invocation"], bool(spec["wake"])
+        )  # type: ignore[arg-type]
 
     assert backend.task_count() == 1
     assert f"{TASK_PREFIX}daily" in backend.list_tasks()
@@ -53,7 +90,12 @@ def test_sync_tasks_removes_stale_tasks_via_backend(temp_paths) -> None:
     config.schedules = []
 
     backend = InMemoryTaskSchedulerBackend()
-    backend._tasks[f"{TASK_PREFIX}stale"] = {"run_at_local": None, "executable": "x", "arguments": "", "wake_for_run": False}
+    backend._tasks[f"{TASK_PREFIX}stale"] = {
+        "run_at_local": None,
+        "executable": "x",
+        "arguments": "",
+        "wake_for_run": False,
+    }
 
     sync_tasks(temp_paths, config, _make_logger(), backend=backend)
 
@@ -76,8 +118,6 @@ def test_sync_tasks_replaces_existing_task_on_resync(temp_paths) -> None:
         )
     ]
     backend = InMemoryTaskSchedulerBackend()
-    local_tz = datetime.now().astimezone().tzinfo
-    now = datetime(2026, 3, 23, 8, 0, 0, tzinfo=local_tz)
 
     sync_tasks(temp_paths, config, _make_logger(), backend=backend)
     first_count = backend.task_count()

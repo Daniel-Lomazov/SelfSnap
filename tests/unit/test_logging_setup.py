@@ -15,7 +15,9 @@ class FakeHandler(logging.Handler):
         return None
 
 
-def test_setup_logging_falls_back_to_pid_log_when_primary_is_locked(temp_paths, monkeypatch) -> None:
+def test_setup_logging_falls_back_to_pid_log_when_primary_is_locked(
+    temp_paths, monkeypatch
+) -> None:
     logger = logging.getLogger("selfsnap")
     logger.handlers.clear()
 

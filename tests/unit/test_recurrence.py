@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -34,11 +34,36 @@ def _schedule(
 @pytest.mark.parametrize(
     ("interval_unit", "interval_value", "reference", "expected"),
     [
-        ("second", 15, datetime(2026, 1, 31, 9, 0, 10, tzinfo=timezone.utc), datetime(2026, 1, 31, 9, 0, 15, tzinfo=timezone.utc)),
-        ("minute", 5, datetime(2026, 1, 31, 9, 3, 0, tzinfo=timezone.utc), datetime(2026, 1, 31, 9, 5, 0, tzinfo=timezone.utc)),
-        ("hour", 2, datetime(2026, 1, 31, 10, 0, 0, tzinfo=timezone.utc), datetime(2026, 1, 31, 11, 0, 0, tzinfo=timezone.utc)),
-        ("day", 1, datetime(2026, 2, 1, 10, 0, 0, tzinfo=timezone.utc), datetime(2026, 2, 2, 9, 0, 0, tzinfo=timezone.utc)),
-        ("week", 2, datetime(2026, 2, 7, 9, 0, 0, tzinfo=timezone.utc), datetime(2026, 2, 14, 9, 0, 0, tzinfo=timezone.utc)),
+        (
+            "second",
+            15,
+            datetime(2026, 1, 31, 9, 0, 10, tzinfo=UTC),
+            datetime(2026, 1, 31, 9, 0, 15, tzinfo=UTC),
+        ),
+        (
+            "minute",
+            5,
+            datetime(2026, 1, 31, 9, 3, 0, tzinfo=UTC),
+            datetime(2026, 1, 31, 9, 5, 0, tzinfo=UTC),
+        ),
+        (
+            "hour",
+            2,
+            datetime(2026, 1, 31, 10, 0, 0, tzinfo=UTC),
+            datetime(2026, 1, 31, 11, 0, 0, tzinfo=UTC),
+        ),
+        (
+            "day",
+            1,
+            datetime(2026, 2, 1, 10, 0, 0, tzinfo=UTC),
+            datetime(2026, 2, 2, 9, 0, 0, tzinfo=UTC),
+        ),
+        (
+            "week",
+            2,
+            datetime(2026, 2, 7, 9, 0, 0, tzinfo=UTC),
+            datetime(2026, 2, 14, 9, 0, 0, tzinfo=UTC),
+        ),
     ],
 )
 def test_fixed_unit_next_occurrence(
@@ -73,15 +98,19 @@ def test_calendar_units_skip_invalid_dates() -> None:
     assert (
         next_occurrence(
             month_schedule,
-            datetime(2026, 2, 15, 9, 0, 0, tzinfo=timezone.utc),
-        ).date().isoformat()
+            datetime(2026, 2, 15, 9, 0, 0, tzinfo=UTC),
+        )
+        .date()
+        .isoformat()
         == "2026-03-31"
     )
     assert (
         next_occurrence(
             year_schedule,
-            datetime(2025, 3, 1, 9, 0, 0, tzinfo=timezone.utc),
-        ).date().isoformat()
+            datetime(2025, 3, 1, 9, 0, 0, tzinfo=UTC),
+        )
+        .date()
+        .isoformat()
         == "2028-02-29"
     )
 
@@ -94,8 +123,8 @@ def test_iter_occurrences_between_returns_expected_points() -> None:
         start_date_local="2026-03-20",
         start_time_local="20:00:00",
     )
-    start = datetime(2026, 3, 20, 19, 0, 0, tzinfo=timezone.utc)
-    end = datetime(2026, 3, 25, 21, 0, 0, tzinfo=timezone.utc)
+    start = datetime(2026, 3, 20, 19, 0, 0, tzinfo=UTC)
+    end = datetime(2026, 3, 25, 21, 0, 0, tzinfo=UTC)
 
     slots = iter_occurrences_between(schedule, start, end)
 

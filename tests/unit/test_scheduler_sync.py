@@ -1,19 +1,54 @@
 from __future__ import annotations
 
-from pathlib import Path
-from datetime import datetime, timezone
-from types import SimpleNamespace
 import xml.etree.ElementTree as ET
+from datetime import UTC, datetime
+from pathlib import Path
+from types import SimpleNamespace
 
+import pytest
+
+import selfsnap.scheduler.task_scheduler as task_scheduler
 from selfsnap.config_store import load_or_create_config, save_config
 from selfsnap.models import Schedule
+from selfsnap.runtime_launch import LaunchSpec
 from selfsnap.scheduler.task_scheduler import (
     _build_task_xml,
     build_desired_tasks,
     build_task_action,
     resolve_worker_invocation,
 )
-import selfsnap.scheduler.task_scheduler as task_scheduler
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _fake_worker_background_invocation(
+    _paths, schedule_id: str, planned_local_ts: str | None = None
+) -> LaunchSpec:
+    arguments = [
+        "-m",
+        "selfsnap",
+        "capture",
+        "--trigger",
+        "scheduled",
+        "--schedule-id",
+        schedule_id,
+    ]
+    if planned_local_ts is not None:
+        arguments.extend(["--planned-local-ts", planned_local_ts])
+    return LaunchSpec(
+        executable=str(REPO_ROOT / ".venv" / "Scripts" / "pythonw.exe"),
+        arguments=arguments,
+        working_directory=str(REPO_ROOT),
+    )
+
+
+@pytest.fixture(autouse=True)
+def _stub_worker_background_invocation(monkeypatch) -> None:
+    monkeypatch.setattr(
+        task_scheduler,
+        "resolve_worker_background_invocation",
+        _fake_worker_background_invocation,
+    )
 
 
 def test_build_task_action_includes_schedule_id(temp_paths) -> None:
@@ -128,7 +163,7 @@ def test_build_task_xml_preserves_wake_and_exec_settings(temp_paths) -> None:
 
     xml_payload = _build_task_xml(
         "SelfSnap.Capture.morning",
-        datetime(2026, 3, 23, 9, 0, 0, tzinfo=timezone.utc),
+        datetime(2026, 3, 23, 9, 0, 0, tzinfo=UTC),
         invocation,
         True,
     )
@@ -136,8 +171,13 @@ def test_build_task_xml_preserves_wake_and_exec_settings(temp_paths) -> None:
     namespace = {"t": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
 
     assert root.findtext(".//t:Exec/t:Command", namespaces=namespace) == invocation.executable
-    assert root.findtext(".//t:Exec/t:Arguments", namespaces=namespace) == invocation.argument_string()
-    assert root.findtext(".//t:Exec/t:WorkingDirectory", namespaces=namespace) == invocation.working_directory
+    assert (
+        root.findtext(".//t:Exec/t:Arguments", namespaces=namespace) == invocation.argument_string()
+    )
+    assert (
+        root.findtext(".//t:Exec/t:WorkingDirectory", namespaces=namespace)
+        == invocation.working_directory
+    )
     assert root.findtext(".//t:Settings/t:WakeToRun", namespaces=namespace) == "true"
 
 

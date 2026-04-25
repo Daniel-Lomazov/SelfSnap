@@ -1,13 +1,6 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-from unittest.mock import patch
-
-import pytest
-
 from selfsnap.cli import build_parser, handle_reinstall, handle_uninstall, handle_update, main
-
 
 # ---------------------------------------------------------------------------
 # parser shape
@@ -241,12 +234,8 @@ def test_handle_update_network_error_returns_1(monkeypatch) -> None:
     assert handle_update(_update_args()) == 1
 
 
-def test_handle_update_check_only_reports_available_without_installing(
-    monkeypatch, capsys
-) -> None:
-    monkeypatch.setattr(
-        "selfsnap.cli.fetch_latest_release_tag", lambda _repo: "v99.0.0"
-    )
+def test_handle_update_check_only_reports_available_without_installing(monkeypatch, capsys) -> None:
+    monkeypatch.setattr("selfsnap.cli.fetch_latest_release_tag", lambda _repo: "v99.0.0")
     ran_install = []
     monkeypatch.setattr(
         "selfsnap.cli.run_lifecycle_script_and_check",
@@ -259,9 +248,7 @@ def test_handle_update_check_only_reports_available_without_installing(
 
 
 def test_handle_update_installs_when_newer_available(temp_paths, monkeypatch) -> None:
-    monkeypatch.setattr(
-        "selfsnap.cli.fetch_latest_release_tag", lambda _repo: "v99.0.0"
-    )
+    monkeypatch.setattr("selfsnap.cli.fetch_latest_release_tag", lambda _repo: "v99.0.0")
     monkeypatch.setattr("selfsnap.cli.resolve_app_paths", lambda: temp_paths)
     monkeypatch.setattr(
         "selfsnap.lifecycle_actions.resolve_source_repo_root",
@@ -278,16 +265,12 @@ def test_handle_update_installs_when_newer_available(temp_paths, monkeypatch) ->
         "selfsnap.lifecycle_actions.resolve_background_python_executable",
         lambda _p: r"C:\Python312\pythonw.exe",
     )
-    monkeypatch.setattr(
-        "selfsnap.cli.run_lifecycle_script_and_check", lambda _spec: True
-    )
+    monkeypatch.setattr("selfsnap.cli.run_lifecycle_script_and_check", lambda _spec: True)
     assert handle_update(_update_args()) == 0
 
 
 def test_handle_update_returns_1_on_install_failure(temp_paths, monkeypatch) -> None:
-    monkeypatch.setattr(
-        "selfsnap.cli.fetch_latest_release_tag", lambda _repo: "v99.0.0"
-    )
+    monkeypatch.setattr("selfsnap.cli.fetch_latest_release_tag", lambda _repo: "v99.0.0")
     monkeypatch.setattr("selfsnap.cli.resolve_app_paths", lambda: temp_paths)
     monkeypatch.setattr(
         "selfsnap.lifecycle_actions.resolve_source_repo_root",
@@ -304,7 +287,5 @@ def test_handle_update_returns_1_on_install_failure(temp_paths, monkeypatch) -> 
         "selfsnap.lifecycle_actions.resolve_background_python_executable",
         lambda _p: r"C:\Python312\pythonw.exe",
     )
-    monkeypatch.setattr(
-        "selfsnap.cli.run_lifecycle_script_and_check", lambda _spec: False
-    )
+    monkeypatch.setattr("selfsnap.cli.run_lifecycle_script_and_check", lambda _spec: False)
     assert handle_update(_update_args()) == 1

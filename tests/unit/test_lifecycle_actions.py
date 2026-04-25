@@ -6,8 +6,8 @@ from selfsnap.lifecycle_actions import (
     resolve_reinstall_invocation,
     resolve_restart_invocation,
     resolve_tray_relaunch_after_exit_invocation,
-    schedule_tray_relaunch_after_exit,
     resolve_uninstall_invocation,
+    schedule_tray_relaunch_after_exit,
 )
 
 
@@ -27,7 +27,8 @@ def test_resolve_reinstall_invocation_targets_reinstall_script(temp_paths, monke
     scripts_dir.mkdir(parents=True, exist_ok=True)
     (scripts_dir / "reinstall.ps1").write_text("", encoding="utf-8")
     monkeypatch.setattr(
-        "selfsnap.lifecycle_actions.resolve_source_repo_root", lambda _paths: str(temp_paths.user_profile)
+        "selfsnap.lifecycle_actions.resolve_source_repo_root",
+        lambda _paths: str(temp_paths.user_profile),
     )
     monkeypatch.setattr(
         "selfsnap.lifecycle_actions.resolve_foreground_python_executable",
@@ -55,7 +56,8 @@ def test_resolve_uninstall_invocation_targets_uninstall_script(temp_paths, monke
     scripts_dir.mkdir(parents=True, exist_ok=True)
     (scripts_dir / "uninstall.ps1").write_text("", encoding="utf-8")
     monkeypatch.setattr(
-        "selfsnap.lifecycle_actions.resolve_source_repo_root", lambda _paths: str(temp_paths.user_profile)
+        "selfsnap.lifecycle_actions.resolve_source_repo_root",
+        lambda _paths: str(temp_paths.user_profile),
     )
     monkeypatch.setattr(
         "selfsnap.lifecycle_actions.resolve_foreground_python_executable",
@@ -71,7 +73,9 @@ def test_resolve_uninstall_invocation_targets_uninstall_script(temp_paths, monke
     assert r"C:\Python312\python.exe" in spec.arguments
 
 
-def test_resolve_tray_relaunch_after_exit_invocation_waits_then_launches(temp_paths, monkeypatch) -> None:
+def test_resolve_tray_relaunch_after_exit_invocation_waits_then_launches(
+    temp_paths, monkeypatch
+) -> None:
     monkeypatch.setattr(
         "selfsnap.lifecycle_actions.resolve_tray_background_invocation",
         lambda _paths: type(
@@ -95,7 +99,9 @@ def test_resolve_tray_relaunch_after_exit_invocation_waits_then_launches(temp_pa
     assert "-ArgumentList @('-m', 'selfsnap', 'tray')" in command
 
 
-def test_schedule_tray_relaunch_after_exit_returns_false_if_helper_exits(temp_paths, monkeypatch) -> None:
+def test_schedule_tray_relaunch_after_exit_returns_false_if_helper_exits(
+    temp_paths, monkeypatch
+) -> None:
     monkeypatch.setattr(
         "selfsnap.lifecycle_actions.resolve_tray_relaunch_after_exit_invocation",
         lambda _paths, wait_for_process_id: object(),

@@ -107,12 +107,42 @@ if (-not $selectedPython) {
     $selectedPython = Resolve-DefaultPython
 }
 
+if (Test-Path $venvFullPath) {
+    try {
+        $activeVenv = if ($env:VIRTUAL_ENV) { [System.IO.Path]::GetFullPath($env:VIRTUAL_ENV) } else { "" }
+        $targetVenv = [System.IO.Path]::GetFullPath($venvFullPath)
+    }
+    catch {
+        $activeVenv = ""
+        $targetVenv = ""
+    }
+
+    if ($activeVenv -and $targetVenv -and $activeVenv.TrimEnd('\\') -ieq $targetVenv.TrimEnd('\\')) {
+        throw (
+            "The target virtual environment '$venvFullPath' is currently active in this shell. " +
+            "Deactivate it and rerun scripts/setup.ps1, or pass -VenvPath to create a different environment."
+        )
+    }
+}
+
 Push-Location $repoRoot
 
 if ($uvCommand -and $selectedPython) {
     $env:UV_CACHE_DIR = $uvCachePath
-    & $uvCommand venv --clear --seed --python $selectedPython $VenvPath
-    Assert-LastExitCode "uv venv creation"
+    try {
+        & $uvCommand venv --clear --seed --python $selectedPython $VenvPath
+        Assert-LastExitCode "uv venv creation"
+    }
+    catch {
+        $scriptsPath = Join-Path $venvFullPath "Scripts"
+        if (Test-Path $scriptsPath) {
+            throw (
+                "uv could not recreate '$venvFullPath'. If another shell or process is using files under " +
+                "'$scriptsPath', close it or pass -VenvPath to use a different environment, then rerun scripts/setup.ps1."
+            )
+        }
+        throw
+    }
 }
 elseif ($selectedPython) {
     if (Test-Path $venvFullPath) {

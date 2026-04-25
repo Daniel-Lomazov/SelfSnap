@@ -11,7 +11,9 @@ from selfsnap.tray.settings_window import (
 def test_schedule_tree_column_widths_preserve_minimums_when_narrow() -> None:
     widths = resolve_schedule_tree_column_widths(320)
 
-    assert widths == {name: minimum for name, minimum, _weight, _anchor in SCHEDULE_TREE_COLUMN_SPECS}
+    assert widths == {
+        name: minimum for name, minimum, _weight, _anchor in SCHEDULE_TREE_COLUMN_SPECS
+    }
 
 
 def test_schedule_tree_column_widths_expand_to_fill_available_width() -> None:

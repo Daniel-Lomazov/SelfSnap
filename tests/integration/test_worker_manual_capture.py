@@ -203,6 +203,7 @@ def test_composite_capture_honors_image_format_and_quality(temp_paths, monkeypat
 # Scheduled capture — skip conditions
 # ---------------------------------------------------------------------------
 
+
 def _scheduled_config(temp_paths, *, first_run: bool = True, app_enabled: bool = True):
     config = load_or_create_config(temp_paths)
     config.first_run_completed = first_run
@@ -224,7 +225,10 @@ def _scheduled_config(temp_paths, *, first_run: bool = True, app_enabled: bool =
 def test_scheduled_capture_skipped_when_first_run_incomplete(temp_paths, monkeypatch) -> None:
     _scheduled_config(temp_paths, first_run=False, app_enabled=True)
     ensure_database(temp_paths.db_path)
-    monkeypatch.setattr("selfsnap.worker.capture_composite", lambda: (_ for _ in ()).throw(RuntimeError("should not be called")))
+    monkeypatch.setattr(
+        "selfsnap.worker.capture_composite",
+        lambda: (_ for _ in ()).throw(RuntimeError("should not be called")),
+    )
 
     result = run_capture_command(
         TriggerSource.SCHEDULED,
@@ -298,6 +302,7 @@ def test_scheduled_capture_fails_for_unknown_schedule_id(temp_paths) -> None:
 # Capture backend error path
 # ---------------------------------------------------------------------------
 
+
 def test_capture_backend_error_records_failure(temp_paths, monkeypatch) -> None:
     config = load_or_create_config(temp_paths)
     config.first_run_completed = True
@@ -323,10 +328,15 @@ def test_capture_backend_error_records_failure(temp_paths, monkeypatch) -> None:
 # Config validation failure path
 # ---------------------------------------------------------------------------
 
+
 def test_config_validation_failure_returns_config_exit_code(temp_paths, monkeypatch) -> None:
     monkeypatch.setattr(
         "selfsnap.worker.load_or_create_config",
-        lambda _: (_ for _ in ()).throw(__import__("selfsnap.models", fromlist=["ConfigValidationError"]).ConfigValidationError("bad config")),
+        lambda _: (_ for _ in ()).throw(
+            __import__("selfsnap.models", fromlist=["ConfigValidationError"]).ConfigValidationError(
+                "bad config"
+            )
+        ),
     )
     ensure_database(temp_paths.db_path)
 

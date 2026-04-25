@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from selfsnap.config_store import load_or_create_config, load_config, save_config
+from selfsnap.config_store import load_config, load_or_create_config, save_config
 from selfsnap.models import AppConfig, ConfigValidationError, Schedule
 from selfsnap.window_sizing import DEFAULT_SETTINGS_WINDOW_HEIGHT, DEFAULT_SETTINGS_WINDOW_WIDTH
 
@@ -90,20 +90,21 @@ def test_load_config_migrates_legacy_schedule_shape(temp_paths) -> None:
 
 def test_validate_config_file_raises_on_corrupt_json(temp_paths) -> None:
     from selfsnap.config_store import validate_config_file
+
     temp_paths.ensure_dirs()
     temp_paths.config_path.write_text("{ not valid json }", encoding="utf-8")
-    with pytest.raises(Exception):
+    with pytest.raises(ConfigValidationError):
         validate_config_file(temp_paths)
 
 
 def test_validate_config_file_raises_on_invalid_schema(temp_paths) -> None:
-    from selfsnap.config_store import validate_config_file
     import json
+
+    from selfsnap.config_store import validate_config_file
+
     temp_paths.ensure_dirs()
-    temp_paths.config_path.write_text(
-        json.dumps({"schema_version": 99}), encoding="utf-8"
-    )
-    with pytest.raises(Exception):
+    temp_paths.config_path.write_text(json.dumps({"schema_version": 99}), encoding="utf-8")
+    with pytest.raises(ConfigValidationError):
         validate_config_file(temp_paths)
 
 
@@ -114,6 +115,7 @@ def test_validate_config_file_raises_on_invalid_schema(temp_paths) -> None:
 
 def test_load_or_create_returns_existing_config(temp_paths) -> None:
     from selfsnap.config_store import load_or_create_config, save_config
+
     first = load_or_create_config(temp_paths)
     first.settings_window_width = 1234
     save_config(temp_paths, first)
@@ -154,6 +156,7 @@ def test_load_config_clamps_legacy_settings_window_geometry(temp_paths) -> None:
 
 def test_save_config_does_not_leave_temp_files(temp_paths) -> None:
     from selfsnap.config_store import load_or_create_config, save_config
+
     config = load_or_create_config(temp_paths)
     save_config(temp_paths, config)
     temp_files = list(temp_paths.config_path.parent.glob("*.tmp"))

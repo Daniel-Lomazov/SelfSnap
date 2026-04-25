@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from selfsnap.db import connect, ensure_database
 from selfsnap.models import AppConfig, CaptureRecord
@@ -15,7 +15,7 @@ def test_apply_retention_moves_old_files_into_archive_and_marks_db(temp_paths) -
     old_file.parent.mkdir(parents=True, exist_ok=True)
     old_file.write_bytes(b"old-data")
     archive_root = temp_paths.default_archive_root
-    old_time = datetime.now(timezone.utc) - timedelta(days=5)
+    old_time = datetime.now(UTC) - timedelta(days=5)
 
     record = CaptureRecord(
         record_id="record-1",
@@ -53,10 +53,11 @@ def test_apply_retention_moves_old_files_into_archive_and_marks_db(temp_paths) -
                 retention_days=1,
             ),
             paths=temp_paths,
-            now_utc=datetime.now(timezone.utc),
+            now_utc=datetime.now(UTC),
         )
         row = connection.execute(
-            "SELECT image_path, archived, archived_at_utc, file_present FROM capture_records WHERE record_id = ?",
+            "SELECT image_path, archived, archived_at_utc, file_present "
+            "FROM capture_records WHERE record_id = ?",
             (record.record_id,),
         ).fetchone()
 

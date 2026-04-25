@@ -19,6 +19,7 @@ def test_repo_artifact_cleanup_script_targets_acl_poisoned_folders() -> None:
 def test_install_and_uninstall_scripts_support_interpreter_overrides() -> None:
     install = Path("scripts/install.ps1").read_text(encoding="utf-8")
     reinstall = Path("scripts/reinstall.ps1").read_text(encoding="utf-8")
+    setup = Path("scripts/setup.ps1").read_text(encoding="utf-8")
     uninstall = Path("scripts/uninstall.ps1").read_text(encoding="utf-8")
 
     assert "PythonwExe" in install
@@ -26,6 +27,9 @@ def test_install_and_uninstall_scripts_support_interpreter_overrides() -> None:
     assert "UpdateSource" in reinstall
     assert "RelaunchTray" in reinstall
     assert "git pull --ff-only" in reinstall
+    assert "VIRTUAL_ENV" in setup
+    assert "currently active in this shell" in setup
+    assert "another shell or process is using files under" in setup
     assert "PythonExe" in uninstall
     assert "Get-TrustedInstallMetadata" in uninstall
     assert "RemoveUserData" in uninstall

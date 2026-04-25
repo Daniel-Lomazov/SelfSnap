@@ -74,8 +74,14 @@ def test_runtime_probe_result_to_dict_contains_expected_keys(monkeypatch) -> Non
     data = result.to_dict()
 
     expected_keys = {
-        "ok", "summary", "details", "classification",
-        "python_executable", "python_version", "python_architecture",
-        "pillow_version", "pillow_path",
+        "ok",
+        "summary",
+        "details",
+        "classification",
+        "python_executable",
+        "python_version",
+        "python_architecture",
+        "pillow_version",
+        "pillow_path",
     }
     assert expected_keys <= set(data.keys())
