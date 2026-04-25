@@ -1,6 +1,6 @@
 # SelfSnap Win11
 
-SelfSnap Win11 is a Windows 11-only, local-first screenshot utility for personal use. It captures screenshots of all connected monitors on recurring schedules, stores them locally, and records honest metadata about what happened.
+SelfSnap Win11 is a Windows 11-only, local-first screenshot tray app for personal use. It captures all connected monitors on manual or scheduled runs, stores images locally, and records honest SQLite metadata about what happened.
 
 Current version: `v1.3.0`. Technical release history lives in `CHANGELOG.md`.
 
@@ -29,8 +29,9 @@ Use this table as the main jump surface. Every linked README below links back to
 
 - Public stable `v1.3.0` Windows 11 utility with Fluent-style UI, responsive design, and hardened setup/install flows
 - Current `main` is the stable public GitHub face of the app
-- Source-based install is the primary supported path
-- Public release posture is focused on privacy-minded Windows power users
+- Windows 11 only, local-first, and offline by default
+- Hybrid tray plus Windows Task Scheduler model for recurring capture
+- Source-based install with a checkout-local `.venv` is the primary supported path
 - Current trust and release posture is summarized in this README, first-run, Settings, and the product docs; archived v1 release-gate notes now live in `docs/archive/releases/common.release-readiness-criteria-v1.0.md`
 
 ## License
