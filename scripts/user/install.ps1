@@ -88,9 +88,9 @@ if (Test-Path $configPath) {
             if ($configSchemaVersion -gt $supportedSchemaVersion) {
                 $skipConfigIntegration = $true
                 Write-Warning (
-                    "Install completed, but this preview build supports config schema $supportedSchemaVersion while " +
+                    "Install completed, but this checkout supports config schema $supportedSchemaVersion while " +
                     "'$configPath' is schema $configSchemaVersion. Scheduler sync and startup shortcut updates were " +
-                    "skipped to avoid rewriting a newer config with an older preview build."
+                    "skipped to avoid rewriting a newer config with an older checkout."
                 )
             }
         }

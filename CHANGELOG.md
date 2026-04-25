@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.3.0 - 2026-04-25
+
+Why: Promote the hardened current `main` branch to the new stable public release line and supersede the older `v1.2.3` public tag with the branch that now reflects the intended GitHub-facing app state.
+
+- **Release posture — stable public mainline.** `main` is now the stable public face of SelfSnap on GitHub, and the active docs/script surfaces no longer describe the branch as preview-only.
+- **UI — live Settings capture status refresh.** The General and Diagnostics surfaces now refresh the latest capture state while Settings stays open, instead of waiting for reopen or the local `Capture Now` action path.
+- **Versioning — aligned to `v1.3.0`.** Package metadata, runtime version anchors, and public README surfaces now move together on the stable line above the older `v1.2.3` tag lineage.
+- **Validation — release gate and docs aligned.** The repo keeps the 90% pytest coverage gate, the pytest warning fix, and the stable-release documentation posture together in one public-ready branch state.
+
 ## v1.1.1 - 2026-04-25
 
 Why: Patch release to turn the post-`v1.1.0` preview branch back into a usable working state after setup/install regressions and version-surface drift.

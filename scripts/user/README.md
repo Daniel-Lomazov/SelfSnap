@@ -1,12 +1,12 @@
 # User Scripts
 
 These are the supported SelfSnap lifecycle scripts for normal checkout use.
-They support the current preview build, not a stable release.
+They support the current stable public release line.
 
 Run them from the repository root:
 
 - `scripts/user/setup.ps1`: create or recreate the repository-local `.venv`, stop known background tool executables from `.venv\Scripts`, retry in place with `uv venv --allow-existing` if cleanup is locked, retry the dev-extras pass if tooling relocks the environment, and warn only if locked developer tooling still prevents a full refresh unless `-NoDev` is used
-- `scripts/user/install.ps1`: install SelfSnap from the current checkout for the current user, create the wrapper, and skip scheduler/startup config mutations when the existing config file is from a newer preview schema than the current checkout supports
+- `scripts/user/install.ps1`: install SelfSnap from the current checkout for the current user, create the wrapper, and skip scheduler/startup config mutations when the existing config file is from a newer schema than the current checkout supports
 - `scripts/user/reinstall.ps1`: refresh the installed state from the current checkout and optionally update the checkout or relaunch the tray
 - `scripts/user/uninstall.ps1`: remove the installed wrapper, scheduler tasks, startup shortcut, and optionally SelfSnap-owned user data
 

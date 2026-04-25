@@ -2,7 +2,7 @@
 
 This folder contains the active developer-facing contract and validation docs for the current repo state.
 Use these docs when changing product behavior, validating releases, or checking whether the implementation still matches the intended runtime and trust boundary.
-They track active preview behavior, not a stable release contract.
+They track the active stable release line and current implementation contract.
 
 These files are not the stable end-user starting point and they are not archived historical material.
 For the full docs map, start with [../README.md](../README.md).

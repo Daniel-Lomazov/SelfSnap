@@ -1,7 +1,7 @@
 # Documentation Layout
 
 Use this index to distinguish current user docs, current developer docs, and historical reference material.
-This documentation set tracks the current preview build and current HEAD behavior, not a stable release manual.
+This documentation set tracks the current stable public release line and current HEAD behavior.
 
 ## Navigation hubs
 
@@ -45,7 +45,7 @@ They now live under `user/`.
 ## Current Developer Docs
 
 These are active developer-facing contract and validation docs for the current repo state.
-They are not the stable end-user documentation set.
+They are not the end-user starting point, but they do describe the active stable release contract and validation surface.
 
 - [developer/README.md](developer/README.md)
 - [developer/product-requirements-document-v1.md](developer/product-requirements-document-v1.md)

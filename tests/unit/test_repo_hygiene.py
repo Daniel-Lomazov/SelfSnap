@@ -40,7 +40,7 @@ def test_install_and_uninstall_scripts_support_interpreter_overrides() -> None:
     assert "PythonwExe" in install
     assert "Get-InstalledSchemaSupport" in install
     assert "Scheduler sync and startup shortcut updates were " in install
-    assert "skipped to avoid rewriting a newer config with an older preview build" in install
+    assert "skipped to avoid rewriting a newer config with an older checkout" in install
     assert "UpdateSource" in reinstall
     assert "RelaunchTray" in reinstall
     assert "git pull --ff-only" in reinstall
@@ -152,7 +152,7 @@ def test_docs_readme_network_links_navigation_hubs() -> None:
     assert "[../README.md](../README.md)" in planning_baseline_readme
 
 
-def test_docs_call_out_preview_posture_and_setup_lock_recovery() -> None:
+def test_docs_call_out_stable_posture_and_setup_lock_recovery() -> None:
     root_readme = Path("README.md").read_text(encoding="utf-8").lower()
     docs_readme = Path("docs/README.md").read_text(encoding="utf-8").lower()
     user_readme = Path("docs/user/README.md").read_text(encoding="utf-8").lower()
@@ -162,19 +162,19 @@ def test_docs_call_out_preview_posture_and_setup_lock_recovery() -> None:
     )
     script_readme = Path("scripts/user/README.md").read_text(encoding="utf-8")
 
-    assert "not a stable release" in root_readme
-    assert "not a stable release manual" in docs_readme
-    assert "not a stable release" in user_readme
-    assert "current preview build" in install_doc.lower()
+    assert "stable public release line" in root_readme
+    assert "stable public release line" in docs_readme
+    assert "stable public release line" in user_readme
+    assert "stable public release line" in install_doc.lower()
     assert "uv venv --allow-existing" in install_doc
     assert "ruff.exe" in install_doc
-    assert "newer preview schema" in install_doc
+    assert "newer schema than the current checkout supports" in install_doc.lower()
     assert "scheduler sync and startup shortcut updates" in install_doc.lower()
     assert "access denied under `.venv\\Scripts`" in troubleshooting_doc
     assert "uv venv --allow-existing" in troubleshooting_doc
     assert "ruff.exe" in troubleshooting_doc
     assert "config `schema_version` is newer than this checkout" in troubleshooting_doc
-    assert "not a stable release" in script_readme.lower()
+    assert "stable public release line" in script_readme.lower()
 
 
 def test_pytest_config_keeps_temp_output_out_of_repo() -> None:

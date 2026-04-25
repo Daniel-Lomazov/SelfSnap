@@ -2,9 +2,9 @@
 
 SelfSnap Win11 is a Windows 11-only, local-first screenshot utility for personal use. It captures screenshots of all connected monitors on recurring schedules, stores them locally, and records honest metadata about what happened.
 
-Current version: `v1.1.1`. Technical release history lives in `CHANGELOG.md`.
+Current version: `v1.3.0`. Technical release history lives in `CHANGELOG.md`.
 
-This repository currently tracks an active preview build, not a stable release.
+This repository currently tracks the stable public release line on `main`.
 
 SelfSnap is offline by default. The only user-triggered network actions are opening a browser for `Report Issue` and using `Check for Updates`, which queries the GitHub Releases API and optionally fetches the new release tag.
 There is no telemetry or silent upload in normal runtime.
@@ -27,8 +27,8 @@ Use this table as the main jump surface. Every linked README below links back to
 
 ## Project status
 
-- Public `v1.1.1` Windows 11 utility with Fluent-style UI, responsive design, and hardened setup/install flows
-- Active preview build for personal-use iteration, not a stable release
+- Public stable `v1.3.0` Windows 11 utility with Fluent-style UI, responsive design, and hardened setup/install flows
+- Current `main` is the stable public GitHub face of the app
 - Source-based install is the primary supported path
 - Public release posture is focused on privacy-minded Windows power users
 - Current trust and release posture is summarized in this README, first-run, Settings, and the product docs; archived v1 release-gate notes now live in `docs/archive/releases/common.release-readiness-criteria-v1.0.md`
@@ -39,13 +39,13 @@ This repository is public for visibility and issue tracking, but the code remain
 
 ## Current release
 
-`v1.1.1` is the current preview build with setup and install recovery fixes, schema-4 config support, and documentation alignment across the script and docs surfaces. It is not a stable release, and the install and documentation flow can still change between iterations.
+`v1.3.0` is the current stable release. It rolls the hardened setup and install flow, schema-4 config support, live Settings capture-state refresh, and the aligned public docs surfaces into the new mainline public release.
 
 - **Fluent-style Settings redesign.** Complete visual refresh with responsive card/panel layouts that adapt to window width, improved text wrapping, and accessible keyboard navigation.
 - **Enhanced diagnostics and observability.** New diagnostics surface in Settings shows scheduler sync status, storage metrics, retention policy, and operational context in real-time.
 - **Responsive schedule editor.** Schedule list and editor panels reflow between stacked (narrow) and side-by-side (wide) layouts with auto-fit column widths to prevent truncation.
 - **Runtime hardening.** Setup now recovers more reliably from locked `.venv\Scripts` tool executables, install no longer trips over the current schema-4 config, and local `.venv` interpreter enforcement keeps source launches on the correct environment.
-- **Expanded internal documentation.** The README/docs/script navigation was tightened, preview posture is called out consistently, and current config-schema behavior is documented directly in the install, troubleshooting, and config reference docs.
+- **Expanded internal documentation.** The README/docs/script navigation was tightened, the stable public release posture is called out consistently, and current config-schema behavior is documented directly in the install, troubleshooting, and config reference docs.
 
 For the full implementation-facing release history, see [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -410,7 +410,7 @@ mypy src
 ```
 
 Full `pytest` runs enforce the repo coverage gate at 90%.
-Pytest temp directories are intentionally kept out of the repo under `%LOCALAPPDATA%\SelfSnap\pytest\tmp`, and the pytest config keeps pytest's built-in recursion excludes while also explicitly ignoring repo-local cache and temp folders such as `.pytest_cache`, `.pytest_tmp`, `.pytest-work`, and `pytest-cache-files-*`.
+Pytest temp directories are intentionally kept out of the repo under `%LOCALAPPDATA%\SelfSnap\pytest\tmp`, the pytest cache provider is disabled, and the pytest config keeps pytest's built-in recursion excludes while also explicitly ignoring repo-local cache and temp folders such as `.pytest_cache`, `.pytest_tmp`, `.pytest-work`, and `pytest-cache-files-*`.
 
 Use `scripts/developer/cleanup_repo_artifacts.ps1` to remove all local artifact and cache folders. It covers:
 

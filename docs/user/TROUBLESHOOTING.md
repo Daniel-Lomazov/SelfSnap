@@ -1,7 +1,7 @@
 # Troubleshooting
 
 When SelfSnap behaves unexpectedly, start with the built-in diagnostics before changing settings blindly.
-This guide tracks the current preview build, not a stable release.
+This guide tracks the current stable public release line.
 
 ## Start Here
 
@@ -51,9 +51,9 @@ This recreates `%LOCALAPPDATA%\SelfSnap\bin\SelfSnap.cmd` and adds the bin folde
 
 ## Install warns that config `schema_version` is newer than this checkout
 
-This repository tracks a preview build, not a stable release. That means your existing `%LOCALAPPDATA%\SelfSnap\config\config.json` can be newer than the current checkout.
+This repository tracks the stable public release line on `main`, but your existing `%LOCALAPPDATA%\SelfSnap\config\config.json` can still be newer than the current checkout.
 
-When that happens, `scripts/user/install.ps1` still completes the wrapper install but skips scheduler sync and startup shortcut updates so it does not rewrite a newer config with an older preview build.
+When that happens, `scripts/user/install.ps1` still completes the wrapper install but skips scheduler sync and startup shortcut updates so it does not rewrite a newer config with an older checkout.
 
 Current builds in this repository support the schema-4 extraction-related config fields, so this warning now points to a checkout/config mismatch beyond that supported schema.
 

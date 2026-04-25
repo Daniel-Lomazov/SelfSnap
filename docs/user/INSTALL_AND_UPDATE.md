@@ -1,7 +1,7 @@
 # Install And Update
 
 SelfSnap is currently a source-based Windows 11 application. The supported path is to work from a repository checkout with a local `.venv`.
-This guide tracks the current preview build, not a stable release.
+This guide tracks the current stable public release line.
 
 ## Core Rule
 
@@ -56,10 +56,10 @@ What `scripts/user/install.ps1` does:
 3. creates `%LOCALAPPDATA%\SelfSnap\bin\SelfSnap.cmd`,
 4. adds that bin directory to your user `PATH` if needed,
 5. writes install metadata used by lifecycle actions,
-6. runs `SelfSnap.cmd sync-scheduler`, unless your existing config is from a newer preview schema than this checkout supports,
+6. runs `SelfSnap.cmd sync-scheduler`, unless your existing config is from a newer schema than this checkout supports,
 7. creates or removes the startup shortcut depending on your config, unless that newer-schema safety check skips config mutation.
 
-If your existing `%LOCALAPPDATA%\SelfSnap\config\config.json` is from a newer preview schema than the current checkout supports, install still writes the wrapper and metadata but skips scheduler sync and startup shortcut updates so this checkout does not rewrite a config it cannot safely preserve.
+If your existing `%LOCALAPPDATA%\SelfSnap\config\config.json` is from a newer schema than the current checkout supports, install still writes the wrapper and metadata but skips scheduler sync and startup shortcut updates so this checkout does not rewrite a config it cannot safely preserve.
 
 ## Start The Tray
 
@@ -181,17 +181,17 @@ $env:LOCALAPPDATA\SelfSnap\bin\SelfSnap.cmd tray
 
 ## Install reports a newer `schema_version`
 
-This preview checkout can lag behind a config written by another preview build.
+This checkout can lag behind a config written by a newer checkout.
 
 If `scripts/user/install.ps1` warns that your config schema is newer than the current checkout supports, the source install itself still completed. What was skipped is the config-mutating integration work: scheduler sync and startup shortcut updates.
 
-Current builds in this repository support the schema-4 extraction-related config fields, so this warning now indicates a genuinely newer preview checkout/config mismatch.
+Current builds in this repository support the schema-4 extraction-related config fields, so this warning now indicates a genuinely newer checkout/config mismatch.
 
 Use one of these recovery paths:
 
 1. switch back to a checkout that supports that newer config schema,
-2. back up `%LOCALAPPDATA%\SelfSnap\config\config.json` and reset it if you intentionally want to run the older preview checkout, or
-3. keep the current config file and avoid running this older preview build against it.
+2. back up `%LOCALAPPDATA%\SelfSnap\config\config.json` and reset it if you intentionally want to run the older checkout, or
+3. keep the current config file and avoid running this older checkout against it.
 
 ## Startup behavior not matching Settings
 

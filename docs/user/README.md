@@ -2,7 +2,7 @@
 
 This folder contains the current end-user documentation set for SelfSnap.
 Use these docs when installing, configuring, running, and troubleshooting the app.
-They track the current preview build, not a stable release.
+They track the current stable public release line.
 
 If you need active developer-facing contract docs or historical reference material, start with [../README.md](../README.md).
 
