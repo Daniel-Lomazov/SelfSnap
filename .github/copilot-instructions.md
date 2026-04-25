@@ -102,7 +102,7 @@ Schedule identifiers must match `^[a-z0-9_]+$` (lowercase alphanumeric + undersc
 
 ### Scripts
 
-Dev/install automation lives in `scripts/` as PowerShell `.ps1` files. Use `scripts/setup.ps1` to bootstrap a fresh dev environment. Do not add shell scripts (`.sh`) — Windows PowerShell only.
+User-facing lifecycle scripts live in `scripts/user/`, developer automation lives in `scripts/developer/`, and shared internals live in `scripts/shared/`. Use `scripts/user/setup.ps1` to bootstrap a fresh dev environment. Keep the folder indexes in `scripts/README.md`, `scripts/user/README.md`, and `scripts/developer/README.md` accurate when the script surface changes. Do not add shell scripts (`.sh`) — Windows PowerShell only.
 
 ## Branch Workflow
 

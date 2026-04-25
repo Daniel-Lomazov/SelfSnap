@@ -19,7 +19,7 @@ Use `diag` to inspect the current version, paths, config, scheduler state, and l
 Run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\user\setup.ps1
 ```
 
 Then retry the command from the same checkout.
@@ -29,7 +29,7 @@ Then retry the command from the same checkout.
 Run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\user\install.ps1
 ```
 
 This recreates `%LOCALAPPDATA%\SelfSnap\bin\SelfSnap.cmd` and adds the bin folder to your user `PATH` if needed.

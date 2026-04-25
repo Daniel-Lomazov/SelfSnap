@@ -63,21 +63,22 @@ The first-run and Settings surfaces repeat this warning in-product.
 
 ## Quick start
 
-> **Important:** Always use the `.venv` created by `setup.ps1`. The Windows Store Python stub
+> **Important:** Always use the `.venv` created by `scripts/user/setup.ps1`. The Windows Store Python stub
 > (default `python` on many Windows 11 machines) is Python 3.11 and is **not** used by SelfSnap.
-> All scripts auto-detect `.venv\Scripts\python.exe` — no explicit `-PythonExe` flag needed.
+> User-facing lifecycle scripts live under `scripts/user/`, and developer-only automation lives under `scripts/developer/`.
+> All user scripts auto-detect `.venv\Scripts\python.exe` — no explicit `-PythonExe` flag needed.
 
 ### First install (no prior SelfSnap installation)
 
 ```powershell
 # 1. Create the virtual environment (uses uv + Python 3.12 when available)
-powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\user\setup.ps1
 
 # 2. Install the app, wrapper, and startup shortcut
-powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\user\install.ps1
 ```
 
-`install.ps1` automatically:
+`scripts/user/install.ps1` automatically:
 - Uses `.venv\Scripts\python.exe` (Python 3.12 via uv)
 - Creates `%LOCALAPPDATA%\SelfSnap\bin\SelfSnap.cmd` wrapper
 - Adds the bin directory to your user `PATH`
@@ -95,7 +96,7 @@ SelfSnap reinstall
 Or from within the repo:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\reinstall.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\user\reinstall.ps1
 ```
 
 Or from the tray menu: **Reinstall**.
@@ -359,6 +360,12 @@ Important fields:
 
 ## Development
 
+Script indexes:
+
+- `scripts/README.md`: top-level script layout
+- `scripts/user/README.md`: user-facing lifecycle entrypoints
+- `scripts/developer/README.md`: developer-only maintenance and packaging helpers
+
 ```powershell
 pytest
 ruff check .
@@ -367,7 +374,7 @@ mypy src
 
 Pytest temp directories are intentionally kept out of the repo under `%LOCALAPPDATA%\SelfSnap\pytest\tmp`, and the pytest cache provider is disabled to avoid `.pytest_cache` and `pytest-cache-files-*` clutter in the workspace.
 
-Use `scripts/cleanup_repo_artifacts.ps1` to remove all local artifact and cache folders. It covers:
+Use `scripts/developer/cleanup_repo_artifacts.ps1` to remove all local artifact and cache folders. It covers:
 
 - Coverage data: `cov_annotate/`, `.coverage`, `coverage.xml`
 - Bytecode caches: `__pycache__/` (recursive), `*.pyc` / `*.pyo` / `*.pyd`
@@ -380,22 +387,22 @@ Use `scripts/cleanup_repo_artifacts.ps1` to remove all local artifact and cache 
 
 ```powershell
 # Preview what would be removed
-powershell -ExecutionPolicy Bypass -File .\scripts\cleanup_repo_artifacts.ps1 -ListOnly
+powershell -ExecutionPolicy Bypass -File .\scripts\developer\cleanup_repo_artifacts.ps1 -ListOnly
 
 # Remove all artifacts
-powershell -ExecutionPolicy Bypass -File .\scripts\cleanup_repo_artifacts.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\developer\cleanup_repo_artifacts.ps1
 
 # Attempt ACL repair (relaunches elevated via UAC), then remove
-powershell -ExecutionPolicy Bypass -File .\scripts\cleanup_repo_artifacts.ps1 -RepairAcl
+powershell -ExecutionPolicy Bypass -File .\scripts\developer\cleanup_repo_artifacts.ps1 -RepairAcl
 
 # Exclude specific paths from removal
-powershell -ExecutionPolicy Bypass -File .\scripts\cleanup_repo_artifacts.ps1 -Exclude ".coverage","coverage.xml"
+powershell -ExecutionPolicy Bypass -File .\scripts\developer\cleanup_repo_artifacts.ps1 -Exclude ".coverage","coverage.xml"
 ```
 
 The setup script prefers a uv-managed Python 3.12 interpreter when `uv` is installed, then falls back to a normal `python` or `py` launcher on PATH. If you need to force a specific interpreter, pass it explicitly:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1 -PythonPreference "C:\Path\To\python.exe"
+powershell -ExecutionPolicy Bypass -File .\scripts\user\setup.ps1 -PythonPreference "C:\Path\To\python.exe"
 ```
 
 ## Packaging
@@ -405,7 +412,7 @@ Source-based install is the v1 acceptance path.
 Optional next-step packaging:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\developer\build.ps1
 ```
 
 This optional build is prepared to create:
@@ -419,7 +426,7 @@ This optional build is prepared to create:
 - `.github/workflows/release.yml` creates GitHub releases automatically for future version tags and can also be run manually for existing historical tags.
 - `.github/workflows/issue-intake.yml` preprocesses new issues, applies managed labels, and posts a planning starter comment for maintainer triage.
 - `.github/ISSUE_TEMPLATE/report_issue.md` is the template used by the in-app issue reporting flow.
-- `scripts/publish_github_metadata.ps1` updates the repo description/topics and can publish historical releases once `gh auth login` is valid.
+- `scripts/developer/publish_github_metadata.ps1` updates the repo description/topics and can publish historical releases once `gh auth login` is valid.
 
 ## Known limitations
 

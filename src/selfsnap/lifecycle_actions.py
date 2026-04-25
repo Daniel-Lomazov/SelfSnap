@@ -35,7 +35,7 @@ def resolve_reinstall_invocation(
     relaunch_tray: bool = True,
 ) -> LaunchSpec:
     repo_root = Path(resolve_source_repo_root(paths))
-    script_path = _require_script(repo_root, ("scripts", "reinstall.ps1"))
+    script_path = _require_script(repo_root, ("scripts", "user", "reinstall.ps1"))
     arguments = [
         "-WindowStyle", "Hidden",
         "-NonInteractive",
@@ -64,7 +64,7 @@ def resolve_reinstall_invocation(
 
 def resolve_uninstall_invocation(paths: AppPaths, *, remove_user_data: bool) -> LaunchSpec:
     repo_root = Path(resolve_source_repo_root(paths))
-    script_path = _require_script(repo_root, ("scripts", "uninstall.ps1"))
+    script_path = _require_script(repo_root, ("scripts", "user", "uninstall.ps1"))
     arguments = [
         "-WindowStyle", "Hidden",
         "-NonInteractive",

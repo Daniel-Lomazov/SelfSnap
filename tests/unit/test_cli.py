@@ -87,7 +87,7 @@ def test_handle_reinstall_returns_0_on_success(temp_paths, monkeypatch) -> None:
         "selfsnap.lifecycle_actions.resolve_source_repo_root",
         lambda _p: str(temp_paths.user_profile),
     )
-    scripts_dir = temp_paths.user_profile / "scripts"
+    scripts_dir = temp_paths.user_profile / "scripts" / "user"
     scripts_dir.mkdir(parents=True, exist_ok=True)
     (scripts_dir / "reinstall.ps1").write_text("", encoding="utf-8")
     monkeypatch.setattr(
@@ -111,7 +111,7 @@ def test_handle_reinstall_returns_1_on_failure(temp_paths, monkeypatch) -> None:
         "selfsnap.lifecycle_actions.resolve_source_repo_root",
         lambda _p: str(temp_paths.user_profile),
     )
-    scripts_dir = temp_paths.user_profile / "scripts"
+    scripts_dir = temp_paths.user_profile / "scripts" / "user"
     scripts_dir.mkdir(parents=True, exist_ok=True)
     (scripts_dir / "reinstall.ps1").write_text("", encoding="utf-8")
     monkeypatch.setattr(
@@ -149,7 +149,7 @@ def test_handle_uninstall_returns_0_on_success(temp_paths, monkeypatch) -> None:
         "selfsnap.lifecycle_actions.resolve_source_repo_root",
         lambda _p: str(temp_paths.user_profile),
     )
-    scripts_dir = temp_paths.user_profile / "scripts"
+    scripts_dir = temp_paths.user_profile / "scripts" / "user"
     scripts_dir.mkdir(parents=True, exist_ok=True)
     (scripts_dir / "uninstall.ps1").write_text("", encoding="utf-8")
     monkeypatch.setattr(
@@ -177,7 +177,7 @@ def test_handle_uninstall_proceeds_on_yes_input(temp_paths, monkeypatch) -> None
         "selfsnap.lifecycle_actions.resolve_source_repo_root",
         lambda _p: str(temp_paths.user_profile),
     )
-    scripts_dir = temp_paths.user_profile / "scripts"
+    scripts_dir = temp_paths.user_profile / "scripts" / "user"
     scripts_dir.mkdir(parents=True, exist_ok=True)
     (scripts_dir / "uninstall.ps1").write_text("", encoding="utf-8")
     monkeypatch.setattr(
@@ -254,7 +254,7 @@ def test_handle_update_installs_when_newer_available(temp_paths, monkeypatch) ->
         "selfsnap.lifecycle_actions.resolve_source_repo_root",
         lambda _p: str(temp_paths.user_profile),
     )
-    scripts_dir = temp_paths.user_profile / "scripts"
+    scripts_dir = temp_paths.user_profile / "scripts" / "user"
     scripts_dir.mkdir(parents=True, exist_ok=True)
     (scripts_dir / "reinstall.ps1").write_text("", encoding="utf-8")
     monkeypatch.setattr(
@@ -276,7 +276,7 @@ def test_handle_update_returns_1_on_install_failure(temp_paths, monkeypatch) -> 
         "selfsnap.lifecycle_actions.resolve_source_repo_root",
         lambda _p: str(temp_paths.user_profile),
     )
-    scripts_dir = temp_paths.user_profile / "scripts"
+    scripts_dir = temp_paths.user_profile / "scripts" / "user"
     scripts_dir.mkdir(parents=True, exist_ok=True)
     (scripts_dir / "reinstall.ps1").write_text("", encoding="utf-8")
     monkeypatch.setattr(

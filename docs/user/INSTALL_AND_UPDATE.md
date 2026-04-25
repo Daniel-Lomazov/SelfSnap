@@ -4,10 +4,10 @@ SelfSnap is currently a source-based Windows 11 application. The supported path 
 
 ## Core Rule
 
-Always use the checkout-local virtual environment created by `scripts/setup.ps1`.
+Always use the checkout-local virtual environment created by `scripts/user/setup.ps1`.
 
 - If the local `.venv` exists, SelfSnap redirects into it when you start the app from the wrong interpreter.
-- If the local `.venv` does not exist, SelfSnap tells you to run `scripts/setup.ps1`.
+- If the local `.venv` does not exist, SelfSnap tells you to run `scripts/user/setup.ps1`.
 
 ## Prerequisites
 
@@ -22,10 +22,10 @@ You need:
 From the repository root:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\user\setup.ps1
 ```
 
-What `setup.ps1` does:
+What `scripts/user/setup.ps1` does:
 
 1. resolves a suitable Python interpreter,
 2. creates or recreates `.venv`,
@@ -40,10 +40,10 @@ The script prints the `.venv` path and the interpreter it selected.
 After setup, install the wrapper and startup integration:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\user\install.ps1
 ```
 
-What `install.ps1` does:
+What `scripts/user/install.ps1` does:
 
 1. prefers `.venv\Scripts\python.exe`,
 2. installs SelfSnap from the current checkout,
@@ -85,7 +85,7 @@ SelfSnap reinstall --relaunch-tray
 Equivalent script form from the repo root:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\reinstall.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\user\reinstall.ps1
 ```
 
 ## Check For Updates
@@ -138,7 +138,7 @@ SelfSnap uninstall --remove-user-data --yes
 Run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\user\setup.ps1
 ```
 
 Then retry the command from the same checkout.
@@ -148,7 +148,7 @@ Then retry the command from the same checkout.
 Run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\user\install.ps1
 ```
 
 or use the full wrapper path:

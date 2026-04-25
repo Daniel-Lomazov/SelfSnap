@@ -23,7 +23,7 @@ def test_resolve_restart_invocation_uses_tray_background_launch(temp_paths, monk
 
 
 def test_resolve_reinstall_invocation_targets_reinstall_script(temp_paths, monkeypatch) -> None:
-    scripts_dir = temp_paths.user_profile / "scripts"
+    scripts_dir = temp_paths.user_profile / "scripts" / "user"
     scripts_dir.mkdir(parents=True, exist_ok=True)
     (scripts_dir / "reinstall.ps1").write_text("", encoding="utf-8")
     monkeypatch.setattr(
@@ -52,7 +52,7 @@ def test_resolve_reinstall_invocation_targets_reinstall_script(temp_paths, monke
 
 
 def test_resolve_uninstall_invocation_targets_uninstall_script(temp_paths, monkeypatch) -> None:
-    scripts_dir = temp_paths.user_profile / "scripts"
+    scripts_dir = temp_paths.user_profile / "scripts" / "user"
     scripts_dir.mkdir(parents=True, exist_ok=True)
     (scripts_dir / "uninstall.ps1").write_text("", encoding="utf-8")
     monkeypatch.setattr(

@@ -8,11 +8,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 $PSNativeCommandUseErrorActionPreference = $true
-$scriptHelpers = Join-Path $PSScriptRoot "_selfsnap_script_helpers.ps1"
+$scriptHelpers = Join-Path $PSScriptRoot "..\shared\_selfsnap_script_helpers.ps1"
 . $scriptHelpers
 
 $repoRoot = Get-SelfSnapRepoRoot
-$installScript = Join-Path $repoRoot "scripts\install.ps1"
+$installScript = Join-Path $repoRoot "scripts\user\install.ps1"
 $pythonFullPath = Resolve-PythonPath -PythonPreference $PythonExe -RepoRoot $repoRoot
 $pythonwFullPath = Resolve-PythonwPath -PythonPath $pythonFullPath -ExplicitPythonw $PythonwExe
 

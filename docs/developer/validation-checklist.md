@@ -77,18 +77,18 @@ Historical execution evidence and retired release-specific QA notes live under `
 
 ## Packaging and install
 
-- Run `scripts/install.ps1`.
+- Run `scripts/user/install.ps1`.
 - Use tray `Reinstall` and confirm the app reinstalls, closes, relaunches, and preserves user data.
 - Use tray `Check for Updates` on both an up-to-date checkout and a newer tagged release, and confirm it only mutates the local checkout when a newer release exists.
-- If `pythonw.exe` is nonstandard, confirm `scripts/install.ps1 -PythonwExe ...` resolves it correctly.
+- If `pythonw.exe` is nonstandard, confirm `scripts/user/install.ps1 -PythonwExe ...` resolves it correctly.
 - Confirm `%LOCALAPPDATA%\SelfSnap\bin\SelfSnap.cmd` exists.
 - Confirm the Startup-folder shortcut points to a windowless tray launch, not the CLI wrapper.
 - Log off and back on.
 - Confirm the tray starts at logon and scheduled tasks still function.
-- Run `scripts/uninstall.ps1` and confirm captures, archive, config, DB, and logs are preserved.
+- Run `scripts/user/uninstall.ps1` and confirm captures, archive, config, DB, and logs are preserved.
 - Use tray `Uninstall -> Remove All User Data` only on disposable test data and confirm the repo checkout and `.venv` remain untouched.
-- If the editable package lives in a non-default interpreter, confirm `scripts/uninstall.ps1 -PythonExe ...` still removes it cleanly.
-- If stale pytest folders exist, run `scripts/cleanup_pytest_artifacts.ps1 -ListOnly` first, then `scripts/cleanup_pytest_artifacts.ps1`, then `scripts/cleanup_pytest_artifacts.ps1 -RepairAcl` if ownership repair is needed, and confirm they are removed.
+- If the editable package lives in a non-default interpreter, confirm `scripts/user/uninstall.ps1 -PythonExe ...` still removes it cleanly.
+- If stale pytest folders exist, run `scripts/developer/cleanup_pytest_artifacts.ps1 -ListOnly` first, then `scripts/developer/cleanup_pytest_artifacts.ps1`, then `scripts/developer/cleanup_pytest_artifacts.ps1 -RepairAcl` if ownership repair is needed, and confirm they are removed.
 
 ## Historical execution evidence
 

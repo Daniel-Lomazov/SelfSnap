@@ -6,7 +6,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $PSNativeCommandUseErrorActionPreference = $true
-$scriptHelpers = Join-Path $PSScriptRoot "_selfsnap_script_helpers.ps1"
+$scriptHelpers = Join-Path $PSScriptRoot "..\shared\_selfsnap_script_helpers.ps1"
 . $scriptHelpers
 
 $repoRoot = Get-SelfSnapRepoRoot
@@ -36,7 +36,7 @@ if (Test-Path $venvFullPath) {
     if ($activeVenv -and $targetVenv -and $activeVenv.TrimEnd('\\') -ieq $targetVenv.TrimEnd('\\')) {
         throw (
             "The target virtual environment '$venvFullPath' is currently active in this shell. " +
-            "Deactivate it and rerun scripts/setup.ps1, or pass -VenvPath to create a different environment."
+            "Deactivate it and rerun scripts/user/setup.ps1, or pass -VenvPath to create a different environment."
         )
     }
 }
@@ -54,7 +54,7 @@ if ($uvCommand -and $selectedPython) {
         if (Test-Path $scriptsPath) {
             throw (
                 "uv could not recreate '$venvFullPath'. If another shell or process is using files under " +
-                "'$scriptsPath', close it or pass -VenvPath to use a different environment, then rerun scripts/setup.ps1."
+                "'$scriptsPath', close it or pass -VenvPath to use a different environment, then rerun scripts/user/setup.ps1."
             )
         }
         throw

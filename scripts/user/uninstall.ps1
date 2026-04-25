@@ -6,7 +6,7 @@ param(
 $ErrorActionPreference = "Stop"
 $PSNativeCommandUseErrorActionPreference = $true
 
-$scriptHelpers = Join-Path $PSScriptRoot "_selfsnap_script_helpers.ps1"
+$scriptHelpers = Join-Path $PSScriptRoot "..\shared\_selfsnap_script_helpers.ps1"
 . $scriptHelpers
 
 function Test-SelfSnapInstalled {

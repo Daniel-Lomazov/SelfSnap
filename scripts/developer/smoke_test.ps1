@@ -6,7 +6,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $PSNativeCommandUseErrorActionPreference = $true
-$scriptHelpers = Join-Path $PSScriptRoot "_selfsnap_script_helpers.ps1"
+$scriptHelpers = Join-Path $PSScriptRoot "..\shared\_selfsnap_script_helpers.ps1"
 . $scriptHelpers
 
 $repoRoot = Get-SelfSnapRepoRoot
@@ -23,11 +23,11 @@ if (-not $SkipInstall) {
     }
 
     Write-Host "Installing source-based wrapper..."
-    Invoke-SelfSnapPowerShellScript -ScriptPath (Join-Path $PSScriptRoot "install.ps1") -ArgumentList $installArgs -WorkingDirectory $repoRoot
+    Invoke-SelfSnapPowerShellScript -ScriptPath (Join-Path $repoRoot "scripts\user\install.ps1") -ArgumentList $installArgs -WorkingDirectory $repoRoot
     Assert-LastExitCode "install"
 }
 elseif (-not (Test-Path $wrapperPath)) {
-    throw "Wrapper not found at $wrapperPath. Run scripts/install.ps1 first or omit -SkipInstall."
+    throw "Wrapper not found at $wrapperPath. Run scripts/user/install.ps1 first or omit -SkipInstall."
 }
 
 Write-Host "Running diagnostics through wrapper..."

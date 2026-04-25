@@ -4,8 +4,8 @@ This document walks through the most common SelfSnap flows using the current tra
 
 ## 1. First Run And First Capture
 
-1. Run `scripts/setup.ps1` from the repository root.
-2. Run `scripts/install.ps1`.
+1. Run `scripts/user/setup.ps1` from the repository root.
+2. Run `scripts/user/install.ps1`.
 3. Start the app with `SelfSnap tray` if it is not already running.
 4. Open Settings from the tray.
 5. Review storage, notifications, and privacy-related options.

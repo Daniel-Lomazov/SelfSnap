@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Set up repository-local virtual environment
-        run: .\scripts\setup.ps1 -PythonPreference "$env:pythonLocation\python.exe"
+        run: .\scripts\user\setup.ps1 -PythonPreference "$env:pythonLocation\python.exe"
       - name: Compile smoke test
         run: .\.venv\Scripts\python.exe -m compileall src tests
 
@@ -33,6 +33,6 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Set up repository-local virtual environment
-        run: .\scripts\setup.ps1 -PythonPreference "$env:pythonLocation\python.exe"
+        run: .\scripts\user\setup.ps1 -PythonPreference "$env:pythonLocation\python.exe"
       - name: Pytest
         run: .\.venv\Scripts\python.exe -m pytest -q

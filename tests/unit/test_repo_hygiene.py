@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 def test_repo_artifact_cleanup_script_targets_acl_poisoned_folders() -> None:
-    script = Path("scripts/cleanup_repo_artifacts.ps1").read_text(encoding="utf-8")
+    script = Path("scripts/developer/cleanup_repo_artifacts.ps1").read_text(encoding="utf-8")
 
     assert "takeown" in script
     assert "icacls" in script
@@ -17,23 +17,26 @@ def test_repo_artifact_cleanup_script_targets_acl_poisoned_folders() -> None:
 
 
 def test_install_and_uninstall_scripts_support_interpreter_overrides() -> None:
-    helpers = Path("scripts/_selfsnap_script_helpers.ps1").read_text(encoding="utf-8")
-    install = Path("scripts/install.ps1").read_text(encoding="utf-8")
-    reinstall = Path("scripts/reinstall.ps1").read_text(encoding="utf-8")
-    setup = Path("scripts/setup.ps1").read_text(encoding="utf-8")
-    uninstall = Path("scripts/uninstall.ps1").read_text(encoding="utf-8")
-    build = Path("scripts/build.ps1").read_text(encoding="utf-8")
-    smoke = Path("scripts/smoke_test.ps1").read_text(encoding="utf-8")
+    helpers = Path("scripts/shared/_selfsnap_script_helpers.ps1").read_text(encoding="utf-8")
+    install = Path("scripts/user/install.ps1").read_text(encoding="utf-8")
+    reinstall = Path("scripts/user/reinstall.ps1").read_text(encoding="utf-8")
+    setup = Path("scripts/user/setup.ps1").read_text(encoding="utf-8")
+    uninstall = Path("scripts/user/uninstall.ps1").read_text(encoding="utf-8")
+    build = Path("scripts/developer/build.ps1").read_text(encoding="utf-8")
+    smoke = Path("scripts/developer/smoke_test.ps1").read_text(encoding="utf-8")
+    scripts_readme = Path("scripts/README.md").read_text(encoding="utf-8")
+    user_readme = Path("scripts/user/README.md").read_text(encoding="utf-8")
+    developer_readme = Path("scripts/developer/README.md").read_text(encoding="utf-8")
 
     assert "function Resolve-PythonPath" in helpers
     assert "function Resolve-PythonwPath" in helpers
     assert "function Get-UvCommand" in helpers
-    assert "_selfsnap_script_helpers.ps1" in install
-    assert "_selfsnap_script_helpers.ps1" in reinstall
-    assert "_selfsnap_script_helpers.ps1" in setup
-    assert "_selfsnap_script_helpers.ps1" in uninstall
-    assert "_selfsnap_script_helpers.ps1" in build
-    assert "_selfsnap_script_helpers.ps1" in smoke
+    assert "..\\shared\\_selfsnap_script_helpers.ps1" in install
+    assert "..\\shared\\_selfsnap_script_helpers.ps1" in reinstall
+    assert "..\\shared\\_selfsnap_script_helpers.ps1" in setup
+    assert "..\\shared\\_selfsnap_script_helpers.ps1" in uninstall
+    assert "..\\shared\\_selfsnap_script_helpers.ps1" in build
+    assert "..\\shared\\_selfsnap_script_helpers.ps1" in smoke
     assert "PythonwExe" in install
     assert "UpdateSource" in reinstall
     assert "RelaunchTray" in reinstall
@@ -49,12 +52,23 @@ def test_install_and_uninstall_scripts_support_interpreter_overrides() -> None:
     assert "Stop-Process -Id $process.ProcessId -Force" in uninstall
     assert build.lstrip().startswith("param(")
     assert "SkipInstall" in smoke
+    assert "scripts/user/setup.ps1" in scripts_readme
+    assert "scripts/developer/cleanup_repo_artifacts.ps1" in scripts_readme
+    assert "scripts/user/README.md" in scripts_readme
+    assert "scripts/developer/README.md" in scripts_readme
+    assert "scripts/user/setup.ps1" in user_readme
+    assert "scripts/user/install.ps1" in user_readme
+    assert "scripts/developer/build.ps1" in developer_readme
+    assert "scripts/developer/cleanup_repo_artifacts.ps1" in developer_readme
 
 
 def test_readme_documents_cleanup_workflow() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 
-    assert "cleanup_repo_artifacts.ps1" in readme
+    assert "scripts/developer/cleanup_repo_artifacts.ps1" in readme
+    assert "scripts/user/setup.ps1" in readme
+    assert "scripts/user/README.md" in readme
+    assert "scripts/developer/README.md" in readme
     assert "pytest-cache-files-*" in readme
     assert "pytest cache provider is disabled" in readme.lower()
     assert "-RepairAcl" in readme

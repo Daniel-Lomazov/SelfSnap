@@ -22,8 +22,8 @@ from selfsnap.runtime_launch import (
 
 
 def _create_repo_checkout(repo_root: Path) -> None:
-    (repo_root / "scripts").mkdir(parents=True, exist_ok=True)
-    (repo_root / "scripts" / "setup.ps1").write_text("", encoding="utf-8")
+    (repo_root / "scripts" / "user").mkdir(parents=True, exist_ok=True)
+    (repo_root / "scripts" / "user" / "setup.ps1").write_text("", encoding="utf-8")
     (repo_root / "pyproject.toml").write_text(
         "[project]\nname='selfsnap-win11'\n", encoding="utf-8"
     )

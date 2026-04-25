@@ -67,7 +67,7 @@ def _resolve_checkout_repo_root(paths: AppPaths | None = None) -> Path | None:
     repo_root = Path(resolve_source_repo_root(paths))
     if not (repo_root / "pyproject.toml").exists():
         return None
-    if not (repo_root / "scripts" / "setup.ps1").exists():
+    if not (repo_root / "scripts" / "user" / "setup.ps1").exists():
         return None
     return repo_root
 
@@ -91,8 +91,8 @@ def _resolve_local_venv_python_executable(
 def _local_venv_setup_message(paths: AppPaths | None = None) -> str:
     repo_root = _resolve_checkout_repo_root(paths)
     if repo_root is None:
-        return "Run .\\scripts\\setup.ps1 from the repository root and retry."
-    setup_script = repo_root / "scripts" / "setup.ps1"
+        return "Run .\\scripts\\user\\setup.ps1 from the repository root and retry."
+    setup_script = repo_root / "scripts" / "user" / "setup.ps1"
     venv_root = repo_root / LOCAL_VENV_DIRNAME
     return (
         f"SelfSnap requires the repository-local virtual environment at {venv_root}. "
@@ -194,7 +194,7 @@ def resolve_foreground_python_executable(paths: AppPaths | None = None) -> str:
     if executable.exists():
         return str(executable)
     raise RuntimeError(
-        "Foreground launch requires python.exe. Re-run scripts/setup.ps1 and scripts/install.ps1 "
+        "Foreground launch requires python.exe. Re-run scripts/user/setup.ps1 and scripts/user/install.ps1 "
         "with a standard Windows Python installation."
     )
 
@@ -228,7 +228,7 @@ def resolve_background_python_executable(paths: AppPaths | None = None) -> str:
     if pythonw.exists():
         return str(pythonw)
     raise RuntimeError(
-        "Background launch requires pythonw.exe. Re-run scripts/setup.ps1 and scripts/install.ps1 "
+        "Background launch requires pythonw.exe. Re-run scripts/user/setup.ps1 and scripts/user/install.ps1 "
         "with a standard Windows Python installation."
     )
 

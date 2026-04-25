@@ -1,4 +1,4 @@
-$script:SelfSnapScriptsRoot = $PSScriptRoot
+$script:SelfSnapScriptsRoot = Split-Path -Parent $PSScriptRoot
 $script:SelfSnapRepoRoot = (Resolve-Path (Join-Path $script:SelfSnapScriptsRoot "..")).Path
 
 function Assert-LastExitCode {

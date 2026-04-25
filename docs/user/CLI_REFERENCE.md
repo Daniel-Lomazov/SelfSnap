@@ -2,7 +2,7 @@
 
 This document describes the current command-line surface exposed by `selfsnap`.
 
-After `scripts/install.ps1`, the most convenient entry point is usually `SelfSnap` from your user `PATH`.
+After `scripts/user/install.ps1`, the most convenient entry point is usually `SelfSnap` from your user `PATH`.
 Inside the repository checkout, you can also run commands through the local environment with `python -m selfsnap ...`.
 
 ## Global Version Flag
@@ -149,9 +149,9 @@ Use this first when setup, Pillow, tray, or runtime dependencies seem broken.
 
 In a source checkout:
 
-- SelfSnap expects the local `.venv` created by `scripts/setup.ps1`.
+- SelfSnap expects the local `.venv` created by `scripts/user/setup.ps1`.
 - If you launch the app from the wrong interpreter and `.venv` exists, it redirects into the local environment.
-- If `.venv` does not exist, it tells you to run `scripts/setup.ps1`.
+- If `.venv` does not exist, it tells you to run `scripts/user/setup.ps1`.
 
 ## Related Docs
 
