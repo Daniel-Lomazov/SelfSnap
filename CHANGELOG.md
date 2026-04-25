@@ -1,8 +1,11 @@
 # Changelog
 
-## Unreleased
+## v1.3.2 - 2026-04-25
 
-- **Build and release automation — Windows distribution lane added.** CI now includes `ruff` and `mypy`, successful `main` pushes can publish downloadable Windows artifacts, and tagged releases attach the same portable zip, MSI, and setup EXE outputs built from `scripts/developer/package_windows.ps1`.
+Why: Ship the new Windows packaging automation as the next public release so successful `main` builds and future tags publish downloadable compiled artifacts on GitHub.
+
+- **Build and release automation — Windows distribution lane added.** CI now includes compile smoke, `ruff`, and `pytest`, successful `main` pushes can publish downloadable Windows artifacts, and tagged releases attach the same portable zip, MSI, and setup EXE outputs built from `scripts/developer/package_windows.ps1`.
+- **Packaging — compiled Windows deliverables added.** The repo now builds a portable zip, per-user MSI, and setup EXE around the existing PyInstaller tray and worker executables.
 
 ## v1.3.1 - 2026-04-25
 

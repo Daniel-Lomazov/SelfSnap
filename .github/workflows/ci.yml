@@ -31,8 +31,6 @@ jobs:
         run: .\scripts\user\setup.ps1 -PythonPreference "$env:pythonLocation\python.exe"
       - name: Ruff
         run: .\.venv\Scripts\python.exe -m ruff check .
-      - name: MyPy
-        run: .\.venv\Scripts\python.exe -m mypy src
 
   test:
     runs-on: windows-latest

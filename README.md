@@ -2,7 +2,7 @@
 
 SelfSnap Win11 is a Windows 11-only, local-first screenshot tray app for personal use. It captures all connected monitors on manual or scheduled runs, stores images locally, and records honest SQLite metadata about what happened.
 
-Current version: `v1.3.1`. Technical release history lives in `CHANGELOG.md`.
+Current version: `v1.3.2`. Technical release history lives in `CHANGELOG.md`.
 
 This repository currently tracks the stable public release line on `main`.
 
@@ -27,7 +27,7 @@ Use this table as the main jump surface. Every linked README below links back to
 
 ## Project status
 
-- Public stable `v1.3.1` Windows 11 utility with Fluent-style UI, responsive design, and hardened setup/install flows
+- Public stable `v1.3.2` Windows 11 utility with Fluent-style UI, responsive design, hardened setup/install flows, and downloadable Windows packages
 - Current `main` is the stable public GitHub face of the app
 - Windows 11 only, local-first, and offline by default
 - Hybrid tray plus Windows Task Scheduler model for recurring capture
@@ -41,7 +41,7 @@ This repository is public for visibility and issue tracking, but the code remain
 
 ## Current release
 
-`v1.3.1` is the current stable release. It keeps the hardened setup and install flow, schema-4 config support, live Settings capture-state refresh, and aligned public docs surfaces while making the polished public `main` state match the latest tagged release.
+`v1.3.2` is the current stable release. It keeps the hardened setup and install flow, schema-4 config support, live Settings capture-state refresh, aligned public docs surfaces, and adds automated downloadable Windows package publishing for `main` and tagged releases.
 
 - **Fluent-style Settings redesign.** Complete visual refresh with responsive card/panel layouts that adapt to window width, improved text wrapping, and accessible keyboard navigation.
 - **Enhanced diagnostics and observability.** New diagnostics surface in Settings shows scheduler sync status, storage metrics, retention policy, and operational context in real-time.
@@ -469,7 +469,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\developer\package_windows.ps1
 
 ## GitHub automation
 
-- `.github/workflows/ci.yml` keeps the repo healthy on pushes and pull requests with Windows-based compile smoke checks, `ruff`, `mypy`, and `pytest`.
+- `.github/workflows/ci.yml` keeps the repo healthy on pushes and pull requests with Windows-based compile smoke checks, `ruff`, and `pytest`.
 - `.github/workflows/package-main.yml` runs after a successful `CI` push to `main` and uploads downloadable Windows artifacts (`portable.zip`, `.msi`, `-setup.exe`) to the workflow run.
 - `.github/workflows/release.yml` creates GitHub releases automatically for future version tags, can be run manually for existing historical tags, and attaches the Windows artifacts to the tagged release.
 - `.github/workflows/issue-intake.yml` preprocesses new issues, applies managed labels, and posts a planning starter comment for maintainer triage.

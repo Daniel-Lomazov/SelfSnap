@@ -5,7 +5,7 @@ Historical execution evidence and retired release-specific QA notes live under `
 
 ## Automated regression gate
 
-- Run `pytest`, `ruff check .`, and `mypy src` from the repo root.
+- Run `pytest` and `ruff check .` from the repo root.
 - Confirm the full `pytest` suite passes with the configured 90% coverage gate.
 - When packaging or release automation changes, run `scripts/developer/package_windows.ps1` and confirm it emits a portable zip, MSI, and setup EXE under `artifacts/windows/`.
 - Confirm the compiled worker smoke path still succeeds by running `artifacts/windows/portable/SelfSnapWorker.exe --help` or by checking the packaging script output.

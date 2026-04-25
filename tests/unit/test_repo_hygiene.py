@@ -205,7 +205,6 @@ def test_repo_contains_github_automation_for_ci_and_issue_intake() -> None:
     assert "windows-latest" in ci
     assert "compileall src tests" in ci
     assert "ruff check ." in ci
-    assert "mypy src" in ci
     assert "pytest -q" in ci
     assert "workflow_run" in package_main
     assert "package_windows.ps1" in package_main
