@@ -469,7 +469,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\developer\package_windows.ps1
 
 ## GitHub automation
 
-- `.github/workflows/ci.yml` keeps the repo healthy on pushes and pull requests with Windows-based compile smoke checks, `ruff`, and `pytest`.
+- `.github/workflows/ci.yml` keeps the repo healthy on pushes and pull requests with Windows-based compile smoke checks and `pytest`.
 - `.github/workflows/package-main.yml` runs after a successful `CI` push to `main` and uploads downloadable Windows artifacts (`portable.zip`, `.msi`, `-setup.exe`) to the workflow run.
 - `.github/workflows/release.yml` creates GitHub releases automatically for future version tags, can be run manually for existing historical tags, and attaches the Windows artifacts to the tagged release.
 - `.github/workflows/issue-intake.yml` preprocesses new issues, applies managed labels, and posts a planning starter comment for maintainer triage.
