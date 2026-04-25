@@ -49,6 +49,17 @@ powershell -ExecutionPolicy Bypass -File .\scripts\user\install.ps1
 
 This recreates `%LOCALAPPDATA%\SelfSnap\bin\SelfSnap.cmd` and adds the bin folder to your user `PATH` if needed.
 
+## Install warns that config `schema_version` is newer than this checkout
+
+This repository tracks a preview build, not a stable release. That means your existing `%LOCALAPPDATA%\SelfSnap\config\config.json` can be newer than the current checkout.
+
+When that happens, `scripts/user/install.ps1` still completes the wrapper install but skips scheduler sync and startup shortcut updates so it does not rewrite a newer config with an older preview build.
+
+If you need full install integration again:
+
+1. use a checkout that supports your current config schema,
+2. or back up and reset `%LOCALAPPDATA%\SelfSnap\config\config.json` before rerunning install.
+
 ## The tray is already running or the icon looks duplicated
 
 Try this order:

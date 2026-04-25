@@ -38,6 +38,9 @@ def test_install_and_uninstall_scripts_support_interpreter_overrides() -> None:
     assert "..\\shared\\_selfsnap_script_helpers.ps1" in build
     assert "..\\shared\\_selfsnap_script_helpers.ps1" in smoke
     assert "PythonwExe" in install
+    assert "Get-InstalledSchemaSupport" in install
+    assert "Scheduler sync and startup shortcut updates were " in install
+    assert "skipped to avoid rewriting a newer config with an older preview build" in install
     assert "UpdateSource" in reinstall
     assert "RelaunchTray" in reinstall
     assert "git pull --ff-only" in reinstall
@@ -165,9 +168,12 @@ def test_docs_call_out_preview_posture_and_setup_lock_recovery() -> None:
     assert "current preview build" in install_doc.lower()
     assert "uv venv --allow-existing" in install_doc
     assert "ruff.exe" in install_doc
+    assert "newer preview schema" in install_doc
+    assert "scheduler sync and startup shortcut updates" in install_doc.lower()
     assert "access denied under `.venv\\Scripts`" in troubleshooting_doc
     assert "uv venv --allow-existing" in troubleshooting_doc
     assert "ruff.exe" in troubleshooting_doc
+    assert "config `schema_version` is newer than this checkout" in troubleshooting_doc
     assert "not a stable release" in script_readme.lower()
 
 
