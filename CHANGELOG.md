@@ -103,7 +103,7 @@ Why: Post-release operational fixes discovered during first use of v0.9.0 on a l
 - **Fix — Python path resolution:** `install.ps1` and `reinstall.ps1` now prefer `.venv\Scripts\python.exe` over the Windows Store Python stub. `pythonw.exe` is resolved via `sys.base_prefix` fallback for uv-managed venvs. Bin directory is registered on user PATH automatically.
 - **Tray menu — Restart:** Flattened from a submenu to a single button, moved directly above Exit.
 - **Tray menu — Reinstall / Check for Updates:** Replaced the Reinstall submenu (From Local Source / From Source and Update) with two flat buttons: `Reinstall` (offline, local source) and `Check for Updates` (git pull + reinstall).
-- **Docs:** README and `sample/config.example.json` updated for v0.9.0 features, venv-only setup flow, and new tray menu structure. `schema_version` in example bumped to 3.
+- **Docs:** README and `docs/product/config.example.json` updated for v0.9.0 features, venv-only setup flow, and new tray menu structure. `schema_version` in example bumped to 3.
 - **Git hygiene:** `.github/agents/` and `.github/skills/` unblocked from `.gitignore` and committed; `.hypothesis/` added to ignore list.
 
 ## v0.9.0 - 2026-03-25

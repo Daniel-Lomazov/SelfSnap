@@ -33,8 +33,8 @@ def test_readme_describes_recurring_schedule_setup() -> None:
     assert "Task Scheduler-backed" in readme
 
 
-def test_sample_config_uses_recurring_schedule_schema() -> None:
-    config = json.loads(Path("sample/config.example.json").read_text(encoding="utf-8"))
+def test_product_config_example_uses_recurring_schedule_schema() -> None:
+    config = json.loads(Path("docs/product/config.example.json").read_text(encoding="utf-8"))
 
     assert config["schema_version"] == 3
     assert config["schedules"][0]["interval_value"] == 1

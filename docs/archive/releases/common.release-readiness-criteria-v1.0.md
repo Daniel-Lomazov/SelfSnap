@@ -76,4 +76,4 @@ SelfSnap should not ship as `1.0.0` until all of the following are true:
 - `docs/maintainer/software-requirements-specification-and-architecture-v1.md`
 - `docs/archive/releases/qa.quality-assurance-and-privacy-notes-v1.md`
 - `docs/maintainer/validation-checklist.md`
-- `sample/config.example.json`
+- [docs/product/config.example.json](../../product/config.example.json)

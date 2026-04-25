@@ -303,7 +303,7 @@ Schedule timing rules:
 
 ## Config reference
 
-See `sample/config.example.json` for the full schema.
+See [docs/product/config.example.json](docs/product/config.example.json) for the full schema.
 
 Important fields:
 

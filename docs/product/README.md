@@ -16,6 +16,7 @@ If you need active maintainer-facing contract docs or historical reference mater
 - [INSTALL_AND_UPDATE.md](INSTALL_AND_UPDATE.md): supported source-based setup and lifecycle actions.
 - [CLI_REFERENCE.md](CLI_REFERENCE.md): current `selfsnap` command-line surface.
 - [CONFIG_REFERENCE.md](CONFIG_REFERENCE.md): config keys, schema, and storage behavior.
+- [config.example.json](config.example.json): current example configuration file referenced by the docs.
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md): diagnostics-first recovery steps.
 - [WORKFLOWS.md](WORKFLOWS.md): common day-to-day user flows.
 

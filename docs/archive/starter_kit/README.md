@@ -44,6 +44,7 @@ The recommended starter target is narrower than the current app:
 
 - a code-backed extraction map for what to keep, split, and replace
 - a standard form for turning an idea into an app manifest
+- an example archived tray-app manifest in [tray_app_factory_manifest.example.json](tray_app_factory_manifest.example.json)
 - a repeatable one-night build flow for producing many similar tray apps
 - a target architecture that stays Windows-native, local-first, and easy to extend
 - a phased extraction plan for converting the current repo into a reusable starter

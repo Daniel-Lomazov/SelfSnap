@@ -6,7 +6,7 @@ Most users should edit settings through the UI. This reference exists so you can
 
 ## Example File
 
-See `sample/config.example.json` for a complete example.
+See [config.example.json](config.example.json) for a complete example.
 
 ## Top-Level Keys
 
