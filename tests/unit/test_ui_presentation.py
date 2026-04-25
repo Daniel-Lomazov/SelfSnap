@@ -4,10 +4,13 @@ from dataclasses import replace
 
 from selfsnap.models import AppConfig
 from selfsnap.ui.presentation import (
+    application_title,
     latest_capture_label,
     maintenance_summary_text,
     record_message,
     scheduler_status_detail,
+    settings_page_subtitle,
+    settings_window_title,
     settings_header_status,
     storage_summary_text,
     tray_icon_title,
@@ -17,6 +20,7 @@ from selfsnap.ui.presentation import (
     tray_warning_label,
     visibility_summary_text,
 )
+from selfsnap.version import __version__
 
 
 def _config() -> AppConfig:
@@ -87,12 +91,17 @@ def test_tray_presentation_helpers_preserve_existing_labels() -> None:
     base = _config()
     failed = replace(base, app_enabled=True, scheduler_sync_state="failed")
 
+    assert application_title() == f"SelfSnap Win11 v{__version__}"
+    assert settings_page_subtitle() == (
+        "Manage capture behavior, storage, schedules, diagnostics, and maintenance."
+    )
+    assert settings_window_title() == f"SelfSnap Settings v{__version__}"
     assert tray_state_label(base) == "Scheduled captures paused"
     assert tray_state_label(failed) == "Scheduled captures on"
     assert tray_warning_label(base) is None
     assert tray_warning_label(failed) == "Scheduler needs attention - open Settings"
-    assert tray_icon_title(base) == "SelfSnap Win11"
-    assert tray_icon_title(failed) == "SelfSnap Win11 - scheduler sync failed"
+    assert tray_icon_title(base) == f"SelfSnap Win11 v{__version__}"
+    assert tray_icon_title(failed) == f"SelfSnap Win11 v{__version__} - scheduler sync failed"
     assert tray_toggle_enabled_label(True) == "Pause Scheduled Captures"
     assert tray_toggle_enabled_label(False) == "Resume Scheduled Captures"
     assert latest_capture_label("capture_saved", "LOCAL") == "Last capture: Saved at LOCAL"

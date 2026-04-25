@@ -2,6 +2,19 @@ from __future__ import annotations
 
 from selfsnap.models import AppConfig
 from selfsnap.ui_labels import capture_mode_label, retention_mode_label, storage_preset_label
+from selfsnap.version import __version__
+
+
+def application_title() -> str:
+    return _versioned_title("SelfSnap Win11")
+
+
+def settings_window_title() -> str:
+    return _versioned_title("SelfSnap Settings")
+
+
+def settings_page_subtitle() -> str:
+    return "Manage capture behavior, storage, schedules, diagnostics, and maintenance."
 
 
 def settings_header_status(config: AppConfig) -> tuple[str, str]:
@@ -88,11 +101,12 @@ def tray_warning_label(config: AppConfig) -> str | None:
 
 
 def tray_icon_title(config: AppConfig) -> str:
+    base_title = application_title()
     if config.scheduler_sync_failed():
-        return "SelfSnap Win11 - scheduler sync failed"
+        return f"{base_title} - scheduler sync failed"
     if not config.first_run_completed:
-        return "SelfSnap Win11 - setup required"
-    return "SelfSnap Win11"
+        return f"{base_title} - setup required"
+    return base_title
 
 
 def tray_toggle_enabled_label(app_enabled: bool) -> str:
@@ -163,3 +177,7 @@ def _safe_positive_int_text(value: int | str | None, *, fallback: str) -> str:
     if text.isdigit() and int(text) > 0:
         return text
     return fallback
+
+
+def _versioned_title(base: str) -> str:
+    return f"{base} v{__version__}"

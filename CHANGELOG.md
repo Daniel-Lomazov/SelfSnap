@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.1.1 - 2026-04-25
+
+Why: Patch release to turn the post-`v1.1.0` preview branch back into a usable working state after setup/install regressions and version-surface drift.
+
+- **Fix — setup recovers from locked `.venv\Scripts` executables.** `scripts/user/setup.ps1` now handles `uv venv --clear` failures caused by locked tool executables, retries in place with `uv venv --allow-existing`, and retries the dev-extras install after stopping respawned tool processes such as `ruff.exe`.
+- **Fix — install tolerates current user config shape.** Source install no longer warns or skips scheduler/startup integration for the current config file because schema `4` is now supported in the model layer.
+- **Fix — schema 4 config preservation.** `AppConfig` and `Schedule` now preserve top-level `extraction_profiles` and per-schedule `extraction_profile_id` on load/save so scheduler and install flows do not silently discard extraction-related config data.
+- **UI — version surfaced in runtime chrome.** The tray hover title and Settings window title bar now include the current app version so the active build is visible directly in the running UI.
+- **UI — settings header cleanup.** Removed leftover design copy from the Settings header and replaced the verbose subtitle with a simpler functional summary.
+- **Docs — script/docs network cleanup.** Updated install, troubleshooting, config reference, example config, and script README surfaces to reflect the preview posture, setup recovery behavior, and the current schema contract.
+- **Release surface — version bump alignment.** Updated the version anchors in project metadata and README so release-facing documentation matches the now-working preview branch state.
+
 ## v1.1.0 - 2026-04-12
 
 Why: Comprehensive UI/UX redesign with runtime hardening and documentation overhaul to establish the branch as stable minor release before merging into main.

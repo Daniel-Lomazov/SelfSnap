@@ -42,6 +42,7 @@ from selfsnap.tray.startup import sync_startup_shortcut
 from selfsnap.tray.statistics_window import show_statistics_window
 from selfsnap.ui.fluent import ACCENT_COLOR, CARD_BG, TEXT_MUTED, TEXT_PRIMARY
 from selfsnap.ui.presentation import (
+    application_title,
     latest_capture_label,
     record_message,
     tray_icon_title,
@@ -116,7 +117,7 @@ def run_tray_app(paths: AppPaths | None = None) -> int:
         next_housekeeping_at=initial_now + timedelta(seconds=60),
         last_announced_record_id=_latest_record_id(paths),
     )
-    icon = pystray.Icon("selfsnap", _build_icon_image(Image, ImageDraw), "SelfSnap Win11")
+    icon = pystray.Icon("selfsnap", _build_icon_image(Image, ImageDraw), application_title())
 
     def refresh_menu() -> None:
         icon.menu = pystray.Menu(*_build_menu_items(pystray, paths, icon, state, refresh_menu))

@@ -161,7 +161,7 @@ def bind_dynamic_wrap(
 def create_page_header(
     parent: tk.Misc,
     *,
-    eyebrow: str,
+    eyebrow: str | None,
     title: str,
     subtitle: str,
     badge_text: str | None = None,
@@ -170,17 +170,22 @@ def create_page_header(
     frame = tk.Frame(parent, bg=WINDOW_BG)
     frame.columnconfigure(0, weight=1)
 
-    tk.Label(
-        frame,
-        text=eyebrow.upper(),
-        bg=WINDOW_BG,
-        fg=ACCENT_COLOR,
-        font=("Segoe UI Semibold", 7),
-        anchor="w",
-    ).grid(row=0, column=0, sticky="w")
+    title_row_index = 0
+    title_row_pady = (0, 0)
+    if eyebrow and eyebrow.strip():
+        tk.Label(
+            frame,
+            text=eyebrow.upper(),
+            bg=WINDOW_BG,
+            fg=ACCENT_COLOR,
+            font=("Segoe UI Semibold", 7),
+            anchor="w",
+        ).grid(row=0, column=0, sticky="w")
+        title_row_index = 1
+        title_row_pady = (2, 0)
 
     title_row = tk.Frame(frame, bg=WINDOW_BG)
-    title_row.grid(row=1, column=0, sticky="ew", pady=(2, 0))
+    title_row.grid(row=title_row_index, column=0, sticky="ew", pady=title_row_pady)
     title_row.columnconfigure(0, weight=1)
     tk.Label(
         title_row,
@@ -205,7 +210,7 @@ def create_page_header(
         justify="left",
         anchor="w",
     )
-    subtitle_label.grid(row=2, column=0, sticky="ew", pady=(2, 0))
+    subtitle_label.grid(row=title_row_index + 1, column=0, sticky="ew", pady=(2, 0))
     return PageHeader(frame=frame, subtitle_label=subtitle_label, badge_label=badge_label)
 
 

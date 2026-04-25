@@ -70,6 +70,8 @@ from selfsnap.ui.fluent import (
 from selfsnap.ui.presentation import (
     maintenance_summary_text,
     scheduler_status_detail,
+    settings_page_subtitle,
+    settings_window_title,
     settings_header_status,
     storage_summary_text,
     visibility_summary_text,
@@ -168,7 +170,7 @@ class SettingsDialogResult:
 
 def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogResult:
     root = tk.Tk()
-    root.title("SelfSnap Settings")
+    root.title(settings_window_title())
     root.update_idletasks()
     window_width, window_height = SETTINGS_WINDOW_MIN_WIDTH, SETTINGS_WINDOW_MIN_HEIGHT
     use_stacked_compact_layout = window_width <= STACKED_COMPACT_LAYOUT_MAX_WIDTH
@@ -537,12 +539,9 @@ def show_settings_dialog(config: AppConfig, paths: AppPaths) -> SettingsDialogRe
     header_text, header_tone = settings_header_status(config)
     header = create_page_header(
         shell,
-        eyebrow="Merged UX direction",
+        eyebrow=None,
         title="SelfSnap Settings",
-        subtitle=(
-            "Compact, tabbed controls with Fluent styling, full recurring schedule editing, "
-            "and a dedicated diagnostics surface."
-        ),
+        subtitle=settings_page_subtitle(),
         badge_text=header_text,
         badge_tone=header_tone,
     )

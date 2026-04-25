@@ -2,7 +2,7 @@
 
 SelfSnap Win11 is a Windows 11-only, local-first screenshot utility for personal use. It captures screenshots of all connected monitors on recurring schedules, stores them locally, and records honest metadata about what happened.
 
-Current version: `v1.1.0`. Technical release history lives in `CHANGELOG.md`.
+Current version: `v1.1.1`. Technical release history lives in `CHANGELOG.md`.
 
 This repository currently tracks an active preview build, not a stable release.
 
@@ -27,7 +27,7 @@ Use this table as the main jump surface. Every linked README below links back to
 
 ## Project status
 
-- Public `v1.1.0` Windows 11 utility with Fluent-style UI, responsive design, and enhanced runtime hardening
+- Public `v1.1.1` Windows 11 utility with Fluent-style UI, responsive design, and hardened setup/install flows
 - Active preview build for personal-use iteration, not a stable release
 - Source-based install is the primary supported path
 - Public release posture is focused on privacy-minded Windows power users
@@ -39,13 +39,13 @@ This repository is public for visibility and issue tracking, but the code remain
 
 ## Current release
 
-`v1.1.0` is the current preview build with comprehensive UI/UX refinement and runtime hardening. It is not a stable release, and the install and documentation flow can still change between iterations.
+`v1.1.1` is the current preview build with setup and install recovery fixes, schema-4 config support, and documentation alignment across the script and docs surfaces. It is not a stable release, and the install and documentation flow can still change between iterations.
 
 - **Fluent-style Settings redesign.** Complete visual refresh with responsive card/panel layouts that adapt to window width, improved text wrapping, and accessible keyboard navigation.
 - **Enhanced diagnostics and observability.** New diagnostics surface in Settings shows scheduler sync status, storage metrics, retention policy, and operational context in real-time.
 - **Responsive schedule editor.** Schedule list and editor panels reflow between stacked (narrow) and side-by-side (wide) layouts with auto-fit column widths to prevent truncation.
-- **Runtime hardening.** Local `.venv` interpreter enforcement ensures source launches use the correct Python environment. Settings state-sync protection prevents unsaved edits from being clobbered by external config changes.
-- **Expanded internal documentation.** New focused docs for UI patterns, tray menu evolution, interpreter policy, settings polling behavior, and scheduler edge cases preserve iteration history and support maintainability.
+- **Runtime hardening.** Setup now recovers more reliably from locked `.venv\Scripts` tool executables, install no longer trips over the current schema-4 config, and local `.venv` interpreter enforcement keeps source launches on the correct environment.
+- **Expanded internal documentation.** The README/docs/script navigation was tightened, preview posture is called out consistently, and current config-schema behavior is documented directly in the install, troubleshooting, and config reference docs.
 
 For the full implementation-facing release history, see [`CHANGELOG.md`](CHANGELOG.md).
 
