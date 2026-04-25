@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.3.1 - 2026-04-25
+
+Why: Follow up the initial stable `v1.3.0` cut with a version-alignment release so the polished public `main` branch, package metadata, and latest tag all point at the same GitHub-facing state.
+
+- **Release surface — version alignment follow-up.** The sharpened public README and GitHub-facing branch polish now ship under `v1.3.1` instead of living ahead of the latest release tag.
+- **Docs — public-facing copy refinement.** Tightened the top-level README messaging so the stable public branch presents the product and trust posture more clearly.
+
 ## v1.3.0 - 2026-04-25
 
 Why: Promote the hardened current `main` branch to the new stable public release line and supersede the older `v1.2.3` public tag with the branch that now reflects the intended GitHub-facing app state.

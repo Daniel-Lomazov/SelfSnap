@@ -43,7 +43,7 @@ def _record(
         archived=False,
         archived_at_utc=None,
         retention_deleted_at_utc=None,
-        app_version="1.3.0",
+        app_version="1.3.1",
         created_utc=now,
     )
 

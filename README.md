@@ -2,7 +2,7 @@
 
 SelfSnap Win11 is a Windows 11-only, local-first screenshot tray app for personal use. It captures all connected monitors on manual or scheduled runs, stores images locally, and records honest SQLite metadata about what happened.
 
-Current version: `v1.3.0`. Technical release history lives in `CHANGELOG.md`.
+Current version: `v1.3.1`. Technical release history lives in `CHANGELOG.md`.
 
 This repository currently tracks the stable public release line on `main`.
 
@@ -27,7 +27,7 @@ Use this table as the main jump surface. Every linked README below links back to
 
 ## Project status
 
-- Public stable `v1.3.0` Windows 11 utility with Fluent-style UI, responsive design, and hardened setup/install flows
+- Public stable `v1.3.1` Windows 11 utility with Fluent-style UI, responsive design, and hardened setup/install flows
 - Current `main` is the stable public GitHub face of the app
 - Windows 11 only, local-first, and offline by default
 - Hybrid tray plus Windows Task Scheduler model for recurring capture
@@ -40,7 +40,7 @@ This repository is public for visibility and issue tracking, but the code remain
 
 ## Current release
 
-`v1.3.0` is the current stable release. It rolls the hardened setup and install flow, schema-4 config support, live Settings capture-state refresh, and the aligned public docs surfaces into the new mainline public release.
+`v1.3.1` is the current stable release. It keeps the hardened setup and install flow, schema-4 config support, live Settings capture-state refresh, and aligned public docs surfaces while making the polished public `main` state match the latest tagged release.
 
 - **Fluent-style Settings redesign.** Complete visual refresh with responsive card/panel layouts that adapt to window width, improved text wrapping, and accessible keyboard navigation.
 - **Enhanced diagnostics and observability.** New diagnostics surface in Settings shows scheduler sync status, storage metrics, retention policy, and operational context in real-time.
