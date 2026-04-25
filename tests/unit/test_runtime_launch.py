@@ -6,16 +6,21 @@ from pathlib import Path
 import pytest
 
 from selfsnap.runtime_launch import (
+    _background_creation_flags,
+    _script_creation_flags,
     INTERPRETER_REDIRECT_ENV,
     LaunchSpec,
     ensure_local_repository_interpreter,
     launch_background,
     launch_hidden_background,
+    read_install_metadata,
     resolve_background_python_executable,
     resolve_background_working_directory,
     resolve_foreground_python_executable,
     resolve_manual_capture_background_invocation,
     resolve_source_repo_root,
+    resolve_tray_background_invocation,
+    resolve_worker_background_invocation,
     run_background_command,
     run_lifecycle_script,
 )
@@ -267,6 +272,13 @@ def test_resolve_source_repo_root_prefers_trusted_install_metadata(temp_paths) -
     assert Path(result) == temp_paths.user_profile
 
 
+def test_read_install_metadata_returns_empty_dict_for_invalid_json(temp_paths) -> None:
+    temp_paths.bin_dir.mkdir(parents=True, exist_ok=True)
+    (temp_paths.bin_dir / "install-meta.json").write_text("{invalid", encoding="utf-8")
+
+    assert read_install_metadata(temp_paths) == {}
+
+
 def test_ensure_local_repository_interpreter_reexecutes_console_process_into_local_venv(
     monkeypatch, tmp_path
 ) -> None:
@@ -301,6 +313,78 @@ def test_ensure_local_repository_interpreter_reexecutes_console_process_into_loc
     assert kwargs["env"][INTERPRETER_REDIRECT_ENV] == "1"
 
 
+def test_ensure_local_repository_interpreter_returns_none_when_already_using_local_venv(
+    monkeypatch, tmp_path
+) -> None:
+    repo_root = tmp_path / "repo"
+    _create_repo_checkout(repo_root)
+    local_python, _local_pythonw = _create_local_venv(repo_root)
+
+    monkeypatch.setattr("selfsnap.runtime_launch.sys.executable", str(local_python))
+    monkeypatch.setattr(
+        "selfsnap.runtime_launch.resolve_source_repo_root",
+        lambda _paths=None: str(repo_root),
+    )
+
+    assert ensure_local_repository_interpreter(["doctor"]) is None
+
+
+def test_ensure_local_repository_interpreter_reports_failed_redirect_loop(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    repo_root = tmp_path / "repo"
+    _create_repo_checkout(repo_root)
+    _create_local_venv(repo_root)
+    wrong_python = tmp_path / "global-python.exe"
+    wrong_python.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr("selfsnap.runtime_launch.sys.executable", str(wrong_python))
+    monkeypatch.setattr(
+        "selfsnap.runtime_launch.resolve_source_repo_root",
+        lambda _paths=None: str(repo_root),
+    )
+    monkeypatch.setenv(INTERPRETER_REDIRECT_ENV, "1")
+
+    result = ensure_local_repository_interpreter(["doctor"])
+
+    assert result == 1
+    assert "could not switch" in capsys.readouterr().err
+
+
+def test_ensure_local_repository_interpreter_reexecutes_windowless_process_into_local_venv(
+    monkeypatch, tmp_path
+) -> None:
+    repo_root = tmp_path / "repo"
+    _create_repo_checkout(repo_root)
+    _local_python, local_pythonw = _create_local_venv(repo_root)
+    wrong_pythonw = tmp_path / "pythonw.exe"
+    wrong_pythonw.write_text("", encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr("selfsnap.runtime_launch.sys.executable", str(wrong_pythonw))
+    monkeypatch.setattr("selfsnap.runtime_launch.sys.argv", [str(wrong_pythonw), "tray"])
+    monkeypatch.setattr(
+        "selfsnap.runtime_launch.resolve_source_repo_root",
+        lambda _paths=None: str(repo_root),
+    )
+
+    def fake_popen(*args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return object()
+
+    monkeypatch.setattr("selfsnap.runtime_launch.subprocess.Popen", fake_popen)
+
+    result = ensure_local_repository_interpreter(["tray"])
+
+    assert result == 0
+    assert captured["args"] == ([str(local_pythonw), "-m", "selfsnap", "tray"],)
+    kwargs = captured["kwargs"]
+    assert kwargs["cwd"] == str(repo_root)
+    assert kwargs["text"] is True
+    assert kwargs["env"][INTERPRETER_REDIRECT_ENV] == "1"
+
+
 def test_ensure_local_repository_interpreter_reports_setup_when_checkout_venv_is_missing(
     monkeypatch, tmp_path, capsys
 ) -> None:
@@ -319,6 +403,108 @@ def test_ensure_local_repository_interpreter_reports_setup_when_checkout_venv_is
 
     assert result == 1
     assert "setup.ps1" in capsys.readouterr().err
+
+
+def test_resolve_foreground_python_executable_uses_python_sibling_for_pythonw_runtime(
+    monkeypatch, tmp_path
+) -> None:
+    checkout_root = tmp_path / "not-a-checkout"
+    checkout_root.mkdir(parents=True, exist_ok=True)
+    pythonw = tmp_path / "pythonw.exe"
+    python = tmp_path / "python.exe"
+    pythonw.write_text("", encoding="utf-8")
+    python.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "selfsnap.runtime_launch.resolve_source_repo_root",
+        lambda _paths=None: str(checkout_root),
+    )
+    monkeypatch.setattr("selfsnap.runtime_launch.sys.executable", str(pythonw))
+
+    assert Path(resolve_foreground_python_executable()) == python
+
+
+def test_resolve_foreground_python_executable_uses_existing_runtime_when_it_is_python(
+    monkeypatch, tmp_path
+) -> None:
+    checkout_root = tmp_path / "not-a-checkout"
+    checkout_root.mkdir(parents=True, exist_ok=True)
+    python = tmp_path / "python.exe"
+    python.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "selfsnap.runtime_launch.resolve_source_repo_root",
+        lambda _paths=None: str(checkout_root),
+    )
+    monkeypatch.setattr("selfsnap.runtime_launch.sys.executable", str(python))
+
+    assert Path(resolve_foreground_python_executable()) == python
+
+
+def test_resolve_background_python_executable_uses_existing_pythonw_runtime(
+    monkeypatch, tmp_path
+) -> None:
+    checkout_root = tmp_path / "not-a-checkout"
+    checkout_root.mkdir(parents=True, exist_ok=True)
+    pythonw = tmp_path / "pythonw.exe"
+    pythonw.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "selfsnap.runtime_launch.resolve_source_repo_root",
+        lambda _paths=None: str(checkout_root),
+    )
+    monkeypatch.setattr("selfsnap.runtime_launch.sys.executable", str(pythonw))
+
+    assert Path(resolve_background_python_executable()) == pythonw
+
+
+def test_resolve_tray_background_invocation_uses_frozen_executable(monkeypatch, temp_paths, tmp_path) -> None:
+    executable = tmp_path / "SelfSnap.exe"
+    executable.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr("selfsnap.runtime_launch.sys.frozen", True, raising=False)
+    monkeypatch.setattr("selfsnap.runtime_launch.sys.executable", str(executable))
+
+    spec = resolve_tray_background_invocation(temp_paths)
+
+    assert spec.executable == str(executable)
+    assert spec.arguments == []
+    assert spec.working_directory == str(executable.parent)
+
+
+def test_resolve_worker_background_invocation_uses_frozen_worker_binary(monkeypatch, temp_paths, tmp_path) -> None:
+    executable = tmp_path / "SelfSnap.exe"
+    worker = tmp_path / "SelfSnapWorker.exe"
+    executable.write_text("", encoding="utf-8")
+    worker.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr("selfsnap.runtime_launch.sys.frozen", True, raising=False)
+    monkeypatch.setattr("selfsnap.runtime_launch.sys.executable", str(executable))
+
+    spec = resolve_worker_background_invocation(
+        temp_paths,
+        "sched_1",
+        "2026-03-01T09:00:00",
+    )
+
+    assert Path(spec.executable) == worker
+    assert spec.arguments == [
+        "capture",
+        "--trigger",
+        "scheduled",
+        "--schedule-id",
+        "sched_1",
+        "--planned-local-ts",
+        "2026-03-01T09:00:00",
+    ]
+    assert spec.working_directory == str(worker.parent)
+
+
+def test_creation_flag_helpers_return_zero_off_windows(monkeypatch) -> None:
+    monkeypatch.setattr("selfsnap.runtime_launch.sys.platform", "linux")
+
+    assert _background_creation_flags() == 0
+    assert _script_creation_flags() == 0
 
 
 def test_launch_background_requests_text_mode(monkeypatch, temp_paths) -> None:
@@ -343,6 +529,16 @@ def test_launch_background_requests_text_mode(monkeypatch, temp_paths) -> None:
     assert kwargs["cwd"] == spec.working_directory
     assert kwargs["text"] is True
     assert kwargs["close_fds"] is False
+
+
+def test_launch_spec_argument_string_matches_subprocess_quoting(temp_paths) -> None:
+    spec = LaunchSpec(
+        executable="python.exe",
+        arguments=["-m", "selfsnap", "capture", "--schedule-id", "sched 1"],
+        working_directory=str(temp_paths.root),
+    )
+
+    assert spec.argument_string() == subprocess.list2cmdline(spec.arguments)
 
 
 def test_launch_hidden_background_suppresses_stdio_and_requests_text_mode(

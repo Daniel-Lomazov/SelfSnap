@@ -3,6 +3,12 @@
 This maintainer checklist is the active reusable validation surface for current release work.
 Historical execution evidence and retired release-specific QA notes live under `../archive/releases/`.
 
+## Automated regression gate
+
+- Run `pytest`, `ruff check .`, and `mypy src` from the repo root.
+- Confirm the full `pytest` suite passes with the configured 90% coverage gate.
+- Confirm pytest temp output stays under `%LOCALAPPDATA%\SelfSnap\pytest\tmp` and that repo-local cache or temp folders such as `.pytest_cache`, `.pytest_tmp`, `.pytest-work`, and `pytest-cache-files-*` are treated as cleanup-only artifacts, not committed output.
+
 ## First run
 
 - Install dependencies or run the source-based install script.

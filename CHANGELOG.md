@@ -9,7 +9,10 @@ Why: Patch release to turn the post-`v1.1.0` preview branch back into a usable w
 - **Fix — schema 4 config preservation.** `AppConfig` and `Schedule` now preserve top-level `extraction_profiles` and per-schedule `extraction_profile_id` on load/save so scheduler and install flows do not silently discard extraction-related config data.
 - **UI — version surfaced in runtime chrome.** The tray hover title and Settings window title bar now include the current app version so the active build is visible directly in the running UI.
 - **UI — settings header cleanup.** Removed leftover design copy from the Settings header and replaced the verbose subtitle with a simpler functional summary.
+- **Test — shared test support and branch coverage hardening.** Added `tests/support` builders and scheduler stubs to remove duplicated config/schedule setup, then expanded recurrence, runtime-launch, and lifecycle coverage around previously untested edge branches.
+- **Validation — pytest gate raised and warning removed.** Full `pytest` now enforces 90% coverage, and the pytest config keeps the default recursion excludes while explicitly ignoring repo-local temp and cache folders so the `.hypothesis` collection warning no longer appears.
 - **Docs — script/docs network cleanup.** Updated install, troubleshooting, config reference, example config, and script README surfaces to reflect the preview posture, setup recovery behavior, and the current schema contract.
+- **Docs — test and validation guidance refreshed.** Updated the README and developer validation checklist to reflect the 90% coverage gate and current pytest temp-directory behavior.
 - **Release surface — version bump alignment.** Updated the version anchors in project metadata and README so release-facing documentation matches the now-working preview branch state.
 
 ## v1.1.0 - 2026-04-12

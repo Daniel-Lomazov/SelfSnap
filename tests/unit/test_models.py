@@ -4,29 +4,14 @@ import pytest
 
 from selfsnap.models import AppConfig, ConfigValidationError, Schedule
 from selfsnap.window_sizing import SETTINGS_WINDOW_MIN_HEIGHT, SETTINGS_WINDOW_MIN_WIDTH
+from tests.support.factories import make_app_config, make_schedule
 
 
 def test_duplicate_schedule_ids_are_rejected() -> None:
-    config = AppConfig(
-        capture_storage_root="C:\\captures",
-        archive_storage_root="C:\\archive",
+    config = make_app_config(
         schedules=[
-            Schedule(
-                schedule_id="morning",
-                label="Morning",
-                interval_value=1,
-                interval_unit="day",
-                start_date_local="2026-03-23",
-                start_time_local="09:00:00",
-            ),
-            Schedule(
-                schedule_id="morning",
-                label="Morning 2",
-                interval_value=1,
-                interval_unit="day",
-                start_date_local="2026-03-23",
-                start_time_local="10:00:00",
-            ),
+            make_schedule(),
+            make_schedule(label="Morning 2"),
         ],
     )
     with pytest.raises(ConfigValidationError):
@@ -34,35 +19,25 @@ def test_duplicate_schedule_ids_are_rejected() -> None:
 
 
 def test_archive_storage_root_is_required() -> None:
-    config = AppConfig(capture_storage_root="C:\\captures", archive_storage_root="")
+    config = make_app_config(archive_storage_root="")
     with pytest.raises(ConfigValidationError):
         config.validate()
 
 
 def test_scheduler_sync_state_is_validated() -> None:
-    config = AppConfig(
-        capture_storage_root="C:\\captures",
-        archive_storage_root="C:\\archive",
-        scheduler_sync_state="broken",
-    )
+    config = make_app_config(scheduler_sync_state="broken")
     with pytest.raises(ConfigValidationError):
         config.validate()
 
 
 def test_storage_preset_is_validated() -> None:
-    config = AppConfig(
-        capture_storage_root="C:\\captures",
-        archive_storage_root="C:\\archive",
-        storage_preset="dropbox",
-    )
+    config = make_app_config(storage_preset="dropbox")
     with pytest.raises(ConfigValidationError):
         config.validate()
 
 
 def test_settings_window_size_floor_is_validated() -> None:
-    config = AppConfig(
-        capture_storage_root="C:\\captures",
-        archive_storage_root="C:\\archive",
+    config = make_app_config(
         settings_window_width=SETTINGS_WINDOW_MIN_WIDTH - 1,
         settings_window_height=SETTINGS_WINDOW_MIN_HEIGHT - 1,
     )
@@ -117,121 +92,31 @@ def test_app_config_from_dict_accepts_schema_4_and_preserves_extraction_fields()
 # ---------------------------------------------------------------------------
 
 
-def test_schema_version_mismatch_raises() -> None:
-    config = AppConfig(
-        capture_storage_root="C:\\captures",
-        archive_storage_root="C:\\archive",
-        schema_version=1,
-    )
-    with pytest.raises(ConfigValidationError, match="schema_version"):
-        config.validate()
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"schema_version": 1}, "schema_version"),
+        ({"capture_storage_root": ""}, "capture_storage_root"),
+        ({"retention_mode": "delete_immediately"}, "retention_mode"),
+        ({"retention_mode": "keep_days", "retention_days": None}, "retention_days"),
+        ({"retention_mode": "keep_forever", "retention_days": 0}, "retention_days"),
+        ({"log_level": "WARNING"}, "log_level"),
+        ({"settings_window_height": SETTINGS_WINDOW_MIN_HEIGHT - 1}, "settings_window_height"),
+        ({"slot_match_tolerance_seconds": -1}, "slot_match_tolerance_seconds"),
+        ({"capture_mode": "screenshot"}, "capture_mode"),
+        ({"image_format": "bmp"}, "image_format"),
+        ({"image_quality": 0}, "image_quality"),
+        ({"retention_grace_days": 0}, "retention_grace_days"),
+        ({"extraction_profiles": [None]}, "extraction_profiles"),
+    ],
+)
+def test_app_config_validation_rejects_invalid_values(
+    overrides: dict[str, object],
+    message: str,
+) -> None:
+    config = make_app_config(**overrides)
 
-
-def test_capture_storage_root_empty_raises() -> None:
-    config = AppConfig(capture_storage_root="", archive_storage_root="C:\\archive")
-    with pytest.raises(ConfigValidationError, match="capture_storage_root"):
-        config.validate()
-
-
-def test_retention_mode_invalid_raises() -> None:
-    config = AppConfig(
-        capture_storage_root="C:\\cap",
-        archive_storage_root="C:\\arc",
-        retention_mode="delete_immediately",
-    )
-    with pytest.raises(ConfigValidationError, match="retention_mode"):
-        config.validate()
-
-
-def test_retention_days_none_when_keep_days_raises() -> None:
-    config = AppConfig(
-        capture_storage_root="C:\\cap",
-        archive_storage_root="C:\\arc",
-        retention_mode="keep_days",
-        retention_days=None,
-    )
-    with pytest.raises(ConfigValidationError, match="retention_days"):
-        config.validate()
-
-
-def test_retention_days_zero_when_supplied_raises() -> None:
-    config = AppConfig(
-        capture_storage_root="C:\\cap",
-        archive_storage_root="C:\\arc",
-        retention_mode="keep_forever",
-        retention_days=0,
-    )
-    with pytest.raises(ConfigValidationError, match="retention_days"):
-        config.validate()
-
-
-def test_log_level_invalid_raises() -> None:
-    config = AppConfig(
-        capture_storage_root="C:\\cap",
-        archive_storage_root="C:\\arc",
-        log_level="WARNING",
-    )
-    with pytest.raises(ConfigValidationError, match="log_level"):
-        config.validate()
-
-
-def test_settings_window_height_too_small_raises() -> None:
-    config = AppConfig(
-        capture_storage_root="C:\\cap",
-        archive_storage_root="C:\\arc",
-        settings_window_height=SETTINGS_WINDOW_MIN_HEIGHT - 1,
-    )
-    with pytest.raises(ConfigValidationError, match="settings_window_height"):
-        config.validate()
-
-
-def test_slot_match_tolerance_negative_raises() -> None:
-    config = AppConfig(
-        capture_storage_root="C:\\cap",
-        archive_storage_root="C:\\arc",
-        slot_match_tolerance_seconds=-1,
-    )
-    with pytest.raises(ConfigValidationError, match="slot_match_tolerance_seconds"):
-        config.validate()
-
-
-def test_capture_mode_invalid_raises() -> None:
-    config = AppConfig(
-        capture_storage_root="C:\\cap",
-        archive_storage_root="C:\\arc",
-        capture_mode="screenshot",
-    )
-    with pytest.raises(ConfigValidationError, match="capture_mode"):
-        config.validate()
-
-
-def test_image_format_invalid_raises() -> None:
-    config = AppConfig(
-        capture_storage_root="C:\\cap",
-        archive_storage_root="C:\\arc",
-        image_format="bmp",
-    )
-    with pytest.raises(ConfigValidationError, match="image_format"):
-        config.validate()
-
-
-def test_image_quality_out_of_range_raises() -> None:
-    config = AppConfig(
-        capture_storage_root="C:\\cap",
-        archive_storage_root="C:\\arc",
-        image_quality=0,
-    )
-    with pytest.raises(ConfigValidationError, match="image_quality"):
-        config.validate()
-
-
-def test_retention_grace_days_zero_raises() -> None:
-    config = AppConfig(
-        capture_storage_root="C:\\cap",
-        archive_storage_root="C:\\arc",
-        retention_grace_days=0,
-    )
-    with pytest.raises(ConfigValidationError, match="retention_grace_days"):
+    with pytest.raises(ConfigValidationError, match=message):
         config.validate()
 
 
@@ -241,10 +126,7 @@ def test_retention_grace_days_zero_raises() -> None:
 
 
 def test_mark_scheduler_sync_ok_clears_failed_state() -> None:
-    config = AppConfig(
-        capture_storage_root="C:\\cap",
-        archive_storage_root="C:\\arc",
-    )
+    config = make_app_config()
     config.mark_scheduler_sync_failed("something broke")
     assert config.scheduler_sync_failed() is True
 
@@ -259,22 +141,7 @@ def test_mark_scheduler_sync_ok_clears_failed_state() -> None:
 
 
 def test_get_schedule_returns_none_for_unknown_id() -> None:
-    from selfsnap.models import Schedule
-
-    config = AppConfig(
-        capture_storage_root="C:\\cap",
-        archive_storage_root="C:\\arc",
-        schedules=[
-            Schedule(
-                schedule_id="morning",
-                label="Morning",
-                interval_value=1,
-                interval_unit="day",
-                start_date_local="2026-01-01",
-                start_time_local="09:00:00",
-            )
-        ],
-    )
+    config = make_app_config(schedules=[make_schedule(start_date_local="2026-01-01")])
     assert config.get_schedule("evening") is None
 
 
@@ -283,91 +150,22 @@ def test_get_schedule_returns_none_for_unknown_id() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_schedule_invalid_interval_unit_raises() -> None:
-    from selfsnap.models import Schedule
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"interval_unit": "fortnight"}, "interval_unit"),
+        ({"start_date_local": "not-a-date"}, "start_date_local"),
+        ({"start_time_local": "99:00:00"}, "start_time_local"),
+        ({"schedule_id": "HAS_UPPER"}, "schedule_id"),
+        ({"label": "   "}, "label"),
+        ({"interval_value": 0}, "interval_value"),
+    ],
+)
+def test_schedule_validation_rejects_invalid_values(
+    overrides: dict[str, object],
+    message: str,
+) -> None:
+    sched = make_schedule(**overrides)
 
-    sched = Schedule(
-        schedule_id="test",
-        label="Test",
-        interval_value=1,
-        interval_unit="fortnight",
-        start_date_local="2026-01-01",
-        start_time_local="09:00:00",
-    )
-    with pytest.raises(ConfigValidationError, match="interval_unit"):
-        sched.validate()
-
-
-def test_schedule_invalid_start_date_raises() -> None:
-    from selfsnap.models import Schedule
-
-    sched = Schedule(
-        schedule_id="test",
-        label="Test",
-        interval_value=1,
-        interval_unit="day",
-        start_date_local="not-a-date",
-        start_time_local="09:00:00",
-    )
-    with pytest.raises(ConfigValidationError, match="start_date_local"):
-        sched.validate()
-
-
-def test_schedule_invalid_start_time_raises() -> None:
-    from selfsnap.models import Schedule
-
-    sched = Schedule(
-        schedule_id="test",
-        label="Test",
-        interval_value=1,
-        interval_unit="day",
-        start_date_local="2026-01-01",
-        start_time_local="99:00:00",
-    )
-    with pytest.raises(ConfigValidationError, match="start_time_local"):
-        sched.validate()
-
-
-def test_schedule_validate_raises_for_invalid_schedule_id() -> None:
-    from selfsnap.models import Schedule
-
-    sched = Schedule(
-        schedule_id="HAS_UPPER",
-        label="Test",
-        interval_value=1,
-        interval_unit="day",
-        start_date_local="2026-01-01",
-        start_time_local="09:00:00",
-    )
-    with pytest.raises(ConfigValidationError, match="schedule_id"):
-        sched.validate()
-
-
-def test_schedule_validate_raises_for_empty_label() -> None:
-    from selfsnap.models import Schedule
-
-    sched = Schedule(
-        schedule_id="valid_id",
-        label="   ",
-        interval_value=1,
-        interval_unit="day",
-        start_date_local="2026-01-01",
-        start_time_local="09:00:00",
-    )
-    with pytest.raises(ConfigValidationError, match="label"):
-        sched.validate()
-
-
-def test_schedule_validate_raises_for_zero_interval_value() -> None:
-    from selfsnap.models import Schedule
-
-    sched = Schedule(
-        schedule_id="valid_id",
-        label="Test",
-        interval_value=0,
-        interval_unit="day",
-        start_date_local="2026-01-01",
-        start_time_local="09:00:00",
-    )
-    with pytest.raises(ConfigValidationError, match="interval_value"):
+    with pytest.raises(ConfigValidationError, match=message):
         sched.validate()

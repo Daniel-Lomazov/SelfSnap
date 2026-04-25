@@ -8,42 +8,15 @@ import pytest
 
 import selfsnap.scheduler.task_scheduler as task_scheduler
 from selfsnap.config_store import load_or_create_config
-from selfsnap.models import Schedule
-from selfsnap.runtime_launch import LaunchSpec
 from selfsnap.scheduler.backends import InMemoryTaskSchedulerBackend
 from selfsnap.scheduler.task_scheduler import TASK_PREFIX, build_desired_tasks, sync_tasks
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-
-
-def _fake_worker_background_invocation(
-    _paths, schedule_id: str, planned_local_ts: str | None = None
-) -> LaunchSpec:
-    arguments = [
-        "-m",
-        "selfsnap",
-        "capture",
-        "--trigger",
-        "scheduled",
-        "--schedule-id",
-        schedule_id,
-    ]
-    if planned_local_ts is not None:
-        arguments.extend(["--planned-local-ts", planned_local_ts])
-    return LaunchSpec(
-        executable=str(REPO_ROOT / ".venv" / "Scripts" / "pythonw.exe"),
-        arguments=arguments,
-        working_directory=str(REPO_ROOT),
-    )
+from tests.support.factories import make_schedule
+from tests.support.scheduler import install_fake_worker_background_invocation
 
 
 @pytest.fixture(autouse=True)
 def _stub_worker_background_invocation(monkeypatch) -> None:
-    monkeypatch.setattr(
-        task_scheduler,
-        "resolve_worker_background_invocation",
-        _fake_worker_background_invocation,
-    )
+    install_fake_worker_background_invocation(monkeypatch)
 
 
 def _make_logger() -> logging.Logger:
@@ -54,17 +27,7 @@ def test_sync_tasks_creates_task_for_enabled_coarse_schedule(temp_paths) -> None
     config = load_or_create_config(temp_paths)
     config.first_run_completed = True
     config.app_enabled = True
-    config.schedules = [
-        Schedule(
-            schedule_id="daily",
-            label="Daily",
-            interval_value=1,
-            interval_unit="day",
-            start_date_local="2026-03-23",
-            start_time_local="09:00:00",
-            enabled=True,
-        )
-    ]
+    config.schedules = [make_schedule(schedule_id="daily", label="Daily")]
     backend = InMemoryTaskSchedulerBackend()
     local_tz = datetime.now().astimezone().tzinfo
     now = datetime(2026, 3, 23, 8, 0, 0, tzinfo=local_tz)
@@ -106,17 +69,7 @@ def test_sync_tasks_replaces_existing_task_on_resync(temp_paths) -> None:
     config = load_or_create_config(temp_paths)
     config.first_run_completed = True
     config.app_enabled = True
-    config.schedules = [
-        Schedule(
-            schedule_id="morning",
-            label="Morning",
-            interval_value=1,
-            interval_unit="day",
-            start_date_local="2026-03-23",
-            start_time_local="09:00:00",
-            enabled=True,
-        )
-    ]
+    config.schedules = [make_schedule()]
     backend = InMemoryTaskSchedulerBackend()
 
     sync_tasks(temp_paths, config, _make_logger(), backend=backend)

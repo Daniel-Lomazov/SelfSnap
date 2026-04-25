@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from selfsnap.models import AppConfig
 from selfsnap.ui.presentation import (
     application_title,
     latest_capture_label,
@@ -21,14 +20,11 @@ from selfsnap.ui.presentation import (
     visibility_summary_text,
 )
 from selfsnap.version import __version__
+from tests.support.factories import make_app_config
 
 
-def _config() -> AppConfig:
-    return AppConfig(
-        capture_storage_root="C:\\captures",
-        archive_storage_root="C:\\archive",
-        first_run_completed=True,
-    )
+def _config():
+    return make_app_config(first_run_completed=True)
 
 
 def test_settings_header_status_tracks_manual_enabled_and_warning_states() -> None:

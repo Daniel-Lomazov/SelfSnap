@@ -409,7 +409,8 @@ ruff check .
 mypy src
 ```
 
-Pytest temp directories are intentionally kept out of the repo under `%LOCALAPPDATA%\SelfSnap\pytest\tmp`, and the pytest cache provider is disabled to avoid `.pytest_cache` and `pytest-cache-files-*` clutter in the workspace.
+Full `pytest` runs enforce the repo coverage gate at 90%.
+Pytest temp directories are intentionally kept out of the repo under `%LOCALAPPDATA%\SelfSnap\pytest\tmp`, and the pytest config keeps pytest's built-in recursion excludes while also explicitly ignoring repo-local cache and temp folders such as `.pytest_cache`, `.pytest_tmp`, `.pytest-work`, and `pytest-cache-files-*`.
 
 Use `scripts/developer/cleanup_repo_artifacts.ps1` to remove all local artifact and cache folders. It covers:
 

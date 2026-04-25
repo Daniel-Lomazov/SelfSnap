@@ -9,7 +9,6 @@ import pytest
 
 import selfsnap.scheduler.task_scheduler as task_scheduler
 from selfsnap.config_store import load_or_create_config, save_config
-from selfsnap.models import Schedule
 from selfsnap.runtime_launch import LaunchSpec
 from selfsnap.scheduler.task_scheduler import (
     _build_task_xml,
@@ -17,38 +16,13 @@ from selfsnap.scheduler.task_scheduler import (
     build_task_action,
     resolve_worker_invocation,
 )
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-
-
-def _fake_worker_background_invocation(
-    _paths, schedule_id: str, planned_local_ts: str | None = None
-) -> LaunchSpec:
-    arguments = [
-        "-m",
-        "selfsnap",
-        "capture",
-        "--trigger",
-        "scheduled",
-        "--schedule-id",
-        schedule_id,
-    ]
-    if planned_local_ts is not None:
-        arguments.extend(["--planned-local-ts", planned_local_ts])
-    return LaunchSpec(
-        executable=str(REPO_ROOT / ".venv" / "Scripts" / "pythonw.exe"),
-        arguments=arguments,
-        working_directory=str(REPO_ROOT),
-    )
+from tests.support.factories import make_schedule
+from tests.support.scheduler import REPO_ROOT, install_fake_worker_background_invocation
 
 
 @pytest.fixture(autouse=True)
 def _stub_worker_background_invocation(monkeypatch) -> None:
-    monkeypatch.setattr(
-        task_scheduler,
-        "resolve_worker_background_invocation",
-        _fake_worker_background_invocation,
-    )
+    install_fake_worker_background_invocation(monkeypatch)
 
 
 def test_build_task_action_includes_schedule_id(temp_paths) -> None:
@@ -60,16 +34,7 @@ def test_build_desired_tasks_returns_empty_when_app_is_disabled(temp_paths) -> N
     config = load_or_create_config(temp_paths)
     config.first_run_completed = True
     config.app_enabled = False
-    config.schedules = [
-        Schedule(
-            schedule_id="afternoon",
-            label="Afternoon",
-            interval_value=1,
-            interval_unit="day",
-            start_date_local="2026-03-23",
-            start_time_local="14:00:00",
-        )
-    ]
+    config.schedules = [make_schedule(schedule_id="afternoon", label="Afternoon", start_time_local="14:00:00")]
     save_config(temp_paths, config)
 
     assert build_desired_tasks(temp_paths, config) == {}
@@ -82,24 +47,8 @@ def test_build_desired_tasks_includes_enabled_schedules(temp_paths) -> None:
     config.app_enabled = True
     config.wake_for_scheduled_captures = True
     config.schedules = [
-        Schedule(
-            schedule_id="morning",
-            label="Morning",
-            interval_value=1,
-            interval_unit="day",
-            start_date_local="2026-03-23",
-            start_time_local="09:00:00",
-            enabled=True,
-        ),
-        Schedule(
-            schedule_id="off",
-            label="Off",
-            interval_value=1,
-            interval_unit="day",
-            start_date_local="2026-03-23",
-            start_time_local="10:00:00",
-            enabled=False,
-        ),
+        make_schedule(),
+        make_schedule(schedule_id="off", label="Off", start_time_local="10:00:00", enabled=False),
     ]
 
     desired = build_desired_tasks(
@@ -134,17 +83,7 @@ def test_build_desired_tasks_still_returns_tasks_while_sync_state_is_failed(temp
     config.first_run_completed = True
     config.app_enabled = True
     config.mark_scheduler_sync_failed("previous sync failure")
-    config.schedules = [
-        Schedule(
-            schedule_id="morning",
-            label="Morning",
-            interval_value=1,
-            interval_unit="day",
-            start_date_local="2026-03-23",
-            start_time_local="09:00:00",
-            enabled=True,
-        )
-    ]
+    config.schedules = [make_schedule()]
 
     desired = build_desired_tasks(temp_paths, config)
 

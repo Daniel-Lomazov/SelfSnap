@@ -10,7 +10,9 @@ from selfsnap.recurrence import (
     is_high_frequency_schedule,
     iter_occurrences_between,
     next_occurrence,
+    previous_occurrence,
 )
+from tests.support.factories import make_schedule
 
 
 def _schedule(
@@ -21,7 +23,7 @@ def _schedule(
     start_date_local: str = "2026-01-31",
     start_time_local: str = "09:00:00",
 ) -> Schedule:
-    return Schedule(
+    return make_schedule(
         schedule_id=schedule_id,
         label=schedule_id.replace("_", " ").title(),
         interval_value=interval_value,
@@ -113,6 +115,123 @@ def test_calendar_units_skip_invalid_dates() -> None:
         .isoformat()
         == "2028-02-29"
     )
+
+
+def test_occurrence_helpers_reject_naive_reference_datetimes() -> None:
+    schedule = _schedule(
+        schedule_id="daily",
+        interval_value=1,
+        interval_unit="day",
+    )
+    reference = datetime(2026, 1, 31, 9, 0, 0)
+
+    with pytest.raises(ValueError, match="timezone-aware"):
+        next_occurrence(schedule, reference)
+
+    with pytest.raises(ValueError, match="timezone-aware"):
+        previous_occurrence(schedule, reference)
+
+
+def test_next_occurrence_include_reference_returns_anchor() -> None:
+    schedule = _schedule(
+        schedule_id="daily",
+        interval_value=1,
+        interval_unit="day",
+    )
+    anchor = datetime(2026, 1, 31, 9, 0, 0, tzinfo=UTC)
+
+    assert next_occurrence(schedule, anchor, include_reference=True) == anchor
+
+
+def test_previous_occurrence_returns_anchor_only_when_reference_is_included() -> None:
+    schedule = _schedule(
+        schedule_id="daily",
+        interval_value=1,
+        interval_unit="day",
+    )
+    anchor = datetime(2026, 1, 31, 9, 0, 0, tzinfo=UTC)
+
+    assert previous_occurrence(schedule, anchor) is None
+    assert previous_occurrence(schedule, anchor, include_reference=True) == anchor
+
+
+def test_previous_fixed_occurrence_returns_previous_slot_when_reference_is_on_boundary() -> None:
+    schedule = _schedule(
+        schedule_id="every_five_minutes",
+        interval_value=5,
+        interval_unit="minute",
+    )
+
+    assert previous_occurrence(
+        schedule,
+        datetime(2026, 1, 31, 9, 5, 0, tzinfo=UTC),
+    ) == datetime(2026, 1, 31, 9, 0, 0, tzinfo=UTC)
+
+
+def test_previous_calendar_units_skip_invalid_dates() -> None:
+    month_schedule = _schedule(
+        schedule_id="monthly",
+        interval_value=1,
+        interval_unit="month",
+        start_date_local="2026-01-31",
+    )
+    year_schedule = _schedule(
+        schedule_id="yearly",
+        interval_value=1,
+        interval_unit="year",
+        start_date_local="2024-02-29",
+    )
+
+    assert (
+        previous_occurrence(
+            month_schedule,
+            datetime(2026, 4, 1, 9, 0, 0, tzinfo=UTC),
+        )
+        .date()
+        .isoformat()
+        == "2026-03-31"
+    )
+    assert (
+        previous_occurrence(
+            year_schedule,
+            datetime(2027, 3, 1, 9, 0, 0, tzinfo=UTC),
+        )
+        .date()
+        .isoformat()
+        == "2024-02-29"
+    )
+
+
+def test_iter_occurrences_between_returns_empty_for_reversed_range() -> None:
+    schedule = _schedule(
+        schedule_id="every_day",
+        interval_value=1,
+        interval_unit="day",
+    )
+
+    assert (
+        iter_occurrences_between(
+            schedule,
+            datetime(2026, 2, 2, 9, 0, 0, tzinfo=UTC),
+            datetime(2026, 2, 1, 9, 0, 0, tzinfo=UTC),
+        )
+        == []
+    )
+
+
+def test_fixed_occurrence_rejects_non_positive_interval() -> None:
+    schedule = _schedule(
+        schedule_id="stopped",
+        interval_value=0,
+        interval_unit="minute",
+    )
+    reference = datetime(2026, 1, 31, 9, 1, 0, tzinfo=UTC)
+
+    with pytest.raises(ValueError, match="positive"):
+        next_occurrence(schedule, reference)
+
+    with pytest.raises(ValueError, match="positive"):
+        previous_occurrence(schedule, reference)
 
 
 def test_iter_occurrences_between_returns_expected_points() -> None:

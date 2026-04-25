@@ -5,8 +5,9 @@ import json
 import pytest
 
 from selfsnap.config_store import load_config, load_or_create_config, save_config
-from selfsnap.models import AppConfig, ConfigValidationError, Schedule
+from selfsnap.models import ConfigValidationError
 from selfsnap.window_sizing import DEFAULT_SETTINGS_WINDOW_HEIGHT, DEFAULT_SETTINGS_WINDOW_WIDTH
+from tests.support.factories import make_app_config, make_schedule
 
 
 def test_load_or_create_creates_default(temp_paths) -> None:
@@ -23,21 +24,11 @@ def test_load_or_create_creates_default(temp_paths) -> None:
 
 
 def test_save_and_load_round_trip(temp_paths) -> None:
-    config = AppConfig(
-        capture_storage_root=str(temp_paths.default_capture_root),
-        archive_storage_root=str(temp_paths.default_archive_root),
+    config = make_app_config(
+        temp_paths=temp_paths,
         settings_window_width=1000,
         settings_window_height=800,
-        schedules=[
-            Schedule(
-                schedule_id="morning",
-                label="Morning",
-                interval_value=1,
-                interval_unit="day",
-                start_date_local="2026-03-23",
-                start_time_local="09:00:00",
-            )
-        ],
+        schedules=[make_schedule()],
     )
     save_config(temp_paths, config)
     loaded = load_config(temp_paths)
@@ -212,3 +203,4 @@ def test_load_config_returns_default_when_file_missing(temp_paths) -> None:
 
     assert config.app_enabled is False
     assert config.first_run_completed is False
+
