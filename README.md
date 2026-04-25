@@ -13,7 +13,7 @@ There is no telemetry or silent upload in normal runtime.
 - Stable for personal-use iteration, with versioned releases and CI validation
 - Source-based install is the primary supported path
 - Public release posture is focused on privacy-minded Windows power users
-- Current public-release trust boundary and ship gate: `docs/implementation/RELEASE_CRITERIA_1_0.md`
+- Current trust and release posture is summarized in this README, first-run, Settings, and the product docs; archived v1 release-gate notes now live in `docs/archive/releases/common.release-readiness-criteria-v1.0.md`
 
 ## License
 
@@ -227,29 +227,31 @@ SelfSnap diag
 ## Docs layout
 
 - `docs/README.md`: documentation index
-- `docs/INSTALL_AND_UPDATE.md`: setup, install, update, reinstall, and uninstall guidance
-- `docs/CLI_REFERENCE.md`: full command-line reference
-- `docs/TROUBLESHOOTING.md`: common failures and recovery steps
-- `docs/CONFIG_REFERENCE.md`: configuration keys, schedule schema, and storage settings
-- `docs/WORKFLOWS.md`: common end-user flows through the tray and Settings UI
-- `docs/implementation/`: implementation-facing PRD, architecture, QA/privacy, validation, behavior notes, and release progress tracking
-- `docs/archive/`: historical customer baseline, starter-kit, and older release-note references
+- `docs/product/README.md`: entry point for current end-user setup, CLI, troubleshooting, config, and workflow guides
+- `docs/maintainer/README.md`: entry point for the active maintainer-facing product contract, architecture, and validation docs
+- `docs/archive/README.md`: entry point for historical customer baseline, starter-kit, release, and planning references
 
 ## Further documentation
 
 If you are using the current source checkout rather than reading historical design material, start with:
 
-- `docs/INSTALL_AND_UPDATE.md`
-- `docs/CLI_REFERENCE.md`
-- `docs/TROUBLESHOOTING.md`
-- `docs/CONFIG_REFERENCE.md`
-- `docs/WORKFLOWS.md`
+- `docs/product/README.md`
+- `docs/product/INSTALL_AND_UPDATE.md`
+- `docs/product/CLI_REFERENCE.md`
+- `docs/product/TROUBLESHOOTING.md`
+- `docs/product/CONFIG_REFERENCE.md`
+- `docs/product/WORKFLOWS.md`
+
+If you are maintaining the product rather than just using it, start with `docs/maintainer/README.md` and then use the active PRD, runtime contract, and validation checklist there.
+
+If you are tracing older decisions or release evidence, start with `docs/archive/README.md`.
 
 ## Report Issue
 
 - `Report Issue` is available from the tray menu and is the default tray action where the Windows shell supports pystray default activation.
-- The dialog asks for a short paragraph and can include only safe diagnostics such as app version, storage preset, scheduler sync state, and the latest outcome code.
+- The dialog asks for a short paragraph and can include only safe diagnostics limited to product/runtime metadata such as app version, storage preset, scheduler sync state, and the latest outcome code.
 - SelfSnap does not attach screenshots, local file paths, logs, or database contents automatically.
+- Browser mode is the only supported reporting mode.
 - SelfSnap always opens a prefilled GitHub issue page in the browser and leaves the final submission under user control.
 - No silent upload or background issue submission occurs.
 - `SELFSNAP_GITHUB_REPO` can override the default issue destination if you are working from a fork.

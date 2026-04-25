@@ -1,5 +1,9 @@
 # Project Intake Form
 
+[ARCHIVED STARTER KIT]
+This file is part of the archived starter-kit pack preserved in [README.md](README.md).
+It is reference material for reuse and extraction work, not the active SelfSnap product or maintainer contract.
+
 Fill this before you copy code.
 
 If a field is blank, the starter should assume the feature does not exist yet.

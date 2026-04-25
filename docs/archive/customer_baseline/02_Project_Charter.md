@@ -1,5 +1,9 @@
 # 02 — Project Charter
 
+[ARCHIVED BASELINE]
+This file is part of the original customer baseline pack preserved in [README.md](README.md).
+It is historical reference material and not the active product or maintainer contract.
+
 ## 1. Project information
 
 - Project name:

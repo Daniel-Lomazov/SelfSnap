@@ -1,5 +1,9 @@
 # Starter Extraction Plan
 
+[ARCHIVED STARTER KIT]
+This file is part of the archived starter-kit pack preserved in [README.md](README.md).
+It is reference material for reuse and extraction work, not the active SelfSnap product or maintainer contract.
+
 This is the practical sequence for turning the current SelfSnap codebase into a reusable tray-app starter.
 
 The plan is intentionally phased. Do not try to generalize everything at once.
