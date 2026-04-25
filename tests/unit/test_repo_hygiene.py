@@ -17,13 +17,24 @@ def test_repo_artifact_cleanup_script_targets_acl_poisoned_folders() -> None:
 
 
 def test_install_and_uninstall_scripts_support_interpreter_overrides() -> None:
+    helpers = Path("scripts/_selfsnap_script_helpers.ps1").read_text(encoding="utf-8")
     install = Path("scripts/install.ps1").read_text(encoding="utf-8")
     reinstall = Path("scripts/reinstall.ps1").read_text(encoding="utf-8")
     setup = Path("scripts/setup.ps1").read_text(encoding="utf-8")
     uninstall = Path("scripts/uninstall.ps1").read_text(encoding="utf-8")
+    build = Path("scripts/build.ps1").read_text(encoding="utf-8")
+    smoke = Path("scripts/smoke_test.ps1").read_text(encoding="utf-8")
 
+    assert "function Resolve-PythonPath" in helpers
+    assert "function Resolve-PythonwPath" in helpers
+    assert "function Get-UvCommand" in helpers
+    assert "_selfsnap_script_helpers.ps1" in install
+    assert "_selfsnap_script_helpers.ps1" in reinstall
+    assert "_selfsnap_script_helpers.ps1" in setup
+    assert "_selfsnap_script_helpers.ps1" in uninstall
+    assert "_selfsnap_script_helpers.ps1" in build
+    assert "_selfsnap_script_helpers.ps1" in smoke
     assert "PythonwExe" in install
-    assert "Resolve-PythonPath" in install
     assert "UpdateSource" in reinstall
     assert "RelaunchTray" in reinstall
     assert "git pull --ff-only" in reinstall
@@ -36,6 +47,8 @@ def test_install_and_uninstall_scripts_support_interpreter_overrides() -> None:
     assert "Stop-RunningSelfSnapTray" in uninstall
     assert "Get-InvokingTrayProcessId" in uninstall
     assert "Stop-Process -Id $process.ProcessId -Force" in uninstall
+    assert build.lstrip().startswith("param(")
+    assert "SkipInstall" in smoke
 
 
 def test_readme_documents_cleanup_workflow() -> None:

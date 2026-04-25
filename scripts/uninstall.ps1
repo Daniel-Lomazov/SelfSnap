@@ -6,33 +6,8 @@ param(
 $ErrorActionPreference = "Stop"
 $PSNativeCommandUseErrorActionPreference = $true
 
-function Assert-LastExitCode {
-    param(
-        [string]$Step
-    )
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "$Step failed with exit code $LASTEXITCODE."
-    }
-}
-
-function Get-UvCommand {
-    $uv = Get-Command uv -ErrorAction SilentlyContinue
-    if ($uv) {
-        return $uv.Source
-    }
-    throw "uv was not found on PATH, and the selected Python environment does not provide pip."
-}
-
-function Test-PipAvailable {
-    param(
-        [string]$PythonPath
-    )
-
-    $result = (& $PythonPath -c "import importlib.util; print('yes' if importlib.util.find_spec('pip') else 'no')").Trim()
-    Assert-LastExitCode "pip availability probe"
-    return $result -eq "yes"
-}
+$scriptHelpers = Join-Path $PSScriptRoot "_selfsnap_script_helpers.ps1"
+. $scriptHelpers
 
 function Test-SelfSnapInstalled {
     param(
@@ -44,14 +19,6 @@ function Test-SelfSnapInstalled {
     }
     & $PythonPath -m pip show selfsnap-win11 *> $null
     return $LASTEXITCODE -eq 0
-}
-
-function Get-ResolvedRepoRoot {
-    param(
-        [string]$RepoRoot
-    )
-
-    return (Resolve-Path $RepoRoot).Path
 }
 
 function Get-PreferredOneDriveRoot {
@@ -191,8 +158,7 @@ function Get-TrustedInstallMetadata {
         return $null
     }
 
-    $resolvedRepoRoot = Get-ResolvedRepoRoot $RepoRoot
-    if ($metaRoot -ne $resolvedRepoRoot) {
+    if ($metaRoot -ne $RepoRoot) {
         return $null
     }
 
@@ -348,7 +314,7 @@ function Get-UninstallPythonCandidates {
     return $candidates | Select-Object -Unique
 }
 
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+$repoRoot = Get-SelfSnapRepoRoot
 $appRoot = Join-Path $env:LOCALAPPDATA "SelfSnap"
 $binRoot = Join-Path $appRoot "bin"
 $metaPath = Join-Path $binRoot "install-meta.json"
@@ -370,8 +336,8 @@ $knownPythonwExe = if ($trustedMeta -and $trustedMeta.pythonw_executable) {
 else {
     ""
 }
-$invokingTrayPid = Get-InvokingTrayProcessId -RepoRoot $repoRoot.Path -PythonPath $knownPythonExe -PythonwPath $knownPythonwExe
-$stoppedTrayCount = Stop-RunningSelfSnapTray -RepoRoot $repoRoot.Path -PythonPath $knownPythonExe -PythonwPath $knownPythonwExe -ExcludeProcessIds @($invokingTrayPid)
+$invokingTrayPid = Get-InvokingTrayProcessId -RepoRoot $repoRoot -PythonPath $knownPythonExe -PythonwPath $knownPythonwExe
+$stoppedTrayCount = Stop-RunningSelfSnapTray -RepoRoot $repoRoot -PythonPath $knownPythonExe -PythonwPath $knownPythonwExe -ExcludeProcessIds @($invokingTrayPid)
 if ($stoppedTrayCount -gt 0) {
     Write-Host "Stopped $stoppedTrayCount running SelfSnap tray process(es)."
 }
@@ -406,6 +372,9 @@ foreach ($pythonCandidate in Get-UninstallPythonCandidates -RepoRoot $repoRoot -
     }
     else {
         $uvCommand = Get-UvCommand
+        if (-not $uvCommand) {
+            throw "uv was not found on PATH, and the selected Python environment does not provide pip."
+        }
         & $uvCommand pip uninstall --python $pythonCandidate selfsnap-win11
         Assert-LastExitCode "uv package uninstall"
     }

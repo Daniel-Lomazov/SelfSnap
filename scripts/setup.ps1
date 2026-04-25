@@ -6,101 +6,17 @@ param(
 
 $ErrorActionPreference = "Stop"
 $PSNativeCommandUseErrorActionPreference = $true
+$scriptHelpers = Join-Path $PSScriptRoot "_selfsnap_script_helpers.ps1"
+. $scriptHelpers
 
-function Assert-LastExitCode {
-    param(
-        [string]$Step
-    )
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "$Step failed with exit code $LASTEXITCODE."
-    }
-}
-
-function Get-UvCommand {
-    $uv = Get-Command uv -ErrorAction SilentlyContinue
-    if ($uv) {
-        return $uv.Source
-    }
-    return $null
-}
-
-function Resolve-RequestedPython {
-    param(
-        [string]$Requested
-    )
-
-    if (-not $Requested) {
-        return $null
-    }
-
-    $resolved = (& $Requested -c "import sys; print(sys.executable)").Trim()
-    Assert-LastExitCode "python path resolution"
-
-    if (-not $resolved) {
-        throw "Could not resolve the requested Python executable."
-    }
-
-    return $resolved
-}
-
-function Resolve-UvManagedPython {
-    param(
-        [string]$UvCommand
-    )
-
-    if (-not $UvCommand) {
-        return $null
-    }
-
-    foreach ($version in @("3.12", "3.11")) {
-        $pythonPath = (& $UvCommand python find $version --offline 2>$null).Trim()
-        if ($LASTEXITCODE -eq 0 -and $pythonPath) {
-            return $pythonPath
-        }
-    }
-
-    return $null
-}
-
-function Resolve-DefaultPython {
-    $candidates = @(
-        @("python"),
-        @("python3"),
-        @("py", "-3.12"),
-        @("py", "-3.11"),
-        @("py")
-    )
-
-    foreach ($candidate in $candidates) {
-        $commandName = $candidate[0]
-        if (-not (Get-Command $commandName -ErrorAction SilentlyContinue)) {
-            continue
-        }
-
-        try {
-            $candidateArgs = if ($candidate.Length -gt 1) { $candidate[1..($candidate.Length - 1)] } else { @() }
-            $resolved = (& $commandName @candidateArgs -c "import sys; print(sys.executable)" 2>$null).Trim()
-            if ($LASTEXITCODE -eq 0 -and $resolved) {
-                return $resolved
-            }
-        }
-        catch {
-            continue
-        }
-    }
-
-    return $null
-}
-
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$venvFullPath = Join-Path $repoRoot.Path $VenvPath
-$uvCachePath = Join-Path $repoRoot.Path ".uv-cache"
+$repoRoot = Get-SelfSnapRepoRoot
+$venvFullPath = Join-Path $repoRoot $VenvPath
+$uvCachePath = Join-Path $repoRoot ".uv-cache"
 $uvCommand = Get-UvCommand
-$selectedPython = Resolve-RequestedPython $PythonPreference
+$selectedPython = Resolve-RequestedPython -Requested $PythonPreference
 
 if (-not $selectedPython) {
-    $selectedPython = Resolve-UvManagedPython $uvCommand
+    $selectedPython = Resolve-UvManagedPython -UvCommand $uvCommand
 }
 
 if (-not $selectedPython) {

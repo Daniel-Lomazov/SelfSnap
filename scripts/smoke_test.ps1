@@ -1,28 +1,34 @@
 param(
-    [string]$PythonExe = "python"
+    [string]$PythonExe = "",
+    [string]$PythonwExe = "",
+    [switch]$SkipInstall
 )
 
 $ErrorActionPreference = "Stop"
 $PSNativeCommandUseErrorActionPreference = $true
+$scriptHelpers = Join-Path $PSScriptRoot "_selfsnap_script_helpers.ps1"
+. $scriptHelpers
 
-function Assert-LastExitCode {
-    param(
-        [string]$Step
-    )
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "$Step failed with exit code $LASTEXITCODE."
-    }
-}
-
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+$repoRoot = Get-SelfSnapRepoRoot
+$pythonFullPath = Resolve-PythonPath -PythonPreference $PythonExe -RepoRoot $repoRoot
 $wrapperPath = Join-Path $env:LOCALAPPDATA "SelfSnap\bin\SelfSnap.cmd"
 
 Push-Location $repoRoot
 
-Write-Host "Installing source-based wrapper..."
-& (Join-Path $PSScriptRoot "install.ps1") -PythonExe $PythonExe
-Assert-LastExitCode "install"
+if (-not $SkipInstall) {
+    $installArgs = @("-PythonExe", $pythonFullPath)
+    if ($PythonwExe) {
+        $pythonwFullPath = Resolve-PythonwPath -PythonPath $pythonFullPath -ExplicitPythonw $PythonwExe
+        $installArgs += @("-PythonwExe", $pythonwFullPath)
+    }
+
+    Write-Host "Installing source-based wrapper..."
+    Invoke-SelfSnapPowerShellScript -ScriptPath (Join-Path $PSScriptRoot "install.ps1") -ArgumentList $installArgs -WorkingDirectory $repoRoot
+    Assert-LastExitCode "install"
+}
+elseif (-not (Test-Path $wrapperPath)) {
+    throw "Wrapper not found at $wrapperPath. Run scripts/install.ps1 first or omit -SkipInstall."
+}
 
 Write-Host "Running diagnostics through wrapper..."
 & $wrapperPath diag

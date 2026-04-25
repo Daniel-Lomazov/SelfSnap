@@ -1,137 +1,14 @@
 param(
-    [string]$PythonExe = "python",
+    [string]$PythonExe = "",
     [string]$PythonwExe = ""
 )
 
 $ErrorActionPreference = "Stop"
 $PSNativeCommandUseErrorActionPreference = $true
+$scriptHelpers = Join-Path $PSScriptRoot "_selfsnap_script_helpers.ps1"
+. $scriptHelpers
 
-function Assert-LastExitCode {
-    param(
-        [string]$Step
-    )
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "$Step failed with exit code $LASTEXITCODE."
-    }
-}
-
-function Get-UvCommand {
-    $uv = Get-Command uv -ErrorAction SilentlyContinue
-    if ($uv) {
-        return $uv.Source
-    }
-    throw "uv was not found on PATH, and the selected Python environment does not provide pip."
-}
-
-function Test-PipAvailable {
-    param(
-        [string]$PythonPath
-    )
-
-    $result = (& $PythonPath -c "import importlib.util; print('yes' if importlib.util.find_spec('pip') else 'no')").Trim()
-    Assert-LastExitCode "pip availability probe"
-    return $result -eq "yes"
-}
-
-function Resolve-PythonwPath {
-    param(
-        [string]$PythonPath,
-        [string]$ExplicitPythonw
-    )
-
-    if ($ExplicitPythonw) {
-        $candidate = $null
-        $pythonwCommand = Get-Command $ExplicitPythonw -ErrorAction SilentlyContinue
-        if ($pythonwCommand -and $pythonwCommand.Source) {
-            $candidate = $pythonwCommand.Source
-        }
-        elseif (Test-Path $ExplicitPythonw) {
-            $candidate = (Resolve-Path $ExplicitPythonw).Path
-        }
-        if (-not $candidate) {
-            throw "Explicit pythonw executable '$ExplicitPythonw' was not found. Pass a full path or a command available on PATH."
-        }
-        if ([System.IO.Path]::GetFileName($candidate).ToLowerInvariant() -ne "pythonw.exe") {
-            throw "The explicit -PythonwExe value must resolve to pythonw.exe, got: $candidate"
-        }
-        return $candidate
-    }
-
-    # Same directory as python.exe (standard layout)
-    $candidate = Join-Path (Split-Path -Parent $PythonPath) "pythonw.exe"
-    if (Test-Path $candidate) {
-        return (Resolve-Path $candidate).Path
-    }
-
-    # For .venv, pythonw.exe lives in the base Python install (e.g. uv-managed or system)
-    $basePrefix = (& $PythonPath -c "import sys; print(sys.base_prefix)").Trim()
-    if ($basePrefix) {
-        $candidate = Join-Path $basePrefix "pythonw.exe"
-        if (Test-Path $candidate) {
-            return (Resolve-Path $candidate).Path
-        }
-    }
-
-    $pythonwCommand = Get-Command pythonw -ErrorAction SilentlyContinue
-    if ($pythonwCommand -and $pythonwCommand.Source -and (Test-Path $pythonwCommand.Source)) {
-        $src = $pythonwCommand.Source
-        if ([System.IO.Path]::GetFileName($src).ToLowerInvariant() -eq "pythonw.exe") {
-            return $src
-        }
-    }
-
-    throw "pythonw.exe was not found next to the selected Python interpreter. Pass -PythonwExe with an explicit pythonw path if your environment layout is nonstandard."
-}
-
-function Resolve-PythonPath {
-    param(
-        [string]$PythonPreference,
-        [string]$RepoRoot
-    )
-
-    if ($PythonPreference) {
-        if (Test-Path $PythonPreference) {
-            return (Resolve-Path $PythonPreference).Path
-        }
-        $resolved = (& $PythonPreference -c "import sys; print(sys.executable)").Trim()
-        Assert-LastExitCode "python path resolution"
-        if ($resolved) {
-            return $resolved
-        }
-    }
-
-    # Prefer the repo .venv when no explicit preference is given
-    if ($RepoRoot) {
-        $venvPython = Join-Path $RepoRoot ".venv\Scripts\python.exe"
-        if (Test-Path $venvPython) {
-            Write-Host "Using repo .venv Python: $venvPython"
-            return (Resolve-Path $venvPython).Path
-        }
-    }
-
-    $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
-    if ($pythonCommand -and $pythonCommand.Source) {
-        $resolved = (& $pythonCommand.Source -c "import sys; print(sys.executable)").Trim()
-        Assert-LastExitCode "python path resolution"
-        if ($resolved) {
-            return $resolved
-        }
-    }
-
-    $pyCommand = Get-Command py -ErrorAction SilentlyContinue
-    if ($pyCommand -and $pyCommand.Source) {
-        $resolved = (& $pyCommand.Source -3 -c "import sys; print(sys.executable)").Trim()
-        Assert-LastExitCode "py launcher path resolution"
-        if ($resolved) {
-            return $resolved
-        }
-    }
-
-    throw "Could not resolve a usable Python executable. Pass -PythonExe with a full path to the intended interpreter."
-}
-
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+$repoRoot = Get-SelfSnapRepoRoot
 $appRoot = Join-Path $env:LOCALAPPDATA "SelfSnap"
 $binRoot = Join-Path $appRoot "bin"
 $wrapperPath = Join-Path $binRoot "SelfSnap.cmd"
@@ -144,12 +21,17 @@ $pythonwPath = Resolve-PythonwPath -PythonPath $pythonFullPath -ExplicitPythonw 
 
 Push-Location $repoRoot
 
+Write-Host "Installing SelfSnap from source for the current user..."
+
 if (Test-PipAvailable $pythonFullPath) {
     & $pythonFullPath -m pip install -e $repoRoot
     Assert-LastExitCode "pip install"
 }
 else {
     $uvCommand = Get-UvCommand
+    if (-not $uvCommand) {
+        throw "uv was not found on PATH, and the selected Python environment does not provide pip."
+    }
     & $uvCommand pip install --python $pythonFullPath -e $repoRoot
     Assert-LastExitCode "uv pip install"
 }
@@ -171,12 +53,15 @@ if ($userPath -notlike "*$binRoot*") {
     $env:PATH = "$env:PATH;$binRoot"
     Write-Host "Added $binRoot to user PATH."
 }
+else {
+    Write-Host "$binRoot is already present on user PATH."
+}
 
 @{
     metadata_version = 1
     python_executable = $pythonFullPath
     pythonw_executable = $pythonwPath
-    repo_root = $repoRoot.Path
+    repo_root = $repoRoot
     installed_at_utc = [DateTime]::UtcNow.ToString("o")
 } | ConvertTo-Json | Set-Content -Path $metaPath -Encoding UTF8
 
@@ -191,7 +76,7 @@ if ($startupEligibility -eq "true") {
     $shortcut = $shell.CreateShortcut($shortcutPath)
     $shortcut.TargetPath = $pythonwPath
     $shortcut.Arguments = "-m selfsnap tray"
-    $shortcut.WorkingDirectory = $repoRoot.Path
+    $shortcut.WorkingDirectory = $repoRoot
     $shortcut.Save()
 } elseif (Test-Path $shortcutPath) {
     Remove-Item $shortcutPath -Force
