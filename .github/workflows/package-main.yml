@@ -1,0 +1,54 @@
+name: Windows Packages
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: "Git ref to package"
+        required: false
+        default: "main"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-packages-${{ github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main'
+      )
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.git_ref || github.event.workflow_run.head_sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Set up repository-local virtual environment
+        run: .\scripts\user\setup.ps1 -PythonPreference "$env:pythonLocation\python.exe"
+      - name: Build Windows distribution artifacts
+        run: .\scripts\developer\package_windows.ps1 -PythonExe ".\.venv\Scripts\python.exe"
+      - name: Upload Windows distribution artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: selfsnap-windows-${{ github.run_number }}
+          path: |
+            artifacts/windows/*.zip
+            artifacts/windows/*.msi
+            artifacts/windows/*-setup.exe
+          if-no-files-found: error
+          retention-days: 30

@@ -20,6 +20,20 @@ jobs:
       - name: Compile smoke test
         run: .\.venv\Scripts\python.exe -m compileall src tests
 
+  quality:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Set up repository-local virtual environment
+        run: .\scripts\user\setup.ps1 -PythonPreference "$env:pythonLocation\python.exe"
+      - name: Ruff
+        run: .\.venv\Scripts\python.exe -m ruff check .
+      - name: MyPy
+        run: .\.venv\Scripts\python.exe -m mypy src
+
   test:
     runs-on: windows-latest
     strategy:
