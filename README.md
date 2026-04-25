@@ -75,6 +75,9 @@ SelfSnap diag
 SelfSnap reinstall
 ```
 
+If SelfSnap is already installed, `SelfSnap reinstall` is the fastest refresh path.
+Or from the tray menu: **Reinstall**.
+
 ### Common commands from source
 
 ```powershell
@@ -100,6 +103,17 @@ The top-level README stays compact on purpose. The detailed operational and refe
 - [docs/developer/README.md](docs/developer/README.md): active product, architecture, and validation contract
 - [docs/archive/README.md](docs/archive/README.md): archived historical and release material
 - [scripts/README.md](scripts/README.md), [scripts/user/README.md](scripts/user/README.md), and [scripts/developer/README.md](scripts/developer/README.md): script entrypoint indexes
+
+## How to add scheduled captures
+
+Use [docs/user/WORKFLOWS.md](docs/user/WORKFLOWS.md) for the full step-by-step flow. The compact summary here keeps the top-level README aligned with the current scheduling contract.
+
+- Supported formats are `Every N seconds/minutes/hours/days/weeks/months/years`.
+- New schedules start from `Every 1 day`, `start date = today`, and `start time = now` in local time.
+- You can type the date and time by hand if you want a custom anchor.
+- Multi-select is for deleting several schedules at once.
+- High-frequency schedules such as `seconds` and `minutes` are tray-managed while the tray is running.
+- Coarser schedules such as `hours`, `days`, `weeks`, `months`, and `years` are Windows Task Scheduler-backed.
 
 ## Development, validation, and cleanup
 
