@@ -36,6 +36,7 @@ What `scripts/user/setup.ps1` does:
 
 If `uv venv --clear` cannot remove `.venv\Scripts` because another process is holding files there, the setup script retries in place with `--allow-existing` before it gives up.
 It also stops known background tool executables from `.venv\Scripts` such as `ruff.exe` before retrying recreation or installing packages.
+If a tool respawns and relocks `.venv\Scripts` during the dev-extras install, setup retries that pass after stopping the locking process again.
 If a locked developer tool still prevents a full dev-refresh pass, the script keeps the runtime environment usable, warns you, and tells you to rerun setup after closing the locking tool.
 
 The script prints the `.venv` path and the interpreter it selected.

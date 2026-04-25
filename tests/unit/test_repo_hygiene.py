@@ -50,6 +50,8 @@ def test_install_and_uninstall_scripts_support_interpreter_overrides() -> None:
     assert "pip install --python $venvPython" in setup
     assert "uv runtime install" in setup
     assert "uv dev install" in setup
+    assert "before development extras attempt $attempt" in setup
+    assert "Development extras install attempt $attempt failed" in setup
     assert "Runtime setup succeeded, but development extras could not be fully refreshed" in setup
     assert "currently active in this shell" in setup
     assert "appear to be locked" in setup

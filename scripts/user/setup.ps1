@@ -184,18 +184,39 @@ try {
         Assert-LastExitCode "uv runtime install"
 
         if (-not $NoDev) {
-            try {
-                & $uvCommand pip install --python $venvPython -e ".${extras}"
-                Assert-LastExitCode "uv dev install"
-            }
-            catch {
-                $devExtrasDeferred = $true
-                Write-Warning (
-                    "Runtime setup succeeded, but development extras could not be fully refreshed because a tool " +
-                    "executable under '$venvScriptsPath' is still locked. Close editor tooling such as ruff.exe " +
-                    "and rerun scripts/user/setup.ps1 if you need the full dev toolchain, or use -NoDev when " +
-                    "you only need the runtime environment."
-                )
+            for ($attempt = 1; $attempt -le 3; $attempt++) {
+                $stoppedToolProcesses = Stop-LockingVenvToolProcesses -ScriptsPath $venvScriptsPath
+                if ($stoppedToolProcesses.Count -gt 0) {
+                    Write-Warning (
+                        "Stopped $($stoppedToolProcesses.Count) background tool process(es) from '$venvScriptsPath' " +
+                        "before development extras attempt $attempt."
+                    )
+                }
+
+                try {
+                    & $uvCommand pip install --python $venvPython -e ".${extras}"
+                    Assert-LastExitCode "uv dev install"
+                    break
+                }
+                catch {
+                    if ($attempt -lt 3) {
+                        Write-Warning (
+                            "Development extras install attempt $attempt failed because a tool executable under " +
+                            "'$venvScriptsPath' appears to be locked. Retrying after stopping background tool " +
+                            "processes."
+                        )
+                        Start-Sleep -Milliseconds 500
+                        continue
+                    }
+
+                    $devExtrasDeferred = $true
+                    Write-Warning (
+                        "Runtime setup succeeded, but development extras could not be fully refreshed because a tool " +
+                        "executable under '$venvScriptsPath' is still locked. Close editor tooling such as ruff.exe " +
+                        "and rerun scripts/user/setup.ps1 if you need the full dev toolchain, or use -NoDev when " +
+                        "you only need the runtime environment."
+                    )
+                }
             }
         }
     }
