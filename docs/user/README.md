@@ -1,9 +1,9 @@
-# SelfSnap Product Docs
+# SelfSnap User Docs
 
 This folder contains the current end-user documentation set for SelfSnap.
 Use these docs when installing, configuring, running, and troubleshooting the app.
 
-If you need active maintainer-facing contract docs or historical reference material, start with [../README.md](../README.md).
+If you need active developer-facing contract docs or historical reference material, start with [../README.md](../README.md).
 
 ## Start Here
 
@@ -22,6 +22,6 @@ If you need active maintainer-facing contract docs or historical reference mater
 
 ## What This Folder Is Not
 
-This folder is not the historical archive and not the maintainer contract.
-For maintained product/runtime contracts, use [../maintainer/README.md](../maintainer/README.md).
+This folder is not the historical archive and not the developer contract.
+For maintained product/runtime contracts, use [../developer/README.md](../developer/README.md).
 For retired release notes or historical planning material, use [../archive/README.md](../archive/README.md).

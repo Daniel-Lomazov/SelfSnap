@@ -1,42 +1,42 @@
 # Documentation Layout
 
-Use this index to distinguish current product docs, current maintainer docs, and historical reference material.
+Use this index to distinguish current user docs, current developer docs, and historical reference material.
 
 ## Start Here
 
 - Top-level `README.md` for end-user-facing product overview, install flow, commands, and release posture.
 - Top-level `CHANGELOG.md` for the technical release history.
-- `product/README.md` for the current end-user docs index.
-- `maintainer/README.md` for the active maintainer contract and validation docs index.
+- `user/README.md` for the current user docs index.
+- `developer/README.md` for the active developer contract and validation docs index.
 - `archive/README.md` for historical reference packs and retired release material.
-- `product/INSTALL_AND_UPDATE.md` for setup, install, update, reinstall, and uninstall guidance.
-- `product/CLI_REFERENCE.md` for the current command-line surface.
-- `product/TROUBLESHOOTING.md` for recovery steps and diagnostics.
-- `product/CONFIG_REFERENCE.md` for config keys and schedule schema.
-- `product/WORKFLOWS.md` for common user flows.
-- `maintainer/product-requirements-document-v1.md`, `maintainer/software-requirements-specification-and-architecture-v1.md`, and `maintainer/validation-checklist.md` for the active maintainer contract and release-validation surface.
+- `user/INSTALL_AND_UPDATE.md` for setup, install, update, reinstall, and uninstall guidance.
+- `user/CLI_REFERENCE.md` for the current command-line surface.
+- `user/TROUBLESHOOTING.md` for recovery steps and diagnostics.
+- `user/CONFIG_REFERENCE.md` for config keys and schedule schema.
+- `user/WORKFLOWS.md` for common user flows.
+- `developer/product-requirements-document-v1.md`, `developer/software-requirements-specification-and-architecture-v1.md`, and `developer/validation-checklist.md` for the active developer contract and release-validation surface.
 
-## Current Product Docs
+## Current User Docs
 
 These are the docs a user should be able to follow without reading source.
-They now live under `product/`.
+They now live under `user/`.
 
-- `product/README.md`
-- `product/INSTALL_AND_UPDATE.md`
-- `product/CLI_REFERENCE.md`
-- `product/TROUBLESHOOTING.md`
-- `product/CONFIG_REFERENCE.md`
-- `product/WORKFLOWS.md`
+- `user/README.md`
+- `user/INSTALL_AND_UPDATE.md`
+- `user/CLI_REFERENCE.md`
+- `user/TROUBLESHOOTING.md`
+- `user/CONFIG_REFERENCE.md`
+- `user/WORKFLOWS.md`
 
-## Current Maintainer Docs
+## Current Developer Docs
 
-These are active maintainer-facing contract and validation docs for the current repo state.
+These are active developer-facing contract and validation docs for the current repo state.
 They are not the stable end-user documentation set.
 
-- `maintainer/README.md`
-- `maintainer/product-requirements-document-v1.md`
-- `maintainer/software-requirements-specification-and-architecture-v1.md`
-- `maintainer/validation-checklist.md`
+- `developer/README.md`
+- `developer/product-requirements-document-v1.md`
+- `developer/software-requirements-specification-and-architecture-v1.md`
+- `developer/validation-checklist.md`
 
 ## Historical Release Rollout Notes
 

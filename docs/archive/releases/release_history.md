@@ -27,24 +27,24 @@ Complete the documentation overhaul for the v1.1.0 UI/runtime refresh before the
 
 ### Completed Deliverables
 
-- Public docs:
-  - `docs/product/INSTALL_AND_UPDATE.md`
-  - `docs/product/CLI_REFERENCE.md`
-  - `docs/product/TROUBLESHOOTING.md`
-  - `docs/product/CONFIG_REFERENCE.md`
-  - `docs/product/WORKFLOWS.md`
-- Maintainer contract docs retained:
-  - `docs/maintainer/product-requirements-document-v1.md`
-  - `docs/maintainer/software-requirements-specification-and-architecture-v1.md`
+- User docs:
+  - `docs/user/INSTALL_AND_UPDATE.md`
+  - `docs/user/CLI_REFERENCE.md`
+  - `docs/user/TROUBLESHOOTING.md`
+  - `docs/user/CONFIG_REFERENCE.md`
+  - `docs/user/WORKFLOWS.md`
+- Developer docs retained:
+  - `docs/developer/product-requirements-document-v1.md`
+  - `docs/developer/software-requirements-specification-and-architecture-v1.md`
   - `docs/archive/releases/common.release-readiness-criteria-v1.0.md`
   - `docs/archive/releases/qa.quality-assurance-and-privacy-notes-v1.md`
-  - `docs/maintainer/validation-checklist.md`
-  - issue-reporting privacy-boundary guidance, later folded into `README.md` and `docs/product/TROUBLESHOOTING.md`
+  - `docs/developer/validation-checklist.md`
+  - issue-reporting privacy-boundary guidance, later folded into `README.md` and `docs/user/TROUBLESHOOTING.md`
 - New internal behavior docs:
   - `docs/archive/releases/guide.user-interface-patterns-and-responsive-layout-guidance.md`
   - `docs/archive/releases/guide.tray-menu-information-architecture-and-evolution.md`
   - `docs/archive/releases/policy.local-python-interpreter-enforcement-policy.md`
-  - settings state-sync regression guidance, later folded into `docs/maintainer/software-requirements-specification-and-architecture-v1.md` and `docs/maintainer/validation-checklist.md`
+  - settings state-sync regression guidance, later folded into `docs/developer/software-requirements-specification-and-architecture-v1.md` and `docs/developer/validation-checklist.md`
   - `docs/archive/releases/qa.scheduler-and-daylight-saving-time-edge-cases.md`
 
 ### Release Outcome
@@ -64,7 +64,7 @@ Before the `v1.1.0` release, the following UI/runtime documentation checks had t
 
 ## v1.0.0 Validation Evidence - 2026-03-29
 
-This section preserves the dated execution evidence that used to live at the bottom of `docs/maintainer/validation-checklist.md`.
+This section preserves the dated execution evidence that used to live at the bottom of `docs/developer/validation-checklist.md`.
 
 ### Environment Snapshot
 

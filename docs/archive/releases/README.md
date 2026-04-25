@@ -13,9 +13,9 @@ Use this folder when you need to:
 - compare older release gates against the current maintained docs.
 
 If you need the current maintained contract instead of archived release material, start with:
-- [../../maintainer/product-requirements-document-v1.md](../../maintainer/product-requirements-document-v1.md)
-- [../../maintainer/software-requirements-specification-and-architecture-v1.md](../../maintainer/software-requirements-specification-and-architecture-v1.md)
-- [../../maintainer/validation-checklist.md](../../maintainer/validation-checklist.md)
+- [../../developer/product-requirements-document-v1.md](../../developer/product-requirements-document-v1.md)
+- [../../developer/software-requirements-specification-and-architecture-v1.md](../../developer/software-requirements-specification-and-architecture-v1.md)
+- [../../developer/validation-checklist.md](../../developer/validation-checklist.md)
 
 ## Contents By Role
 

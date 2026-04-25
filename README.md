@@ -227,22 +227,22 @@ SelfSnap diag
 ## Docs layout
 
 - `docs/README.md`: documentation index
-- `docs/product/README.md`: entry point for current end-user setup, CLI, troubleshooting, config, and workflow guides
-- `docs/maintainer/README.md`: entry point for the active maintainer-facing product contract, architecture, and validation docs
+- `docs/user/README.md`: entry point for current user-facing setup, CLI, troubleshooting, config, and workflow guides
+- `docs/developer/README.md`: entry point for the active developer-facing product contract, architecture, and validation docs
 - `docs/archive/README.md`: entry point for historical customer baseline, starter-kit, release, and planning references
 
 ## Further documentation
 
 If you are using the current source checkout rather than reading historical design material, start with:
 
-- `docs/product/README.md`
-- `docs/product/INSTALL_AND_UPDATE.md`
-- `docs/product/CLI_REFERENCE.md`
-- `docs/product/TROUBLESHOOTING.md`
-- `docs/product/CONFIG_REFERENCE.md`
-- `docs/product/WORKFLOWS.md`
+- `docs/user/README.md`
+- `docs/user/INSTALL_AND_UPDATE.md`
+- `docs/user/CLI_REFERENCE.md`
+- `docs/user/TROUBLESHOOTING.md`
+- `docs/user/CONFIG_REFERENCE.md`
+- `docs/user/WORKFLOWS.md`
 
-If you are maintaining the product rather than just using it, start with `docs/maintainer/README.md` and then use the active PRD, runtime contract, and validation checklist there.
+If you are maintaining the product rather than just using it, start with `docs/developer/README.md` and then use the active PRD, runtime contract, and validation checklist there.
 
 If you are tracing older decisions or release evidence, start with `docs/archive/README.md`.
 
@@ -303,7 +303,7 @@ Schedule timing rules:
 
 ## Config reference
 
-See [docs/product/config.example.json](docs/product/config.example.json) for the full schema.
+See [docs/user/config.example.json](docs/user/config.example.json) for the full schema.
 
 Important fields:
 

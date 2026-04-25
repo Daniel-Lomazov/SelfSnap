@@ -33,11 +33,11 @@ SelfSnap `v1.0.0` is now published. This document intentionally preserves the pr
 ## Evidence anchors
 
 - Public contract: `README.md`
-- Implementation notes: `docs/maintainer/product-requirements-document-v1.md`
-- Runtime notes: `docs/maintainer/software-requirements-specification-and-architecture-v1.md`
+- Implementation notes: `docs/developer/product-requirements-document-v1.md`
+- Runtime notes: `docs/developer/software-requirements-specification-and-architecture-v1.md`
 - Trust and privacy posture: `docs/archive/releases/qa.quality-assurance-and-privacy-notes-v1.md`
 - Ship gate notes: `docs/archive/releases/common.release-readiness-criteria-v1.0.md`
-- Validation surface: `docs/maintainer/validation-checklist.md`
+- Validation surface: `docs/developer/validation-checklist.md`
 - Runtime trust messaging: `src/selfsnap/tray/first_run.py`, `src/selfsnap/tray/settings_window.py`, `src/selfsnap/ui_labels.py`
 - CI baseline: `.github/workflows/ci.yml`
 

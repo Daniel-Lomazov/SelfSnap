@@ -18,7 +18,8 @@ def test_readme_describes_recurring_schedule_setup() -> None:
 
     assert f"Current version: `v{version}`" in readme
     assert "CHANGELOG.md" in readme
-    assert "RELEASE_CRITERIA_1_0.md" in readme
+    assert "docs/user/README.md" in readme
+    assert "docs/developer/README.md" in readme
     assert "High-frequency schedules such as `seconds` and `minutes` are tray-managed" in readme
     assert "Windows Task Scheduler" in readme
     assert "How to add scheduled captures" in readme
@@ -33,8 +34,8 @@ def test_readme_describes_recurring_schedule_setup() -> None:
     assert "Task Scheduler-backed" in readme
 
 
-def test_product_config_example_uses_recurring_schedule_schema() -> None:
-    config = json.loads(Path("docs/product/config.example.json").read_text(encoding="utf-8"))
+def test_user_config_example_uses_recurring_schedule_schema() -> None:
+    config = json.loads(Path("docs/user/config.example.json").read_text(encoding="utf-8"))
 
     assert config["schema_version"] == 3
     assert config["schedules"][0]["interval_value"] == 1
@@ -56,8 +57,8 @@ def test_version_files_are_aligned() -> None:
     assert f"## v{version}" in changelog
 
 
-def test_product_release_notes_exist_for_v0_8_0() -> None:
-    release_notes = Path("docs/archive/releases/v0.8.0.md").read_text(encoding="utf-8")
+def test_release_history_preserves_v0_8_0_notes() -> None:
+    release_notes = Path("docs/archive/releases/release_history.md").read_text(encoding="utf-8")
 
     assert "Every N seconds" in release_notes
     assert "minutes" in release_notes
@@ -66,11 +67,8 @@ def test_product_release_notes_exist_for_v0_8_0() -> None:
     assert "weeks" in release_notes
     assert "months" in release_notes
     assert "years" in release_notes
-    assert "Every 1 day" in release_notes
-    assert "start date = today" in release_notes
-    assert "start time = now" in release_notes
-    assert "tray while the tray is running" in release_notes
-    assert "Windows Task Scheduler" in release_notes
+    assert "anchored to a specific start date and start time" in release_notes
+    assert "require the tray to be running in the logged-in session" in release_notes
     assert "skip invalid dates" in release_notes
 
 
@@ -84,19 +82,21 @@ def test_release_workflow_prefers_release_notes_doc() -> None:
 
 
 def test_release_criteria_doc_describes_public_1_0_contract() -> None:
-    criteria = Path("docs/implementation/RELEASE_CRITERIA_1_0.md").read_text(encoding="utf-8")
+    criteria = Path("docs/archive/releases/common.release-readiness-criteria-v1.0.md").read_text(
+        encoding="utf-8"
+    )
     docs_index = Path("docs/README.md").read_text(encoding="utf-8")
 
     assert "public release" in criteria
     assert "No telemetry" in criteria
     assert "No cloud sync" in criteria
-    assert "does not encrypt captures at rest" in criteria
+    assert "No encryption at rest" in criteria
     assert "Go / no-go gate" in criteria
-    assert "RELEASE_CRITERIA_1_0.md" in docs_index
+    assert "common.release-readiness-criteria-v1.0.md" in docs_index
 
 
 def test_baseline_benchmark_doc_tracks_current_1_0_starting_point() -> None:
-    benchmark = Path("docs/archive/implementation_legacy/BENCHMARK_1_0_BASELINE.md").read_text(
+    benchmark = Path("docs/archive/v1_0_planning_baseline/BENCHMARK_1_0_BASELINE.md").read_text(
         encoding="utf-8"
     )
     docs_index = Path("docs/README.md").read_text(encoding="utf-8")
@@ -106,5 +106,5 @@ def test_baseline_benchmark_doc_tracks_current_1_0_starting_point() -> None:
     assert "Windows 11-only" in benchmark
     assert "source-based install" in benchmark
     assert "Scheduler correctness at DST and timezone boundaries" in benchmark
-    assert "archive/implementation_legacy/BENCHMARK_1_0_BASELINE.md" in docs_index
+    assert "archive/v1_0_planning_baseline/BENCHMARK_1_0_BASELINE.md" in docs_index
     assert "Or from the tray menu: **Reinstall**." in readme

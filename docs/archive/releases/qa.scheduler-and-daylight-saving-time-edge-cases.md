@@ -34,6 +34,6 @@ This QA note captures the scheduler edge cases and validation strategy that matt
 ## Related files
 
 - `docs/archive/releases/common.release-readiness-criteria-v1.0.md`
-- `docs/maintainer/validation-checklist.md`
+- `docs/developer/validation-checklist.md`
 - `tests/unit/test_recurrence.py`
 - `tests/unit/test_recurrence_hypothesis.py`

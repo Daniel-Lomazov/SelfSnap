@@ -25,14 +25,14 @@ Recommendation: GitHub-tagged release with a source archive (.zip) and CHANGELOG
 
 Evidence:
 - `src/selfsnap/update_checker.py` calls `fetch_latest_release_tag()`. Without a GitHub Release with `tag_name`, update checks are inert.
-- `docs/maintainer/validation-checklist.md` requires testing tray "Check for Updates" against a newer tagged release.
+- `docs/developer/validation-checklist.md` requires testing tray "Check for Updates" against a newer tagged release.
 - `scripts/install.ps1` already handles source install complexity for the intended audience.
 
 Caveats: A compiled installer adds scope and trust work (signing, packaging, Defender false-positive handling) not warranted for this 1.0.
 
 ### Q3 - Validation gate rigor: Does gate #6 hard-block the release?
 
-Recommendation: Yes, gate #6 blocks ship. Passing means full checklist execution on real Windows 11 hardware with date, machine model, and exception notes recorded in `docs/maintainer/validation-checklist.md`.
+Recommendation: Yes, gate #6 blocks ship. Passing means full checklist execution on real Windows 11 hardware with date, machine model, and exception notes recorded in `docs/developer/validation-checklist.md`.
 
 Evidence:
 - Checklist scenarios are hardware-dependent and not CI-coverable: mixed monitors, DPI, sleep/resume, Task Scheduler behavior.
@@ -80,7 +80,7 @@ Recommendation: Keep current in-tray check flow for 1.0. No auto-download or aut
 
 Evidence:
 - `src/selfsnap/update_checker.py` implements release fetch and version comparison.
-- `docs/maintainer/validation-checklist.md` includes update-path validation.
+- `docs/developer/validation-checklist.md` includes update-path validation.
 - `CHANGELOG.md` v0.9.4 documents git-based update behavior.
 
 Caveats: Users with non-git source archives may need manual refresh steps.
@@ -106,7 +106,7 @@ Caveats: Dedicated long-form docs can be post-1.0.
 Recommendation: No feature cuts. Keep current shipped scope and explicitly verify Recent Captures and Statistics windows before tag.
 
 Evidence:
-- `docs/maintainer/product-requirements-document-v1.md` lists both as shipped scope additions.
+- `docs/developer/product-requirements-document-v1.md` lists both as shipped scope additions.
 - Automated UI coverage for those windows is limited; hardware validation must confirm runtime behavior.
 
 Caveats: Minimal-but-functional behavior is acceptable for 1.0.
@@ -135,8 +135,8 @@ Caveats: Spot-check critical modules for local weak coverage pockets even if agg
 
 ## Part 3 - Scope Lock Statement
 
-Locked IN: Everything in `docs/archive/releases/common.release-readiness-criteria-v1.0.md` Supported 1.0 contract and `docs/maintainer/product-requirements-document-v1.md` Must-have and Current maintained scope notes.
+Locked IN: Everything in `docs/archive/releases/common.release-readiness-criteria-v1.0.md` Supported 1.0 contract and `docs/developer/product-requirements-document-v1.md` Must-have and Current maintained scope notes.
 
-Locked OUT: Everything in `docs/maintainer/product-requirements-document-v1.md` Deferred and `docs/archive/releases/common.release-readiness-criteria-v1.0.md` Out of scope.
+Locked OUT: Everything in `docs/developer/product-requirements-document-v1.md` Deferred and `docs/archive/releases/common.release-readiness-criteria-v1.0.md` Out of scope.
 
 No new scope after this document is committed. Any scope change requires explicit decision-record update with rationale and impact statement.

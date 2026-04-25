@@ -1,6 +1,6 @@
-# SelfSnap Maintainer Docs
+# SelfSnap Developer Docs
 
-This folder contains the active maintainer-facing contract and validation docs for the current repo state.
+This folder contains the active developer-facing contract and validation docs for the current repo state.
 Use these docs when changing product behavior, validating releases, or checking whether the implementation still matches the intended runtime and trust boundary.
 
 These files are not the stable end-user starting point and they are not archived historical material.
@@ -20,5 +20,5 @@ For the full docs map, start with [../README.md](../README.md).
 
 ## Related Docs
 
-- For current end-user docs, use [../product/README.md](../product/README.md).
+- For current user docs, use [../user/README.md](../user/README.md).
 - For archived release notes, baseline packs, and superseded planning material, use [../archive/README.md](../archive/README.md).

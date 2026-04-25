@@ -13,9 +13,9 @@ Use this folder when you need to:
 - trace the planning logic behind the original release scope and validation priorities.
 
 If you need the current maintained contract instead of the historical `1.0` baseline, start with:
-- [../../maintainer/product-requirements-document-v1.md](../../maintainer/product-requirements-document-v1.md)
-- [../../maintainer/software-requirements-specification-and-architecture-v1.md](../../maintainer/software-requirements-specification-and-architecture-v1.md)
-- [../../maintainer/validation-checklist.md](../../maintainer/validation-checklist.md)
+- [../../developer/product-requirements-document-v1.md](../../developer/product-requirements-document-v1.md)
+- [../../developer/software-requirements-specification-and-architecture-v1.md](../../developer/software-requirements-specification-and-architecture-v1.md)
+- [../../developer/validation-checklist.md](../../developer/validation-checklist.md)
 
 ## Included Documents
 
