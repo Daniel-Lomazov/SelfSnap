@@ -5,6 +5,13 @@ This folder is starter-kit and reuse guidance.
 It is not part of the active SelfSnap product or maintainer contract for the current HEAD.
 Use [docs/README.md](../../README.md) first when you need current guidance.
 
+## Navigation
+
+- [../../../README.md](../../../README.md): top-level product overview and quick-start hub
+- [../../README.md](../../README.md): full docs map
+- [../README.md](../README.md): archive hub
+- [../../developer/README.md](../../developer/README.md): current maintainer-doc hub
+
 This folder turns SelfSnap from a single product into a reusable Windows tray-app factory.
 
 ## What This Kit Is For Now

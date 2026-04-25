@@ -5,6 +5,13 @@ This folder preserves the superseded planning, scope, limitation, and benchmark 
 It is not part of the active product or maintainer contract for the current HEAD.
 Use [docs/README.md](../../README.md) first when you need current guidance.
 
+## Navigation
+
+- [../../../README.md](../../../README.md): top-level product overview and quick-start hub
+- [../../README.md](../../README.md): full docs map
+- [../README.md](../README.md): archive hub
+- [../../developer/README.md](../../developer/README.md): current maintainer-doc hub
+
 ## What This Folder Is For Now
 
 Use this folder when you need to:

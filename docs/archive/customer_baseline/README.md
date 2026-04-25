@@ -5,6 +5,13 @@ This folder preserves the original customer-side intake pack that shaped SelfSna
 It is not part of the active product or maintainer contract for the current HEAD.
 Use [docs/README.md](../../README.md) first when you need current guidance.
 
+## Navigation
+
+- [../../../README.md](../../../README.md): top-level product overview and quick-start hub
+- [../../README.md](../../README.md): full docs map
+- [../README.md](../README.md): archive hub
+- [../../developer/README.md](../../developer/README.md): current maintainer-doc hub
+
 This package contains the original filled customer-side document set for **SelfSnap Win11**.
 
 The goal of this pack is to show what a serious, reasonably disciplined customer submission can look like before a delivery team writes the PRD, SRS, architecture, privacy, QA, and release documents.

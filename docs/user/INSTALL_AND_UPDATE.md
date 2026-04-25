@@ -1,6 +1,7 @@
 # Install And Update
 
 SelfSnap is currently a source-based Windows 11 application. The supported path is to work from a repository checkout with a local `.venv`.
+This guide tracks the current preview build, not a stable release.
 
 ## Core Rule
 
@@ -32,6 +33,10 @@ What `scripts/user/setup.ps1` does:
 3. installs the package into that environment,
 4. installs dev extras unless `-NoDev` is used,
 5. runs `selfsnap doctor` as a final runtime check.
+
+If `uv venv --clear` cannot remove `.venv\Scripts` because another process is holding files there, the setup script retries in place with `--allow-existing` before it gives up.
+It also stops known background tool executables from `.venv\Scripts` such as `ruff.exe` before retrying recreation or installing packages.
+If a locked developer tool still prevents a full dev-refresh pass, the script keeps the runtime environment usable, warns you, and tells you to rerun setup after closing the locking tool.
 
 The script prints the `.venv` path and the interpreter it selected.
 
@@ -142,6 +147,20 @@ powershell -ExecutionPolicy Bypass -File .\scripts\user\setup.ps1
 ```
 
 Then retry the command from the same checkout.
+
+## Setup fails with access denied under `.venv\Scripts`
+
+The most common cause is another process still holding files inside `.venv\Scripts`.
+Examples include an activated shell, editor tooling, or another Python process from the same checkout.
+
+Run `scripts/user/setup.ps1` again first. It now retries in place with `uv venv --allow-existing` when the clear step cannot remove `.venv\Scripts`.
+It also stops known background tool executables from `.venv\Scripts` such as `ruff.exe` before package installation.
+
+If it still fails:
+
+1. close shells, editors, or Python processes that may be using `.venv`,
+2. rerun `powershell -ExecutionPolicy Bypass -File .\scripts\user\setup.ps1`, or
+3. pass `-VenvPath` to create a different environment path temporarily.
 
 ## Wrapper not found on `PATH`
 

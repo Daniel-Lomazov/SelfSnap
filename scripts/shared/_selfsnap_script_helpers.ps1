@@ -62,7 +62,7 @@ function Resolve-UvManagedPython {
     }
 
     foreach ($version in @("3.12", "3.11")) {
-        $pythonPath = (& $UvCommand python find $version --offline 2>$null).Trim()
+        $pythonPath = (& $UvCommand python find $version --offline --managed-python 2>$null).Trim()
         if ($LASTEXITCODE -eq 0 -and $pythonPath) {
             return $pythonPath
         }

@@ -2,8 +2,16 @@
 
 This folder contains the current end-user documentation set for SelfSnap.
 Use these docs when installing, configuring, running, and troubleshooting the app.
+They track the current preview build, not a stable release.
 
 If you need active developer-facing contract docs or historical reference material, start with [../README.md](../README.md).
+
+## Navigation
+
+- [../../README.md](../../README.md): top-level product overview and quick start
+- [../README.md](../README.md): full docs map
+- [../developer/README.md](../developer/README.md): current maintainer-doc hub
+- [../archive/README.md](../archive/README.md): historical-doc hub
 
 ## Start Here
 
@@ -19,6 +27,12 @@ If you need active developer-facing contract docs or historical reference materi
 - [config.example.json](config.example.json): current example configuration file referenced by the docs.
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md): diagnostics-first recovery steps.
 - [WORKFLOWS.md](WORKFLOWS.md): common day-to-day user flows.
+
+## Keep These In Sync
+
+- Setup, install, update, reinstall, or uninstall guidance: [../../README.md](../../README.md), [INSTALL_AND_UPDATE.md](INSTALL_AND_UPDATE.md), and [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+- Commands, tray actions, or other user-visible entry points: [../../README.md](../../README.md), [CLI_REFERENCE.md](CLI_REFERENCE.md), and [WORKFLOWS.md](WORKFLOWS.md)
+- Config, storage, or schedule behavior: [CONFIG_REFERENCE.md](CONFIG_REFERENCE.md), [WORKFLOWS.md](WORKFLOWS.md), and [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 
 ## What This Folder Is Not
 

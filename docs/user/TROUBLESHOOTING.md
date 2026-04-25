@@ -1,6 +1,7 @@
 # Troubleshooting
 
 When SelfSnap behaves unexpectedly, start with the built-in diagnostics before changing settings blindly.
+This guide tracks the current preview build, not a stable release.
 
 ## Start Here
 
@@ -23,6 +24,20 @@ powershell -ExecutionPolicy Bypass -File .\scripts\user\setup.ps1
 ```
 
 Then retry the command from the same checkout.
+
+## Setup fails with access denied under `.venv\Scripts`
+
+This usually means another process still has a file handle open inside `.venv\Scripts`.
+
+Try this order:
+
+1. rerun `powershell -ExecutionPolicy Bypass -File .\scripts\user\setup.ps1` once, because the script now retries in place with `uv venv --allow-existing` after a failed clear,
+2. let the script stop known background tool processes from `.venv\Scripts` such as `ruff.exe`,
+3. if it still fails, close shells, editors, or Python processes using `.venv`,
+4. rerun the setup script from the repository root,
+5. if you need to keep the locked environment alive temporarily, rerun with `-VenvPath` to create a different environment path.
+
+If setup completes with a warning that development extras could not be fully refreshed, the runtime environment is still usable. Close the locking tool, then rerun `scripts/user/setup.ps1` if you need the full dev toolchain.
 
 ## The wrapper command is not recognized
 

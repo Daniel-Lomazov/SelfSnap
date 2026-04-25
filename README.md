@@ -4,13 +4,31 @@ SelfSnap Win11 is a Windows 11-only, local-first screenshot utility for personal
 
 Current version: `v1.1.0`. Technical release history lives in `CHANGELOG.md`.
 
+This repository currently tracks an active preview build, not a stable release.
+
 SelfSnap is offline by default. The only user-triggered network actions are opening a browser for `Report Issue` and using `Check for Updates`, which queries the GitHub Releases API and optionally fetches the new release tag.
 There is no telemetry or silent upload in normal runtime.
+
+## Start here by need
+
+Use this table as the main jump surface. Every linked README below links back to the others, so you can move between product overview, active docs, and archive material without losing your place.
+
+| If you want to... | Start here |
+|---|---|
+| understand the product quickly | [README.md](README.md) |
+| browse the full documentation map | [docs/README.md](docs/README.md) |
+| install, update, reinstall, or uninstall | [docs/user/INSTALL_AND_UPDATE.md](docs/user/INSTALL_AND_UPDATE.md) |
+| browse all current user docs | [docs/user/README.md](docs/user/README.md) |
+| troubleshoot a problem | [docs/user/TROUBLESHOOTING.md](docs/user/TROUBLESHOOTING.md) |
+| review commands and CLI behavior | [docs/user/CLI_REFERENCE.md](docs/user/CLI_REFERENCE.md) |
+| review common UI and tray flows | [docs/user/WORKFLOWS.md](docs/user/WORKFLOWS.md) |
+| change or validate product behavior | [docs/developer/README.md](docs/developer/README.md) |
+| inspect archived or historical material | [docs/archive/README.md](docs/archive/README.md) |
 
 ## Project status
 
 - Public `v1.1.0` Windows 11 utility with Fluent-style UI, responsive design, and enhanced runtime hardening
-- Stable for personal-use iteration, with versioned releases and CI validation
+- Active preview build for personal-use iteration, not a stable release
 - Source-based install is the primary supported path
 - Public release posture is focused on privacy-minded Windows power users
 - Current trust and release posture is summarized in this README, first-run, Settings, and the product docs; archived v1 release-gate notes now live in `docs/archive/releases/common.release-readiness-criteria-v1.0.md`
@@ -21,7 +39,7 @@ This repository is public for visibility and issue tracking, but the code remain
 
 ## Current release
 
-`v1.1.0` is a stable minor update with comprehensive UI/UX refinement and runtime hardening.
+`v1.1.0` is the current preview build with comprehensive UI/UX refinement and runtime hardening. It is not a stable release, and the install and documentation flow can still change between iterations.
 
 - **Fluent-style Settings redesign.** Complete visual refresh with responsive card/panel layouts that adapt to window width, improved text wrapping, and accessible keyboard navigation.
 - **Enhanced diagnostics and observability.** New diagnostics surface in Settings shows scheduler sync status, storage metrics, retention policy, and operational context in real-time.
@@ -83,6 +101,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\user\install.ps1
 - Creates `%LOCALAPPDATA%\SelfSnap\bin\SelfSnap.cmd` wrapper
 - Adds the bin directory to your user `PATH`
 - Creates a startup shortcut if `start_tray_on_login` is enabled
+
+For the full lifecycle surface, use [docs/user/INSTALL_AND_UPDATE.md](docs/user/INSTALL_AND_UPDATE.md) and [docs/user/CLI_REFERENCE.md](docs/user/CLI_REFERENCE.md).
 
 ### Already installed — just reinstall
 
@@ -225,27 +245,29 @@ SelfSnap diag
 - Include your short description plus `selfsnap diag` output summary.
 - SelfSnap never auto-attaches screenshots, logs, local file paths, or database content.
 
-## Docs layout
+For the broader recovery and reporting path, use [docs/user/TROUBLESHOOTING.md](docs/user/TROUBLESHOOTING.md) and the current user-doc hub at [docs/user/README.md](docs/user/README.md).
 
-- `docs/README.md`: documentation index
-- `docs/user/README.md`: entry point for current user-facing setup, CLI, troubleshooting, config, and workflow guides
-- `docs/developer/README.md`: entry point for the active developer-facing product contract, architecture, and validation docs
-- `docs/archive/README.md`: entry point for historical customer baseline, starter-kit, release, and planning references
+## Documentation hubs
+
+- [docs/README.md](docs/README.md): documentation index and cross-hub map
+- [docs/user/README.md](docs/user/README.md): entry point for current user-facing setup, CLI, troubleshooting, config, and workflow guides
+- [docs/developer/README.md](docs/developer/README.md): entry point for the active developer-facing product contract, architecture, and validation docs
+- [docs/archive/README.md](docs/archive/README.md): entry point for historical customer baseline, starter-kit, release, and planning references
 
 ## Further documentation
 
 If you are using the current source checkout rather than reading historical design material, start with:
 
-- `docs/user/README.md`
-- `docs/user/INSTALL_AND_UPDATE.md`
-- `docs/user/CLI_REFERENCE.md`
-- `docs/user/TROUBLESHOOTING.md`
-- `docs/user/CONFIG_REFERENCE.md`
-- `docs/user/WORKFLOWS.md`
+- [docs/user/README.md](docs/user/README.md)
+- [docs/user/INSTALL_AND_UPDATE.md](docs/user/INSTALL_AND_UPDATE.md)
+- [docs/user/CLI_REFERENCE.md](docs/user/CLI_REFERENCE.md)
+- [docs/user/TROUBLESHOOTING.md](docs/user/TROUBLESHOOTING.md)
+- [docs/user/CONFIG_REFERENCE.md](docs/user/CONFIG_REFERENCE.md)
+- [docs/user/WORKFLOWS.md](docs/user/WORKFLOWS.md)
 
-If you are maintaining the product rather than just using it, start with `docs/developer/README.md` and then use the active PRD, runtime contract, and validation checklist there.
+If you are maintaining the product rather than just using it, start with [docs/developer/README.md](docs/developer/README.md) and then use the active PRD, runtime contract, and validation checklist there.
 
-If you are tracing older decisions or release evidence, start with `docs/archive/README.md`.
+If you are tracing older decisions or release evidence, start with [docs/archive/README.md](docs/archive/README.md).
 
 ## Report Issue
 
@@ -302,6 +324,8 @@ Schedule timing rules:
 - High-frequency schedules such as `seconds` and `minutes` are tray-managed while the tray is running.
 - Coarser schedules such as `hours`, `days`, `weeks`, `months`, and `years` are Windows Task Scheduler-backed.
 
+For broader day-to-day tray and Settings flows, use [docs/user/WORKFLOWS.md](docs/user/WORKFLOWS.md).
+
 ## Config reference
 
 See [docs/user/config.example.json](docs/user/config.example.json) for the full schema.
@@ -329,6 +353,8 @@ Important fields:
 - `scheduler_sync_state`: `ok` or `failed`; when `failed`, manual capture still works and scheduled capture is blocked
 - `settings_window_width` and `settings_window_height`: legacy geometry fields retained for compatibility
 - `schedules`: list of recurring schedule entries with an internal `schedule_id`, plus `label`, `interval_value`, `interval_unit`, `start_date_local`, `start_time_local`, and `enabled`
+
+For the full schema, examples, and config notes, use [docs/user/CONFIG_REFERENCE.md](docs/user/CONFIG_REFERENCE.md) and [docs/user/config.example.json](docs/user/config.example.json).
 
 ## Settings and reset behavior
 
@@ -360,11 +386,22 @@ Important fields:
 
 ## Development
 
+If you are changing runtime, product, or validation behavior rather than just using SelfSnap, start with [docs/developer/README.md](docs/developer/README.md).
+
 Script indexes:
 
 - `scripts/README.md`: top-level script layout
 - `scripts/user/README.md`: user-facing lifecycle entrypoints
 - `scripts/developer/README.md`: developer-only maintenance and packaging helpers
+
+## Documentation sync points
+
+When a doc or user-visible behavior changes, these are the default go-to companions to review in the same pass:
+
+- Setup, install, update, reinstall, or uninstall changes: [README.md](README.md), [docs/user/README.md](docs/user/README.md), [docs/user/INSTALL_AND_UPDATE.md](docs/user/INSTALL_AND_UPDATE.md), [docs/user/TROUBLESHOOTING.md](docs/user/TROUBLESHOOTING.md), and [scripts/user/README.md](scripts/user/README.md)
+- CLI commands, tray actions, or common user flows: [README.md](README.md), [docs/user/CLI_REFERENCE.md](docs/user/CLI_REFERENCE.md), [docs/user/WORKFLOWS.md](docs/user/WORKFLOWS.md), and [docs/user/README.md](docs/user/README.md)
+- Product, runtime, or validation contract changes: [docs/developer/README.md](docs/developer/README.md), [docs/developer/product-requirements-document-v1.md](docs/developer/product-requirements-document-v1.md), [docs/developer/software-requirements-specification-and-architecture-v1.md](docs/developer/software-requirements-specification-and-architecture-v1.md), and [docs/developer/validation-checklist.md](docs/developer/validation-checklist.md)
+- Archive additions, removals, or reclassification: [docs/README.md](docs/README.md), [docs/archive/README.md](docs/archive/README.md), and the affected archive-folder README
 
 ```powershell
 pytest
