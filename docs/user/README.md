@@ -4,6 +4,8 @@ This folder contains the current end-user documentation set for SelfSnap.
 Use these docs when installing, configuring, running, and troubleshooting the app.
 They track the current stable public release line.
 
+The top-level [../../README.md](../../README.md) now stays intentionally compact. Detailed schedule, config, Settings, and troubleshooting routes live here.
+
 If you need active developer-facing contract docs or historical reference material, start with [../README.md](../README.md).
 
 ## Navigation
@@ -27,6 +29,13 @@ If you need active developer-facing contract docs or historical reference materi
 - [config.example.json](config.example.json): current example configuration file referenced by the docs.
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md): diagnostics-first recovery steps.
 - [WORKFLOWS.md](WORKFLOWS.md): common day-to-day user flows.
+
+## Common Routes From The Top-Level README
+
+- Schedule setup, tray actions, Settings behavior, and reset flows: [WORKFLOWS.md](WORKFLOWS.md)
+- Config keys, storage roots, presets, and schedule schema: [CONFIG_REFERENCE.md](CONFIG_REFERENCE.md)
+- Diagnostics, recovery steps, and safe `Report Issue` usage: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+- Install, update, reinstall, and uninstall guidance: [INSTALL_AND_UPDATE.md](INSTALL_AND_UPDATE.md)
 
 ## Keep These In Sync
 

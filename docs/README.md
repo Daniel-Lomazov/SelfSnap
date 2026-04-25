@@ -1,6 +1,6 @@
 # Documentation Layout
 
-Use this index to distinguish current user docs, current developer docs, and historical reference material.
+Use this index when the compact top-level README has pointed you into the docs tree and you need the detailed version.
 This documentation set tracks the current stable public release line and current HEAD behavior.
 
 ## Navigation hubs
@@ -12,11 +12,12 @@ This documentation set tracks the current stable public release line and current
 
 ## Start Here
 
-- [../README.md](../README.md) for end-user-facing product overview, install flow, commands, and release posture.
+- [../README.md](../README.md) for the compact product overview, trust posture, and top-level jump surface.
 - [../CHANGELOG.md](../CHANGELOG.md) for the technical release history.
 - [user/README.md](user/README.md) for the current user docs index.
 - [developer/README.md](developer/README.md) for the active developer contract and validation docs index.
 - [archive/README.md](archive/README.md) for historical reference packs and retired release material.
+- Use `user/` when you need the full procedural detail that the top-level README intentionally does not repeat.
 - [user/INSTALL_AND_UPDATE.md](user/INSTALL_AND_UPDATE.md) for setup, install, update, reinstall, and uninstall guidance.
 - [user/CLI_REFERENCE.md](user/CLI_REFERENCE.md) for the current command-line surface.
 - [user/TROUBLESHOOTING.md](user/TROUBLESHOOTING.md) for recovery steps and diagnostics.

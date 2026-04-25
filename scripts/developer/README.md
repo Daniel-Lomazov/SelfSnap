@@ -2,6 +2,7 @@
 
 These scripts are for repository maintenance, validation, packaging, and publishing work.
 They are not required for everyday SelfSnap use after the user lifecycle scripts have completed.
+They back both the local packaging lane and the GitHub Actions artifact-publishing flow.
 
 Run them from the repository root:
 

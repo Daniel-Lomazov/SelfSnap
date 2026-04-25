@@ -14,6 +14,9 @@ on:
         default: "main"
         type: string
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 permissions:
   contents: read
 
@@ -32,10 +35,10 @@ jobs:
       )
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.git_ref || github.event.workflow_run.head_sha }}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Set up repository-local virtual environment
@@ -43,7 +46,7 @@ jobs:
       - name: Build Windows distribution artifacts
         run: .\scripts\developer\package_windows.ps1 -PythonExe ".\.venv\Scripts\python.exe"
       - name: Upload Windows distribution artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: selfsnap-windows-${{ github.run_number }}
           path: |

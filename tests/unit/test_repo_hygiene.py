@@ -205,13 +205,25 @@ def test_repo_contains_github_automation_for_ci_and_issue_intake() -> None:
     assert "windows-latest" in ci
     assert "compileall src tests" in ci
     assert "pytest -q" in ci
+    assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true" in ci
+    assert "actions/checkout@v6" in ci
+    assert "actions/setup-python@v6" in ci
     assert "workflow_run" in package_main
     assert "package_windows.ps1" in package_main
-    assert "upload-artifact@v4" in package_main
+    assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true" in package_main
+    assert "actions/checkout@v6" in package_main
+    assert "actions/setup-python@v6" in package_main
+    assert "upload-artifact@v7" in package_main
     assert "windows-release-assets" in release
     assert "gh release upload" in release
     assert "package_windows.ps1" in release
-    assert "actions/github-script" in intake
+    assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true" in release
+    assert "actions/checkout@v6" in release
+    assert "actions/setup-python@v6" in release
+    assert "actions/upload-artifact@v7" in release
+    assert "actions/github-script@v9" in release
+    assert "actions/github-script@v9" in intake
+    assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true" in intake
     assert "ready-for-local-planning" in intake
     assert "selfsnap-planning-intake" in intake
 
