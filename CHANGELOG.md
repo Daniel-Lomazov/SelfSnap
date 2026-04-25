@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **CI tooling — Ruff pinned for workflow parity.** The GitHub Actions quality job now installs the same Ruff version validated locally so successful `main` pushes can reach the Windows packaging workflow instead of being blocked by unrelated legacy style drift from a newer linter release.
+
 ## v1.3.2 - 2026-04-25
 
 Why: Ship the new Windows packaging automation as the next public release so successful `main` builds and future tags publish downloadable compiled artifacts on GitHub.
