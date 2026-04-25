@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix
+  xmlns="http://schemas.microsoft.com/wix/2006/wi"
+  xmlns:bal="http://schemas.microsoft.com/wix/BalExtension">
+  <Bundle
+    Name="SelfSnap"
+    Version="$(var.ProductVersion)"
+    Manufacturer="Daniel"
+    UpgradeCode="C4E4A9D7-CC6B-4B40-BC52-6A16D1C9E0E7">
+    <BootstrapperApplicationRef Id="WixStandardBootstrapperApplication.HyperlinkLicense">
+      <bal:WixStandardBootstrapperApplication
+        LicenseUrl="https://github.com/Daniel-Lomazov/SelfSnap/blob/main/LICENSE"
+        ShowVersion="yes"
+        SuppressOptionsUI="yes" />
+    </BootstrapperApplicationRef>
+
+    <Chain>
+      <MsiPackage SourceFile="$(var.MsiPath)" DisplayInternalUI="yes" />
+    </Chain>
+  </Bundle>
+</Wix>

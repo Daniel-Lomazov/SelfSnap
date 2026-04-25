@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product
+    Id="*"
+    Name="SelfSnap"
+    Language="1033"
+    Version="$(var.ProductVersion)"
+    Manufacturer="Daniel"
+    UpgradeCode="B3A8E9E0-4D76-4B74-BD0B-EA85B3A8B3A1">
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perUser" InstallPrivileges="limited" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of SelfSnap is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+    <Property Id="ARPNOMODIFY" Value="yes" />
+    <Property Id="ARPNOREPAIR" Value="yes" />
+
+    <Feature Id="MainFeature" Title="SelfSnap" Level="1" Display="expand">
+      <ComponentRef Id="TrayExeComponent" />
+      <ComponentRef Id="WorkerExeComponent" />
+      <ComponentRef Id="PortableReadmeComponent" />
+      <ComponentRef Id="StartMenuShortcutComponent" />
+    </Feature>
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="LocalAppDataFolder">
+        <Directory Id="SelfSnapProgramsFolder" Name="Programs">
+          <Directory Id="INSTALLFOLDER" Name="SelfSnap" />
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="SelfSnapProgramMenuFolder" Name="SelfSnap" />
+      </Directory>
+    </Directory>
+
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="TrayExeComponent" Guid="*">
+        <File Id="TrayExeFile" Source="$(var.StageDir)\SelfSnapTray.exe" KeyPath="yes" />
+      </Component>
+
+      <Component Id="WorkerExeComponent" Guid="*">
+        <File Id="WorkerExeFile" Source="$(var.StageDir)\SelfSnapWorker.exe" KeyPath="yes" />
+      </Component>
+
+      <Component Id="PortableReadmeComponent" Guid="*">
+        <File Id="PortableReadmeFile" Source="$(var.StageDir)\README.txt" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="SelfSnapProgramMenuFolder">
+      <Component Id="StartMenuShortcutComponent" Guid="*">
+        <Shortcut
+          Id="TrayShortcut"
+          Name="SelfSnap"
+          Description="Launch the SelfSnap tray application"
+          Target="[INSTALLFOLDER]SelfSnapTray.exe"
+          WorkingDirectory="INSTALLFOLDER" />
+        <RemoveFolder Id="RemoveSelfSnapProgramMenuFolder" On="uninstall" />
+        <RegistryValue
+          Root="HKCU"
+          Key="Software\Daniel\SelfSnap"
+          Name="Installed"
+          Type="integer"
+          Value="1"
+          KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+  </Product>
+</Wix>
